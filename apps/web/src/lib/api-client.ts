@@ -14,6 +14,11 @@ import type {
 } from "@app/types";
 import { tokenStore } from "./token-store";
 
+// In local dev, "/api" is proxied to the NestJS server by vite.config.ts.
+// In production the web app is served as static files with no proxy, so the
+// deployed API's absolute URL must be baked in at build time via this env var.
+const API_BASE = import.meta.env.VITE_API_URL ?? "/api";
+
 class ApiError extends Error {
   constructor(
     public status: number,
@@ -30,7 +35,7 @@ async function refreshAccessToken(): Promise<boolean> {
   if (!refreshToken) return false;
 
   if (!refreshInFlight) {
-    refreshInFlight = fetch("/api/auth/refresh", {
+    refreshInFlight = fetch(`${API_BASE}/auth/refresh`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ refreshToken }),
@@ -55,7 +60,7 @@ async function request<T>(path: string, options: RequestInit = {}, isRetry = fal
   headers.set("Content-Type", "application/json");
   if (accessToken) headers.set("Authorization", `Bearer ${accessToken}`);
 
-  const res = await fetch(`/api${path}`, { ...options, headers });
+  const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
 
   if (res.status === 401 && !isRetry) {
     const refreshed = await refreshAccessToken();
