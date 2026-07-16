@@ -1,0 +1,72 @@
+name: Version bump
+
+# Auto-bumps the PATCH version on every merge to main. MINOR/MAJOR bumps
+# are manual: run `pnpm version:minor` / `pnpm version:major` locally and
+# commit the result yourself — this workflow detects that the version
+# already changed in the merge commit and just tags it instead of also
+# bumping PATCH on top of it. See scripts/bump-version.mjs.
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+concurrency:
+  group: version-bump-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  bump:
+    # The bump commit itself includes "[skip ci]", which GitHub Actions
+    # honors by not triggering this workflow again — no extra guard needed
+    # to avoid an infinite loop.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Determine current and previous version
+        id: versions
+        run: |
+          current=$(node -p "require('./package.json').version")
+          if git rev-parse HEAD^ >/dev/null 2>&1; then
+            previous=$(git show HEAD^:package.json | node -p "JSON.parse(require('fs').readFileSync(0, 'utf8')).version" 2>/dev/null || echo "")
+          else
+            previous=""
+          fi
+          echo "current=$current" >> "$GITHUB_OUTPUT"
+          echo "previous=$previous" >> "$GITHUB_OUTPUT"
+
+      - name: Bump patch version (only if version wasn't already bumped manually)
+        id: bump
+        if: steps.versions.outputs.current == steps.versions.outputs.previous
+        run: |
+          new_version=$(node scripts/bump-version.mjs patch)
+          echo "version=$new_version" >> "$GITHUB_OUTPUT"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add package.json 'apps/*/package.json' 'packages/*/package.json'
+          git commit -m "chore(release): v$new_version [skip ci]"
+          git tag "v$new_version"
+          git push origin HEAD:main
+          git push origin "v$new_version"
+
+      - name: Tag manually-bumped version
+        if: steps.versions.outputs.current != steps.versions.outputs.previous
+        run: |
+          version="${{ steps.versions.outputs.current }}"
+          if git rev-parse "v$version" >/dev/null 2>&1; then
+            echo "Tag v$version already exists, skipping."
+          else
+            git tag "v$version"
+            git push origin "v$version"
+          fi
