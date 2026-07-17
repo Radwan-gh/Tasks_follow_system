@@ -1,11 +1,9 @@
 {
   "$schema": "https://schema.railpack.com",
   "steps": {
-    "install": {
-      "commands": ["pnpm install --frozen-lockfile"]
-    },
     "build": {
       "commands": [
+        "pnpm install --frozen-lockfile",
         "pnpm --filter @app/types build",
         "pnpm --filter @app/web build"
       ]
