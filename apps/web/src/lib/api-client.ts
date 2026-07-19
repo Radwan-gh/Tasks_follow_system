@@ -9,6 +9,7 @@ import type {
   List,
   LoginRequest,
   RegisterRequest,
+  UpdateBoardRequest,
   UpdateCardRequest,
   UpdateListRequest,
 } from "@app/types";
@@ -90,6 +91,8 @@ export const api = {
     list: () => request<BoardSummary[]>("/boards"),
     create: (body: CreateBoardRequest) => request<BoardSummary>("/boards", { method: "POST", body: JSON.stringify(body) }),
     get: (id: string) => request<BoardDetail>(`/boards/${id}`),
+    update: (id: string, body: UpdateBoardRequest) =>
+      request<BoardSummary>(`/boards/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
     addMember: (id: string, email: string) =>
       request<unknown>(`/boards/${id}/members`, { method: "POST", body: JSON.stringify({ email }) }),
   },

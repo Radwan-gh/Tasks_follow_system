@@ -62,6 +62,9 @@ export function BoardsListPage() {
                 className="block rounded-lg bg-white p-4 shadow-sm hover:shadow"
               >
                 <span className="font-medium text-slate-900">{board.name}</span>
+                {board.description && (
+                  <p className="mt-1 truncate text-sm text-slate-500">{board.description}</p>
+                )}
               </Link>
             </li>
           ))}
