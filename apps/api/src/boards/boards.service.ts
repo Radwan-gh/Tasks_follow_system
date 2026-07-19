@@ -27,7 +27,7 @@ export class BoardsService {
 
   async listForUser(userId: string) {
     const boards = await this.prisma.board.findMany({
-      where: { members: { some: { userId } } },
+      where: { members: { some: { userId } }, isArchived: false },
       orderBy: { updatedAt: "desc" },
     });
     return boards.map(serializeBoard);

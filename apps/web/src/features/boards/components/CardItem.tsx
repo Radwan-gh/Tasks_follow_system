@@ -1,12 +1,27 @@
+import { useState, type MouseEvent, type PointerEvent } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import type { Card } from "@app/types";
 
-export function CardItem({ card, onOpen }: { card: Card; onOpen: () => void }) {
+export function CardItem({ card, onOpen, onDelete }: { card: Card; onOpen: () => void; onDelete: () => void }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: card.id,
     data: { type: "card" },
   });
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+
+  function closeMenu() {
+    setMenuOpen(false);
+    setConfirmingDelete(false);
+  }
+
+  // The card root carries dnd-kit pointer listeners and an onClick that opens
+  // the detail modal — the menu button must not trigger either.
+  const stop = {
+    onPointerDown: (e: PointerEvent) => e.stopPropagation(),
+    onClick: (e: MouseEvent) => e.stopPropagation(),
+  };
 
   return (
     <div
@@ -15,11 +30,68 @@ export function CardItem({ card, onOpen }: { card: Card; onOpen: () => void }) {
       {...attributes}
       {...listeners}
       onClick={onOpen}
-      className="cursor-grab rounded bg-white p-2 text-sm text-slate-800 shadow-sm hover:shadow"
+      className="group relative cursor-grab rounded bg-white p-2 pr-7 text-sm text-slate-800 shadow-sm hover:shadow"
     >
       {card.title}
       {card.dueDate && (
         <div className="mt-1 text-xs text-slate-400">{new Date(card.dueDate).toLocaleDateString()}</div>
+      )}
+      <button
+        {...stop}
+        onClick={(e) => {
+          e.stopPropagation();
+          setMenuOpen((open) => !open);
+          setConfirmingDelete(false);
+        }}
+        title="Card actions"
+        className="absolute right-1 top-1 rounded px-1 text-slate-400 opacity-0 hover:bg-slate-100 hover:text-slate-600 focus:opacity-100 group-hover:opacity-100"
+      >
+        …
+      </button>
+      {menuOpen && (
+        <>
+          <div {...stop} className="fixed inset-0 z-10" onClick={(e) => { e.stopPropagation(); closeMenu(); }} />
+          <div
+            {...stop}
+            className="absolute right-1 top-6 z-20 w-36 rounded-md border border-slate-200 bg-white py-1 text-sm shadow-lg"
+          >
+            <button
+              {...stop}
+              onClick={(e) => {
+                e.stopPropagation();
+                closeMenu();
+                onOpen();
+              }}
+              className="block w-full px-3 py-1.5 text-left text-slate-700 hover:bg-slate-100"
+            >
+              Open
+            </button>
+            {confirmingDelete ? (
+              <button
+                {...stop}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  closeMenu();
+                  onDelete();
+                }}
+                className="block w-full px-3 py-1.5 text-left font-medium text-white bg-red-600 hover:bg-red-500"
+              >
+                Confirm delete
+              </button>
+            ) : (
+              <button
+                {...stop}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setConfirmingDelete(true);
+                }}
+                className="block w-full px-3 py-1.5 text-left text-red-600 hover:bg-red-50"
+              >
+                Delete
+              </button>
+            )}
+          </div>
+        </>
       )}
     </div>
   );

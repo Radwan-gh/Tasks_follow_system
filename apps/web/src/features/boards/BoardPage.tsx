@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   DndContext,
@@ -17,7 +17,9 @@ import type { Card, List } from "@app/types";
 import { api } from "../../lib/api-client";
 import { CardPreview } from "./components/CardItem";
 import { CardDetailModal } from "./components/CardDetailModal";
+import { BoardSettingsModal } from "./components/BoardSettingsModal";
 import { ListColumn } from "./components/ListColumn";
+import { useAuth } from "../auth/AuthContext";
 
 function resolveTargetListId(
   over: { id: string | number; data: { current?: Record<string, unknown> } },
@@ -33,6 +35,8 @@ function resolveTargetListId(
 
 export function BoardPage() {
   const { boardId } = useParams<{ boardId: string }>();
+  const navigate = useNavigate();
+  const { user } = useAuth();
   const queryClient = useQueryClient();
   const { data: board, isLoading } = useQuery({
     queryKey: ["board", boardId],
@@ -43,6 +47,7 @@ export function BoardPage() {
   const [lists, setLists] = useState<List[]>([]);
   const [activeCard, setActiveCard] = useState<Card | null>(null);
   const [openCardId, setOpenCardId] = useState<string | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [newListName, setNewListName] = useState("");
 
   useEffect(() => {
@@ -73,6 +78,13 @@ export function BoardPage() {
   const createCardMutation = useMutation({
     mutationFn: (vars: { listId: string; title: string }) => api.cards.create(vars.listId, { title: vars.title }),
     onSuccess: invalidate,
+  });
+  const deleteCardMutation = useMutation({
+    mutationFn: (cardId: string) => api.cards.remove(cardId),
+    onSuccess: (_data, cardId) => {
+      setOpenCardId((open) => (open === cardId ? null : open));
+      invalidate();
+    },
   });
 
   function findListOfCard(cardId: string): List | undefined {
@@ -153,6 +165,7 @@ export function BoardPage() {
   }
 
   const openCard = openCardId ? lists.flatMap((l) => l.cards).find((c) => c.id === openCardId) ?? null : null;
+  const isOwner = board.members.some((m) => m.userId === user?.id && m.role === "OWNER");
 
   return (
     <div className="flex h-screen flex-col bg-slate-100">
@@ -160,7 +173,21 @@ export function BoardPage() {
         <Link to="/boards" className="text-sm text-slate-500 hover:underline">
           ← Boards
         </Link>
-        <h1 className="text-lg font-semibold text-slate-900">{board.name}</h1>
+        <div className="flex min-w-0 items-baseline gap-3">
+          <h1 className="text-lg font-semibold text-slate-900">{board.name}</h1>
+          {board.description && (
+            <p className="truncate text-sm text-slate-500" title={board.description}>
+              {board.description}
+            </p>
+          )}
+        </div>
+        <button
+          onClick={() => setSettingsOpen(true)}
+          className="rounded px-2 py-1 text-sm text-slate-500 hover:bg-slate-100"
+          title="Board settings"
+        >
+          Edit
+        </button>
       </header>
       <div className="flex-1 overflow-x-auto p-6">
         <DndContext
@@ -178,6 +205,7 @@ export function BoardPage() {
                   list={list}
                   onAddCard={(title) => createCardMutation.mutate({ listId: list.id, title })}
                   onOpenCard={setOpenCardId}
+                  onDeleteCard={(id) => deleteCardMutation.mutate(id)}
                 />
               ))}
               <form
@@ -208,6 +236,23 @@ export function BoardPage() {
           onSave={async (updates) => {
             await api.cards.update(openCard.id, updates);
             invalidate();
+          }}
+        />
+      )}
+      {settingsOpen && (
+        <BoardSettingsModal
+          board={board}
+          canArchive={isOwner}
+          onClose={() => setSettingsOpen(false)}
+          onSave={async (updates) => {
+            await api.boards.update(board.id, updates);
+            invalidate();
+            queryClient.invalidateQueries({ queryKey: ["boards"] });
+          }}
+          onArchive={async () => {
+            await api.boards.update(board.id, { isArchived: true });
+            queryClient.invalidateQueries({ queryKey: ["boards"] });
+            navigate("/boards");
           }}
         />
       )}

@@ -9,9 +9,10 @@ interface ListColumnProps {
   list: List;
   onAddCard: (title: string) => void;
   onOpenCard: (id: string) => void;
+  onDeleteCard: (id: string) => void;
 }
 
-export function ListColumn({ list, onAddCard, onOpenCard }: ListColumnProps) {
+export function ListColumn({ list, onAddCard, onOpenCard, onDeleteCard }: ListColumnProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: list.id,
     data: { type: "list" },
@@ -34,7 +35,12 @@ export function ListColumn({ list, onAddCard, onOpenCard }: ListColumnProps) {
       <div ref={setDropzoneRef} className="flex min-h-[24px] flex-1 flex-col gap-2">
         <SortableContext items={list.cards.map((c) => c.id)} strategy={verticalListSortingStrategy}>
           {list.cards.map((card) => (
-            <CardItem key={card.id} card={card} onOpen={() => onOpenCard(card.id)} />
+            <CardItem
+              key={card.id}
+              card={card}
+              onOpen={() => onOpenCard(card.id)}
+              onDelete={() => onDeleteCard(card.id)}
+            />
           ))}
         </SortableContext>
       </div>
