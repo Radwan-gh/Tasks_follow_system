@@ -8,14 +8,14 @@ import { UsersAdminPage } from "./features/admin/UsersAdminPage";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
-  if (isLoading) return <div className="p-8 text-slate-500">Loading...</div>;
+  if (isLoading) return <div className="p-8 text-slate-500">جارٍ التحميل...</div>;
   if (!user) return <Navigate to="/login" replace />;
   return <>{children}</>;
 }
 
 function AdminRoute({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
-  if (isLoading) return <div className="p-8 text-slate-500">Loading...</div>;
+  if (isLoading) return <div className="p-8 text-slate-500">جارٍ التحميل...</div>;
   if (!user) return <Navigate to="/login" replace />;
   if (user.role !== "ADMIN") return <Navigate to="/boards" replace />;
   return <>{children}</>;

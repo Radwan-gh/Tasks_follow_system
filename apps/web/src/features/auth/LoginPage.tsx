@@ -18,7 +18,7 @@ export function LoginPage() {
       await login({ email, password });
       navigate("/boards");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Login failed");
+      setError(err instanceof Error ? err.message : "فشل تسجيل الدخول");
     } finally {
       setSubmitting(false);
     }
@@ -27,12 +27,12 @@ export function LoginPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-slate-100">
       <form onSubmit={onSubmit} className="w-full max-w-sm space-y-4 rounded-lg bg-white p-8 shadow">
-        <h1 className="text-xl font-semibold text-slate-900">Log in</h1>
+        <h1 className="text-xl font-semibold text-slate-900">تسجيل الدخول</h1>
         {error && <p className="rounded bg-red-50 p-2 text-sm text-red-600">{error}</p>}
         <input
           type="email"
           required
-          placeholder="Email"
+          placeholder="البريد الإلكتروني"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
@@ -40,7 +40,7 @@ export function LoginPage() {
         <input
           type="password"
           required
-          placeholder="Password"
+          placeholder="كلمة المرور"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
@@ -50,12 +50,12 @@ export function LoginPage() {
           disabled={submitting}
           className="w-full rounded bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
         >
-          {submitting ? "Logging in..." : "Log in"}
+          {submitting ? "جارٍ تسجيل الدخول..." : "تسجيل الدخول"}
         </button>
         <p className="text-center text-sm text-slate-500">
-          No account?{" "}
+          ليس لديك حساب؟{" "}
           <Link to="/register" className="text-slate-900 underline">
-            Register
+            إنشاء حساب
           </Link>
         </p>
       </form>

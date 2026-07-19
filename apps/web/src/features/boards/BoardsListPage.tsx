@@ -25,16 +25,16 @@ export function BoardsListPage() {
   return (
     <div className="min-h-screen bg-slate-100">
       <header className="flex items-center justify-between border-b bg-white px-6 py-4">
-        <h1 className="text-lg font-semibold text-slate-900">Boards</h1>
+        <h1 className="text-lg font-semibold text-slate-900">اللوحات</h1>
         <div className="flex items-center gap-3 text-sm text-slate-600">
           {user?.role === "ADMIN" && (
             <Link to="/admin/users" className="text-slate-500 underline">
-              Users &amp; permissions
+              المستخدمون والصلاحيات
             </Link>
           )}
           <span>{user?.displayName}</span>
           <button onClick={logout} className="text-slate-500 underline">
-            Log out
+            تسجيل الخروج
           </button>
         </div>
       </header>
@@ -44,7 +44,7 @@ export function BoardsListPage() {
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="New board name"
+            placeholder="اسم اللوحة الجديدة"
             className="flex-1 rounded border border-slate-300 px-3 py-2 text-sm"
           />
           <button
@@ -52,12 +52,12 @@ export function BoardsListPage() {
             disabled={createBoard.isPending}
             className="rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
           >
-            Create board
+            إنشاء لوحة
           </button>
         </form>
 
-        {isLoading && <p className="text-slate-500">Loading boards...</p>}
-        {!isLoading && boards?.length === 0 && <p className="text-slate-500">No boards yet — create one above.</p>}
+        {isLoading && <p className="text-slate-500">جارٍ تحميل اللوحات...</p>}
+        {!isLoading && boards?.length === 0 && <p className="text-slate-500">لا توجد لوحات بعد — أنشئ واحدة بالأعلى.</p>}
 
         <ul className="space-y-2">
           {boards?.map((board) => (

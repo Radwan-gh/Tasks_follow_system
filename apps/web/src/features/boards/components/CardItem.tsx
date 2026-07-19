@@ -30,7 +30,7 @@ export function CardItem({ card, onOpen, onDelete }: { card: Card; onOpen: () =>
       {...attributes}
       {...listeners}
       onClick={onOpen}
-      className="group relative cursor-grab rounded bg-white p-2 pr-7 text-sm text-slate-800 shadow-sm hover:shadow"
+      className="group relative cursor-grab rounded bg-white p-2 pe-7 text-sm text-slate-800 shadow-sm hover:shadow"
     >
       {card.title}
       {card.dueDate && (
@@ -43,8 +43,8 @@ export function CardItem({ card, onOpen, onDelete }: { card: Card; onOpen: () =>
           setMenuOpen((open) => !open);
           setConfirmingDelete(false);
         }}
-        title="Card actions"
-        className="absolute right-1 top-1 rounded px-1 text-slate-400 opacity-0 hover:bg-slate-100 hover:text-slate-600 focus:opacity-100 group-hover:opacity-100"
+        title="إجراءات البطاقة"
+        className="absolute end-1 top-1 rounded px-1 text-slate-400 opacity-0 hover:bg-slate-100 hover:text-slate-600 focus:opacity-100 group-hover:opacity-100"
       >
         …
       </button>
@@ -53,7 +53,7 @@ export function CardItem({ card, onOpen, onDelete }: { card: Card; onOpen: () =>
           <div {...stop} className="fixed inset-0 z-10" onClick={(e) => { e.stopPropagation(); closeMenu(); }} />
           <div
             {...stop}
-            className="absolute right-1 top-6 z-20 w-36 rounded-md border border-slate-200 bg-white py-1 text-sm shadow-lg"
+            className="absolute end-1 top-6 z-20 w-36 rounded-md border border-slate-200 bg-white py-1 text-sm shadow-lg"
           >
             <button
               {...stop}
@@ -62,9 +62,9 @@ export function CardItem({ card, onOpen, onDelete }: { card: Card; onOpen: () =>
                 closeMenu();
                 onOpen();
               }}
-              className="block w-full px-3 py-1.5 text-left text-slate-700 hover:bg-slate-100"
+              className="block w-full px-3 py-1.5 text-start text-slate-700 hover:bg-slate-100"
             >
-              Open
+              فتح
             </button>
             {confirmingDelete ? (
               <button
@@ -74,9 +74,9 @@ export function CardItem({ card, onOpen, onDelete }: { card: Card; onOpen: () =>
                   closeMenu();
                   onDelete();
                 }}
-                className="block w-full px-3 py-1.5 text-left font-medium text-white bg-red-600 hover:bg-red-500"
+                className="block w-full px-3 py-1.5 text-start font-medium text-white bg-red-600 hover:bg-red-500"
               >
-                Confirm delete
+                تأكيد الحذف
               </button>
             ) : (
               <button
@@ -85,9 +85,9 @@ export function CardItem({ card, onOpen, onDelete }: { card: Card; onOpen: () =>
                   e.stopPropagation();
                   setConfirmingDelete(true);
                 }}
-                className="block w-full px-3 py-1.5 text-left text-red-600 hover:bg-red-50"
+                className="block w-full px-3 py-1.5 text-start text-red-600 hover:bg-red-50"
               >
-                Delete
+                حذف
               </button>
             )}
           </div>

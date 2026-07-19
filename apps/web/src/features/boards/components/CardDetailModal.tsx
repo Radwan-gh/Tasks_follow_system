@@ -41,12 +41,12 @@ export function CardDetailModal({ card, onClose, onSave }: CardDetailModalProps)
         <textarea
           value={description}
           onChange={(e) => setDescription(e.target.value)}
-          placeholder="Description"
+          placeholder="الوصف"
           rows={4}
           className="w-full rounded border border-slate-300 p-2 text-sm"
         />
         <div>
-          <label className="block text-xs font-medium text-slate-500">Due date</label>
+          <label className="block text-xs font-medium text-slate-500">تاريخ الاستحقاق</label>
           <input
             type="date"
             value={dueDate}
@@ -56,14 +56,14 @@ export function CardDetailModal({ card, onClose, onSave }: CardDetailModalProps)
         </div>
         <div className="flex justify-end gap-2 pt-2">
           <button onClick={onClose} className="rounded px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-100">
-            Cancel
+            إلغاء
           </button>
           <button
             onClick={handleSave}
             disabled={saving}
             className="rounded bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
           >
-            {saving ? "Saving..." : "Save"}
+            {saving ? "جارٍ الحفظ..." : "حفظ"}
           </button>
         </div>
       </div>
