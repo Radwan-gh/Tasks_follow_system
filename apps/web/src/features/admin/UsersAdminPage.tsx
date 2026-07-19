@@ -30,7 +30,7 @@ export function UsersAdminPage() {
   });
 
   const onMutationError = (err: unknown) => {
-    setError(err instanceof ApiError ? err.message : "Something went wrong");
+    setError(err instanceof ApiError ? err.message : "حدث خطأ ما");
   };
   const onMutationSuccess = () => {
     setError(null);
@@ -50,15 +50,15 @@ export function UsersAdminPage() {
   });
 
   function onRoleChange(id: string, email: string, role: UserRole) {
-    const label = role === "ADMIN" ? `Make ${email} an admin?` : `Remove admin rights from ${email}?`;
+    const label = role === "ADMIN" ? `منح ${email} صلاحيات المشرف؟` : `إزالة صلاحيات المشرف من ${email}؟`;
     if (!window.confirm(label)) return;
     updateRole.mutate({ id, role });
   }
 
   function onStatusToggle(id: string, email: string, isActive: boolean) {
     const label = isActive
-      ? `Reactivate ${email}? They will be able to log in again.`
-      : `Deactivate ${email}? They will be logged out and unable to log in. Their boards and cards are kept.`;
+      ? `إعادة تفعيل ${email}؟ سيتمكن من تسجيل الدخول مرة أخرى.`
+      : `إلغاء تفعيل ${email}؟ سيتم تسجيل خروجه ولن يتمكن من تسجيل الدخول. سيتم الاحتفاظ بلوحاته وبطاقاته.`;
     if (!window.confirm(label)) return;
     updateStatus.mutate({ id, isActive });
   }
@@ -70,15 +70,15 @@ export function UsersAdminPage() {
     <div className="min-h-screen bg-slate-100">
       <header className="flex items-center justify-between border-b bg-white px-6 py-4">
         <div className="flex items-center gap-4">
-          <h1 className="text-lg font-semibold text-slate-900">Users &amp; permissions</h1>
+          <h1 className="text-lg font-semibold text-slate-900">المستخدمون والصلاحيات</h1>
           <Link to="/boards" className="text-sm text-slate-500 underline">
-            Back to boards
+            العودة إلى اللوحات
           </Link>
         </div>
         <div className="flex items-center gap-3 text-sm text-slate-600">
           <span>{currentUser?.displayName}</span>
           <button onClick={logout} className="text-slate-500 underline">
-            Log out
+            تسجيل الخروج
           </button>
         </div>
       </header>
@@ -88,33 +88,33 @@ export function UsersAdminPage() {
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by email or name"
+            placeholder="ابحث بالبريد الإلكتروني أو الاسم"
             className="w-72 rounded border border-slate-300 px-3 py-2 text-sm"
           />
           {data && (
             <span className="text-sm text-slate-500">
-              {data.total} user{data.total === 1 ? "" : "s"}
+              {data.total} {data.total === 1 ? "مستخدم" : "مستخدم"}
             </span>
           )}
         </div>
 
         {error && <div className="mb-4 rounded bg-red-50 px-3 py-2 text-sm text-red-600">{error}</div>}
 
-        {isLoading && <p className="text-slate-500">Loading users...</p>}
-        {!isLoading && data?.users.length === 0 && <p className="text-slate-500">No users match your search.</p>}
+        {isLoading && <p className="text-slate-500">جارٍ تحميل المستخدمين...</p>}
+        {!isLoading && data?.users.length === 0 && <p className="text-slate-500">لا يوجد مستخدمون يطابقون بحثك.</p>}
 
         {data && data.users.length > 0 && (
           <div className="overflow-x-auto rounded-lg bg-white shadow-sm">
-            <table className="w-full text-left text-sm">
+            <table className="w-full text-start text-sm">
               <thead>
                 <tr className="border-b text-xs uppercase tracking-wide text-slate-500">
-                  <th className="px-4 py-3">Name</th>
-                  <th className="px-4 py-3">Email</th>
-                  <th className="px-4 py-3">Role</th>
-                  <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3">Boards</th>
-                  <th className="px-4 py-3">Joined</th>
-                  <th className="px-4 py-3">Actions</th>
+                  <th className="px-4 py-3">الاسم</th>
+                  <th className="px-4 py-3">البريد الإلكتروني</th>
+                  <th className="px-4 py-3">الصلاحية</th>
+                  <th className="px-4 py-3">الحالة</th>
+                  <th className="px-4 py-3">اللوحات</th>
+                  <th className="px-4 py-3">تاريخ الانضمام</th>
+                  <th className="px-4 py-3">الإجراءات</th>
                 </tr>
               </thead>
               <tbody>
@@ -124,7 +124,7 @@ export function UsersAdminPage() {
                     <tr key={u.id} className="border-b last:border-b-0">
                       <td className="px-4 py-3 font-medium text-slate-900">
                         {u.displayName}
-                        {isSelf && <span className="ml-2 text-xs text-slate-400">(you)</span>}
+                        {isSelf && <span className="ms-2 text-xs text-slate-400">(أنت)</span>}
                       </td>
                       <td className="px-4 py-3 text-slate-600">{u.email}</td>
                       <td className="px-4 py-3">
@@ -135,7 +135,7 @@ export function UsersAdminPage() {
                               : "rounded bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600"
                           }
                         >
-                          {u.role}
+                          {u.role === "ADMIN" ? "مشرف" : "مستخدم"}
                         </span>
                       </td>
                       <td className="px-4 py-3">
@@ -146,11 +146,11 @@ export function UsersAdminPage() {
                               : "rounded bg-red-50 px-2 py-0.5 text-xs font-medium text-red-600"
                           }
                         >
-                          {u.isActive ? "Active" : "Deactivated"}
+                          {u.isActive ? "نشط" : "غير مفعّل"}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-slate-600">{u.boardCount}</td>
-                      <td className="px-4 py-3 text-slate-600">{new Date(u.createdAt).toLocaleDateString()}</td>
+                      <td className="px-4 py-3 text-slate-600">{new Date(u.createdAt).toLocaleDateString("ar")}</td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
                           <button
@@ -158,14 +158,14 @@ export function UsersAdminPage() {
                             disabled={isSelf || isMutating}
                             className="rounded border border-slate-300 px-2 py-1 text-xs text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
                           >
-                            {u.role === "ADMIN" ? "Demote to user" : "Make admin"}
+                            {u.role === "ADMIN" ? "خفض إلى مستخدم" : "تعيين كمشرف"}
                           </button>
                           <button
                             onClick={() => onStatusToggle(u.id, u.email, !u.isActive)}
                             disabled={isSelf || isMutating}
                             className="rounded border border-slate-300 px-2 py-1 text-xs text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
                           >
-                            {u.isActive ? "Deactivate" : "Reactivate"}
+                            {u.isActive ? "إلغاء التفعيل" : "إعادة التفعيل"}
                           </button>
                         </div>
                       </td>
@@ -184,17 +184,17 @@ export function UsersAdminPage() {
               disabled={page <= 1}
               className="rounded border border-slate-300 px-3 py-1.5 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              Previous
+              السابق
             </button>
             <span>
-              Page {page} of {totalPages}
+              صفحة {page} من {totalPages}
             </span>
             <button
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               disabled={page >= totalPages}
               className="rounded border border-slate-300 px-3 py-1.5 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              Next
+              التالي
             </button>
           </div>
         )}

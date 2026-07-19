@@ -19,7 +19,7 @@ export function BoardSettingsModal({ board, canArchive, onClose, onSave, onArchi
 
   async function handleSave() {
     if (!name.trim()) {
-      setError("Board name cannot be empty");
+      setError("لا يمكن أن يكون اسم اللوحة فارغًا");
       return;
     }
     setSaving(true);
@@ -28,7 +28,7 @@ export function BoardSettingsModal({ board, canArchive, onClose, onSave, onArchi
       await onSave({ name: name.trim(), description: description.trim() || null });
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save board");
+      setError(err instanceof Error ? err.message : "فشل حفظ اللوحة");
     } finally {
       setSaving(false);
     }
@@ -40,7 +40,7 @@ export function BoardSettingsModal({ board, canArchive, onClose, onSave, onArchi
     try {
       await onArchive();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to delete board");
+      setError(err instanceof Error ? err.message : "فشل حذف اللوحة");
       setSaving(false);
       setConfirmingDelete(false);
     }
@@ -52,17 +52,17 @@ export function BoardSettingsModal({ board, canArchive, onClose, onSave, onArchi
         onClick={(e) => e.stopPropagation()}
         className="w-full max-w-md space-y-3 rounded-lg bg-white p-6 shadow-xl"
       >
-        <label className="block text-xs font-medium text-slate-500">Board name</label>
+        <label className="block text-xs font-medium text-slate-500">اسم اللوحة</label>
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
           className="w-full border-b border-slate-200 pb-1 text-lg font-semibold text-slate-900 focus:outline-none"
         />
-        <label className="block text-xs font-medium text-slate-500">Description</label>
+        <label className="block text-xs font-medium text-slate-500">الوصف</label>
         <textarea
           value={description}
           onChange={(e) => setDescription(e.target.value)}
-          placeholder="What is this board for?"
+          placeholder="ما الغرض من هذه اللوحة؟"
           rows={4}
           className="w-full rounded border border-slate-300 p-2 text-sm"
         />
@@ -77,14 +77,14 @@ export function BoardSettingsModal({ board, canArchive, onClose, onSave, onArchi
                     disabled={saving}
                     className="rounded bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-500 disabled:opacity-50"
                   >
-                    Confirm delete
+                    تأكيد الحذف
                   </button>
                   <button
                     onClick={() => setConfirmingDelete(false)}
                     disabled={saving}
                     className="rounded px-2 py-1.5 text-sm text-slate-600 hover:bg-slate-100"
                   >
-                    Keep
+                    الاحتفاظ
                   </button>
                 </div>
               ) : (
@@ -93,20 +93,20 @@ export function BoardSettingsModal({ board, canArchive, onClose, onSave, onArchi
                   disabled={saving}
                   className="rounded px-3 py-1.5 text-sm text-red-600 hover:bg-red-50"
                 >
-                  Delete board
+                  حذف اللوحة
                 </button>
               ))}
           </div>
           <div className="flex gap-2">
             <button onClick={onClose} className="rounded px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-100">
-              Cancel
+              إلغاء
             </button>
             <button
               onClick={handleSave}
               disabled={saving}
               className="rounded bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
             >
-              {saving ? "Saving..." : "Save"}
+              {saving ? "جارٍ الحفظ..." : "حفظ"}
             </button>
           </div>
         </div>

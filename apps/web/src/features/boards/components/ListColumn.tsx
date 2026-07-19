@@ -56,7 +56,7 @@ export function ListColumn({ list, onAddCard, onOpenCard, onDeleteCard }: ListCo
         <input
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          placeholder="+ Add card"
+          placeholder="+ إضافة بطاقة"
           className="w-full rounded border border-slate-300 bg-white px-2 py-1 text-sm"
         />
       </form>

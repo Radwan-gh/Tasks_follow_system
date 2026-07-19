@@ -161,7 +161,7 @@ export function BoardPage() {
   }
 
   if (isLoading || !board) {
-    return <div className="p-8 text-slate-500">Loading board...</div>;
+    return <div className="p-8 text-slate-500">جارٍ تحميل اللوحة...</div>;
   }
 
   const openCard = openCardId ? lists.flatMap((l) => l.cards).find((c) => c.id === openCardId) ?? null : null;
@@ -171,7 +171,7 @@ export function BoardPage() {
     <div className="flex h-screen flex-col bg-slate-100">
       <header className="flex items-center gap-4 border-b bg-white px-6 py-4">
         <Link to="/boards" className="text-sm text-slate-500 hover:underline">
-          ← Boards
+          → اللوحات
         </Link>
         <div className="flex min-w-0 items-baseline gap-3">
           <h1 className="text-lg font-semibold text-slate-900">{board.name}</h1>
@@ -184,9 +184,9 @@ export function BoardPage() {
         <button
           onClick={() => setSettingsOpen(true)}
           className="rounded px-2 py-1 text-sm text-slate-500 hover:bg-slate-100"
-          title="Board settings"
+          title="إعدادات اللوحة"
         >
-          Edit
+          تعديل
         </button>
       </header>
       <div className="flex-1 overflow-x-auto p-6">
@@ -220,7 +220,7 @@ export function BoardPage() {
                 <input
                   value={newListName}
                   onChange={(e) => setNewListName(e.target.value)}
-                  placeholder="+ Add list"
+                  placeholder="+ إضافة قائمة"
                   className="w-full rounded border border-slate-300 px-2 py-1 text-sm"
                 />
               </form>

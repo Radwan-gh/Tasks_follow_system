@@ -19,7 +19,7 @@ export function RegisterPage() {
       await register({ email, password, displayName });
       navigate("/boards");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Registration failed");
+      setError(err instanceof Error ? err.message : "فشل إنشاء الحساب");
     } finally {
       setSubmitting(false);
     }
@@ -28,11 +28,11 @@ export function RegisterPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-slate-100">
       <form onSubmit={onSubmit} className="w-full max-w-sm space-y-4 rounded-lg bg-white p-8 shadow">
-        <h1 className="text-xl font-semibold text-slate-900">Create an account</h1>
+        <h1 className="text-xl font-semibold text-slate-900">إنشاء حساب جديد</h1>
         {error && <p className="rounded bg-red-50 p-2 text-sm text-red-600">{error}</p>}
         <input
           required
-          placeholder="Name"
+          placeholder="الاسم"
           value={displayName}
           onChange={(e) => setDisplayName(e.target.value)}
           className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
@@ -40,7 +40,7 @@ export function RegisterPage() {
         <input
           type="email"
           required
-          placeholder="Email"
+          placeholder="البريد الإلكتروني"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
@@ -49,7 +49,7 @@ export function RegisterPage() {
           type="password"
           required
           minLength={8}
-          placeholder="Password (min 8 characters)"
+          placeholder="كلمة المرور (8 أحرف على الأقل)"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
@@ -59,12 +59,12 @@ export function RegisterPage() {
           disabled={submitting}
           className="w-full rounded bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
         >
-          {submitting ? "Creating account..." : "Create account"}
+          {submitting ? "جارٍ إنشاء الحساب..." : "إنشاء الحساب"}
         </button>
         <p className="text-center text-sm text-slate-500">
-          Already have an account?{" "}
+          لديك حساب بالفعل؟{" "}
           <Link to="/login" className="text-slate-900 underline">
-            Log in
+            تسجيل الدخول
           </Link>
         </p>
       </form>
