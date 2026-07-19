@@ -121,6 +121,15 @@ The API and web app have been verified end-to-end manually (register → login
 reordering, all confirmed to persist through a page reload) but do not yet
 have an automated e2e test suite — see [Roadmap](#roadmap).
 
+## Deployment
+
+Both services deploy to [Railway](https://railway.com) via its native GitHub
+integration: **every merge into `main` builds a new version and deploys it**,
+gated on CI (`.github/workflows/ci.yml`) passing first. Build/start commands
+live in `railpack.api.json` / `railpack.web.json`; the one-time Railway
+dashboard setup (connect repo, deploy branch = `main`, "Wait for CI",
+env vars) is documented in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+
 ## Roadmap
 
 Phases not yet built, in planned order:
