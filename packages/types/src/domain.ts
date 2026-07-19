@@ -3,13 +3,36 @@ import { z } from "zod";
 export const BoardRole = z.enum(["OWNER", "MEMBER"]);
 export type BoardRole = z.infer<typeof BoardRole>;
 
+export const UserRole = z.enum(["USER", "ADMIN"]);
+export type UserRole = z.infer<typeof UserRole>;
+
 export const UserSchema = z.object({
   id: z.string(),
   email: z.string().email(),
   displayName: z.string().min(1).max(100),
+  role: UserRole,
+  isActive: z.boolean(),
   createdAt: z.string().datetime(),
 });
 export type User = z.infer<typeof UserSchema>;
+
+/** Shape returned by GET /auth/me and stored client-side as the logged-in user. */
+export const CurrentUserSchema = UserSchema;
+export type CurrentUser = z.infer<typeof CurrentUserSchema>;
+
+/** Row shape for the admin users table. */
+export const AdminUserSchema = UserSchema.extend({
+  boardCount: z.number().int(),
+});
+export type AdminUser = z.infer<typeof AdminUserSchema>;
+
+export const AdminUserListSchema = z.object({
+  users: z.array(AdminUserSchema),
+  total: z.number().int(),
+  page: z.number().int(),
+  pageSize: z.number().int(),
+});
+export type AdminUserList = z.infer<typeof AdminUserListSchema>;
 
 export const BoardMemberSchema = z.object({
   userId: z.string(),

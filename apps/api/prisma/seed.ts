@@ -12,15 +12,18 @@ async function main() {
 
   const user = await prisma.user.upsert({
     where: { email: SEED_ADMIN_EMAIL },
-    update: {},
+    // Re-assert admin privileges on every boot so a demoted/deactivated seed
+    // admin is repaired and there is always at least one usable admin login.
+    update: { role: "ADMIN", isActive: true },
     create: {
       email: SEED_ADMIN_EMAIL,
       passwordHash,
       displayName: SEED_ADMIN_NAME,
+      role: "ADMIN",
     },
   });
 
-  console.log(`Seeded user ${user.email} (id: ${user.id})`);
+  console.log(`Seeded user ${user.email} (id: ${user.id}, role: ${user.role})`);
 }
 
 main()

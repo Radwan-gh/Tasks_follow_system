@@ -50,6 +50,8 @@ export class AuthController {
       id: record.id,
       email: record.email,
       displayName: record.displayName,
+      role: record.role,
+      isActive: record.isActive,
       createdAt: record.createdAt.toISOString(),
     };
   }
