@@ -79,6 +79,13 @@ export function BoardPage() {
     mutationFn: (vars: { listId: string; title: string }) => api.cards.create(vars.listId, { title: vars.title }),
     onSuccess: invalidate,
   });
+  const deleteCardMutation = useMutation({
+    mutationFn: (cardId: string) => api.cards.remove(cardId),
+    onSuccess: (_data, cardId) => {
+      setOpenCardId((open) => (open === cardId ? null : open));
+      invalidate();
+    },
+  });
 
   function findListOfCard(cardId: string): List | undefined {
     return lists.find((l) => l.cards.some((c) => c.id === cardId));
@@ -198,6 +205,7 @@ export function BoardPage() {
                   list={list}
                   onAddCard={(title) => createCardMutation.mutate({ listId: list.id, title })}
                   onOpenCard={setOpenCardId}
+                  onDeleteCard={(id) => deleteCardMutation.mutate(id)}
                 />
               ))}
               <form
@@ -227,10 +235,6 @@ export function BoardPage() {
           onClose={() => setOpenCardId(null)}
           onSave={async (updates) => {
             await api.cards.update(openCard.id, updates);
-            invalidate();
-          }}
-          onDelete={async () => {
-            await api.cards.remove(openCard.id);
             invalidate();
           }}
         />

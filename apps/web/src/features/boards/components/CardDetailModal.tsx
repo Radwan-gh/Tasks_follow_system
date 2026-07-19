@@ -5,15 +5,13 @@ interface CardDetailModalProps {
   card: Card;
   onClose: () => void;
   onSave: (updates: UpdateCardRequest) => Promise<void>;
-  onDelete: () => Promise<void>;
 }
 
-export function CardDetailModal({ card, onClose, onSave, onDelete }: CardDetailModalProps) {
+export function CardDetailModal({ card, onClose, onSave }: CardDetailModalProps) {
   const [title, setTitle] = useState(card.title);
   const [description, setDescription] = useState(card.description ?? "");
   const [dueDate, setDueDate] = useState(card.dueDate ? card.dueDate.slice(0, 10) : "");
   const [saving, setSaving] = useState(false);
-  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   async function handleSave() {
     setSaving(true);
@@ -23,16 +21,6 @@ export function CardDetailModal({ card, onClose, onSave, onDelete }: CardDetailM
         description: description || null,
         dueDate: dueDate ? new Date(dueDate).toISOString() : null,
       });
-      onClose();
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function handleDelete() {
-    setSaving(true);
-    try {
-      await onDelete();
       onClose();
     } finally {
       setSaving(false);
@@ -66,45 +54,17 @@ export function CardDetailModal({ card, onClose, onSave, onDelete }: CardDetailM
             className="mt-1 rounded border border-slate-300 px-2 py-1 text-sm"
           />
         </div>
-        <div className="flex items-center justify-between pt-2">
-          {confirmingDelete ? (
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handleDelete}
-                disabled={saving}
-                className="rounded bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-500 disabled:opacity-50"
-              >
-                Confirm delete
-              </button>
-              <button
-                onClick={() => setConfirmingDelete(false)}
-                disabled={saving}
-                className="rounded px-2 py-1.5 text-sm text-slate-600 hover:bg-slate-100"
-              >
-                Keep
-              </button>
-            </div>
-          ) : (
-            <button
-              onClick={() => setConfirmingDelete(true)}
-              disabled={saving}
-              className="rounded px-3 py-1.5 text-sm text-red-600 hover:bg-red-50"
-            >
-              Delete
-            </button>
-          )}
-          <div className="flex gap-2">
-            <button onClick={onClose} className="rounded px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-100">
-              Cancel
-            </button>
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              className="rounded bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
-            >
-              {saving ? "Saving..." : "Save"}
-            </button>
-          </div>
+        <div className="flex justify-end gap-2 pt-2">
+          <button onClick={onClose} className="rounded px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-100">
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="rounded bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
+          >
+            {saving ? "Saving..." : "Save"}
+          </button>
         </div>
       </div>
     </div>
