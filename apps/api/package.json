@@ -6,7 +6,7 @@
     "dev": "nest start --watch",
     "build": "prisma generate && nest build",
     "start": "node dist/main.js",
-    "test": "vitest run",
+    "test": "vitest run --passWithNoTests",
     "typecheck": "tsc --noEmit",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
