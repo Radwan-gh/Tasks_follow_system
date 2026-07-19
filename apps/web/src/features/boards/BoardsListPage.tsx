@@ -27,6 +27,11 @@ export function BoardsListPage() {
       <header className="flex items-center justify-between border-b bg-white px-6 py-4">
         <h1 className="text-lg font-semibold text-slate-900">Boards</h1>
         <div className="flex items-center gap-3 text-sm text-slate-600">
+          {user?.role === "ADMIN" && (
+            <Link to="/admin/users" className="text-slate-500 underline">
+              Users &amp; permissions
+            </Link>
+          )}
           <span>{user?.displayName}</span>
           <button onClick={logout} className="text-slate-500 underline">
             Log out

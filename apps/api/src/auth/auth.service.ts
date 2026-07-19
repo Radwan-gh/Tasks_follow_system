@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, UnauthorizedException } from "@nestjs/common";
+import { ConflictException, ForbiddenException, Injectable, UnauthorizedException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { JwtService } from "@nestjs/jwt";
 import type { AuthResponse, LoginRequest, RegisterRequest } from "@app/types";
@@ -40,7 +40,7 @@ export class AuthService {
     const user = await this.prisma.user.create({
       data: { email: input.email, passwordHash, displayName: input.displayName },
     });
-    return this.issueTokens(user.id, user.email);
+    return this.issueTokens(user);
   }
 
   async login(input: LoginRequest): Promise<AuthResponse> {
@@ -48,7 +48,8 @@ export class AuthService {
     if (!user || !(await bcrypt.compare(input.password, user.passwordHash))) {
       throw new UnauthorizedException("Invalid credentials");
     }
-    return this.issueTokens(user.id, user.email);
+    if (!user.isActive) throw new ForbiddenException("Account is deactivated");
+    return this.issueTokens(user);
   }
 
   async refresh(refreshToken: string): Promise<AuthResponse> {
@@ -59,10 +60,13 @@ export class AuthService {
     }
     const user = await this.prisma.user.findUnique({ where: { id: stored.userId } });
     if (!user) throw new UnauthorizedException("Invalid refresh token");
+    // Role/deactivation changes propagate here: every refresh re-reads the
+    // user, so a stale role claim lives at most one access-token TTL.
+    if (!user.isActive) throw new UnauthorizedException("Account is deactivated");
 
     // Rotate: revoke the used refresh token so it can't be replayed.
     await this.prisma.refreshToken.update({ where: { id: stored.id }, data: { revokedAt: new Date() } });
-    return this.issueTokens(user.id, user.email);
+    return this.issueTokens(user);
   }
 
   async logout(refreshToken: string): Promise<void> {
@@ -87,18 +91,18 @@ export class AuthService {
     }
   }
 
-  private async issueTokens(userId: string, email: string): Promise<AuthResponse> {
+  private async issueTokens(user: { id: string; email: string; role: string }): Promise<AuthResponse> {
     const jti = randomUUID();
     const [accessToken, refreshToken] = await Promise.all([
       this.jwt.signAsync(
-        { sub: userId, email },
+        { sub: user.id, email: user.email, role: user.role },
         {
           secret: this.config.getOrThrow<string>("JWT_ACCESS_SECRET"),
           expiresIn: this.config.get<string>("JWT_ACCESS_TTL") ?? "15m",
         },
       ),
       this.jwt.signAsync(
-        { sub: userId, jti },
+        { sub: user.id, jti },
         {
           secret: this.config.getOrThrow<string>("JWT_REFRESH_SECRET"),
           expiresIn: this.config.get<string>("JWT_REFRESH_TTL") ?? "30d",
@@ -110,7 +114,7 @@ export class AuthService {
     await this.prisma.refreshToken.create({
       data: {
         id: jti,
-        userId,
+        userId: user.id,
         tokenHash: hashToken(refreshToken),
         expiresAt: new Date(Date.now() + ttlMs),
       },

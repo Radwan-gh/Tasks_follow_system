@@ -1,4 +1,6 @@
 import type {
+  AdminUser,
+  AdminUserList,
   AuthResponse,
   BoardDetail,
   BoardSummary,
@@ -6,11 +8,13 @@ import type {
   CreateBoardRequest,
   CreateCardRequest,
   CreateListRequest,
+  CurrentUser,
   List,
   LoginRequest,
   RegisterRequest,
   UpdateCardRequest,
   UpdateListRequest,
+  UserRole,
 } from "@app/types";
 import { tokenStore } from "./token-store";
 
@@ -84,7 +88,21 @@ export const api = {
     register: (body: RegisterRequest) => request<AuthResponse>("/auth/register", { method: "POST", body: JSON.stringify(body) }),
     login: (body: LoginRequest) => request<AuthResponse>("/auth/login", { method: "POST", body: JSON.stringify(body) }),
     logout: (refreshToken: string) => request<void>("/auth/logout", { method: "POST", body: JSON.stringify({ refreshToken }) }),
-    me: () => request<{ id: string; email: string; displayName: string; createdAt: string }>("/auth/me"),
+    me: () => request<CurrentUser>("/auth/me"),
+  },
+  admin: {
+    listUsers: (params: { search?: string; page?: number; pageSize?: number } = {}) => {
+      const query = new URLSearchParams();
+      if (params.search) query.set("search", params.search);
+      if (params.page) query.set("page", String(params.page));
+      if (params.pageSize) query.set("pageSize", String(params.pageSize));
+      const qs = query.toString();
+      return request<AdminUserList>(`/admin/users${qs ? `?${qs}` : ""}`);
+    },
+    updateUserRole: (id: string, role: UserRole) =>
+      request<AdminUser>(`/admin/users/${id}/role`, { method: "PATCH", body: JSON.stringify({ role }) }),
+    updateUserStatus: (id: string, isActive: boolean) =>
+      request<AdminUser>(`/admin/users/${id}/status`, { method: "PATCH", body: JSON.stringify({ isActive }) }),
   },
   boards: {
     list: () => request<BoardSummary[]>("/boards"),

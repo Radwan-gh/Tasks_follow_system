@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { UserRole } from "./domain";
 
 export const RegisterRequestSchema = z.object({
   email: z.string().email(),
@@ -41,6 +42,23 @@ export const AddBoardMemberRequestSchema = z.object({
   email: z.string().email(),
 });
 export type AddBoardMemberRequest = z.infer<typeof AddBoardMemberRequestSchema>;
+
+export const ListUsersQuerySchema = z.object({
+  search: z.string().max(200).optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(20),
+});
+export type ListUsersQuery = z.infer<typeof ListUsersQuerySchema>;
+
+export const UpdateUserRoleRequestSchema = z.object({
+  role: UserRole,
+});
+export type UpdateUserRoleRequest = z.infer<typeof UpdateUserRoleRequestSchema>;
+
+export const UpdateUserStatusRequestSchema = z.object({
+  isActive: z.boolean(),
+});
+export type UpdateUserStatusRequest = z.infer<typeof UpdateUserStatusRequestSchema>;
 
 export const CreateListRequestSchema = z.object({
   name: z.string().min(1).max(200),

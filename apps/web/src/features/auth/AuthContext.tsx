@@ -1,13 +1,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-import type { LoginRequest, RegisterRequest } from "@app/types";
+import type { CurrentUser, LoginRequest, RegisterRequest } from "@app/types";
 import { api } from "../../lib/api-client";
 import { tokenStore } from "../../lib/token-store";
-
-interface CurrentUser {
-  id: string;
-  email: string;
-  displayName: string;
-}
 
 interface AuthContextValue {
   user: CurrentUser | null;

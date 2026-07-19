@@ -6,6 +6,7 @@ import { ExtractJwt, Strategy } from "passport-jwt";
 interface AccessTokenPayload {
   sub: string;
   email: string;
+  role?: "USER" | "ADMIN";
 }
 
 @Injectable()
@@ -19,6 +20,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: AccessTokenPayload) {
-    return { id: payload.sub, email: payload.email };
+    // Tokens issued before the role claim existed degrade to USER.
+    return { id: payload.sub, email: payload.email, role: payload.role ?? "USER" };
   }
 }
