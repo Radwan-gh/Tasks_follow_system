@@ -2,6 +2,23 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Business logic documentation (`docs/`) — keep it in sync
+
+The `docs/` folder contains **Arabic** documentation of the project's business
+logic (domain model, auth, authorization, board/list/card rules, fractional-
+index ordering, admin rules). It is the human-readable reference for *what the
+system does and why*.
+
+**These docs must stay in sync with the code.** Whenever you change business
+logic or add a feature — a permission rule, a request/response shape, a schema
+field, the ordering algorithm, a new endpoint, or any new logical decision —
+update the relevant file in `docs/` **in the same change**. The change is not
+complete until the docs are updated. Use the "where do I document what" map and
+checklist in [`docs/08-maintaining-docs.md`](docs/08-maintaining-docs.md) to
+find the right file; add a new `docs/NN-*.md` (and link it from
+`docs/README.md`) when introducing a wholly new resource. Keep the docs in
+Arabic, and keep code identifiers (file/function/field names) in English.
+
 ## Commands
 
 This is a Turborepo + pnpm workspace monorepo. Run all commands from the repo root unless noted.
