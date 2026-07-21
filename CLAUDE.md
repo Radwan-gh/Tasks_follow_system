@@ -2,22 +2,20 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Business logic documentation (`docs/`) — keep it in sync
+## توثيق منطق العمل (`docs/`) — حافظ على تطابقه مع الكود
 
-The `docs/` folder contains **Arabic** documentation of the project's business
-logic (domain model, auth, authorization, board/list/card rules, fractional-
-index ordering, admin rules). It is the human-readable reference for *what the
-system does and why*.
+مجلّد `docs/` يحتوي توثيقًا **بالعربية** لمنطق عمل المشروع (نموذج المجال،
+المصادقة، الصلاحيات، قواعد اللوحات/القوائم/البطاقات، الترتيب بالفهرسة الكسرية،
+قواعد الإدارة). وهو المرجع المقروء للإنسان حول *ماذا يفعل النظام ولماذا*.
 
-**These docs must stay in sync with the code.** Whenever you change business
-logic or add a feature — a permission rule, a request/response shape, a schema
-field, the ordering algorithm, a new endpoint, or any new logical decision —
-update the relevant file in `docs/` **in the same change**. The change is not
-complete until the docs are updated. Use the "where do I document what" map and
-checklist in [`docs/08-maintaining-docs.md`](docs/08-maintaining-docs.md) to
-find the right file; add a new `docs/NN-*.md` (and link it from
-`docs/README.md`) when introducing a wholly new resource. Keep the docs in
-Arabic, and keep code identifiers (file/function/field names) in English.
+**يجب أن يبقى هذا التوثيق مطابقًا للكود.** كلما غيّرت منطق عمل أو أضفت ميزة — قاعدة
+صلاحية، شكل طلب/استجابة، حقلًا في المخطّط، خوارزمية الترتيب، مسارًا (Endpoint)
+جديدًا، أو أي قرار منطقي جديد — حدّث الملف المعني في `docs/` **ضمن نفس التغيير**.
+التغيير غير مكتمل حتى يُحدَّث التوثيق. استعمل خريطة "أين أوثّق ماذا" وقائمة التحقّق في
+[`docs/08-maintaining-docs.md`](docs/08-maintaining-docs.md) لتحديد الملف الصحيح؛
+وأضِف ملفًا جديدًا `docs/NN-*.md` (واربطه من `docs/README.md`) عند إدخال مورد جديد
+كليًا. أبقِ التوثيق بالعربية، وأبقِ معرّفات الكود (أسماء الملفات والدوال والحقول)
+بالإنجليزية.
 
 ## Commands
 
