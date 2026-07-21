@@ -1,9 +1,9 @@
-import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
-import type { CreateCardRequest, UpdateCardRequest } from "@app/types";
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
+import type { CreateCardRequest, UpdateCardAccessRequest, UpdateCardRequest } from "@app/types";
 import { generateKeyBetween } from "@app/ordering";
 import { computeMovePosition } from "../common/util/position.util";
 import { PrismaService } from "../prisma/prisma.service";
-import { BoardsService, serializeCard } from "../boards/boards.service";
+import { BoardsService, canAccessCard, canManageCard, serializeCard } from "../boards/boards.service";
 
 @Injectable()
 export class CardsService {
@@ -13,9 +13,19 @@ export class CardsService {
   ) {}
 
   private async loadCard(cardId: string) {
-    const card = await this.prisma.card.findUnique({ where: { id: cardId } });
+    const card = await this.prisma.card.findUnique({
+      where: { id: cardId },
+      include: { members: { select: { userId: true } } },
+    });
     if (!card) throw new NotFoundException("Card not found");
     return card;
+  }
+
+  /** The board's owner id, used for the card access/manage predicates. */
+  private async boardOwnerId(boardId: string): Promise<string> {
+    const board = await this.prisma.board.findUnique({ where: { id: boardId }, select: { ownerId: true } });
+    if (!board) throw new NotFoundException("Board not found");
+    return board.ownerId;
   }
 
   private async loadList(listId: string) {
@@ -55,12 +65,17 @@ export class CardsService {
   async getDetail(userId: string, cardId: string) {
     const card = await this.loadCard(cardId);
     await this.boards.assertMembership(userId, card.boardId);
+    const ownerId = await this.boardOwnerId(card.boardId);
+    // Hide existence of restricted cards from members without access.
+    if (!canAccessCard(userId, ownerId, card)) throw new NotFoundException("Card not found");
     return serializeCard(card);
   }
 
   async update(userId: string, cardId: string, input: UpdateCardRequest) {
     const card = await this.loadCard(cardId);
     await this.boards.assertMembership(userId, card.boardId);
+    const ownerId = await this.boardOwnerId(card.boardId);
+    if (!canAccessCard(userId, ownerId, card)) throw new NotFoundException("Card not found");
 
     const targetListId = input.targetListId ?? card.listId;
     if (targetListId !== card.listId) {
@@ -100,6 +115,43 @@ export class CardsService {
           listId: targetListId,
           position,
         },
+        include: { members: { select: { userId: true } } },
+      });
+    });
+
+    return serializeCard(updated);
+  }
+
+  /** Replace a card's access config. Manageable only by the board owner or card creator. */
+  async updateAccess(userId: string, cardId: string, input: UpdateCardAccessRequest) {
+    const card = await this.loadCard(cardId);
+    await this.boards.assertMembership(userId, card.boardId);
+    const ownerId = await this.boardOwnerId(card.boardId);
+    if (!canManageCard(userId, ownerId, card)) {
+      throw new ForbiddenException("Only the board owner or the task creator can change task access");
+    }
+
+    const memberUserIds = input.isRestricted ? [...new Set(input.memberUserIds)] : [];
+    if (memberUserIds.length > 0) {
+      // Every listed user must currently be a member of the card's board.
+      const boardMembers = await this.prisma.boardMember.findMany({
+        where: { boardId: card.boardId, userId: { in: memberUserIds } },
+        select: { userId: true },
+      });
+      if (boardMembers.length !== memberUserIds.length) {
+        throw new BadRequestException("Every task member must be a member of the board");
+      }
+    }
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      await tx.cardMember.deleteMany({ where: { cardId } });
+      if (memberUserIds.length > 0) {
+        await tx.cardMember.createMany({ data: memberUserIds.map((id) => ({ cardId, userId: id })) });
+      }
+      return tx.card.update({
+        where: { id: cardId },
+        data: { isRestricted: input.isRestricted },
+        include: { members: { select: { userId: true } } },
       });
     });
 
@@ -109,6 +161,8 @@ export class CardsService {
   async remove(userId: string, cardId: string) {
     const card = await this.loadCard(cardId);
     await this.boards.assertMembership(userId, card.boardId);
+    const ownerId = await this.boardOwnerId(card.boardId);
+    if (!canAccessCard(userId, ownerId, card)) throw new NotFoundException("Card not found");
     await this.prisma.card.delete({ where: { id: cardId } });
   }
 

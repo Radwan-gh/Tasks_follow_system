@@ -28,6 +28,7 @@ model User {
 
   refreshTokens  RefreshToken[]
   boardMemberships BoardMember[]
+  cardMemberships  CardMember[]
   createdCards   Card[]         @relation("CardCreator")
   ownedBoards    Board[]        @relation("BoardOwner")
 }
@@ -99,13 +100,31 @@ model Card {
   position    String
   dueDate     DateTime?
   isArchived  Boolean   @default(false)
+  // When false the card inherits board access (all board members see it).
+  // When true only rows in `members` (plus the board owner and creator) can
+  // see/open/edit it — a private allow-list.
+  isRestricted Boolean  @default(false)
   createdById String
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
-  list      List @relation(fields: [listId], references: [id], onDelete: Cascade)
-  createdBy User @relation("CardCreator", fields: [createdById], references: [id])
+  list      List         @relation(fields: [listId], references: [id], onDelete: Cascade)
+  createdBy User         @relation("CardCreator", fields: [createdById], references: [id])
+  members   CardMember[]
 
   @@index([listId, position])
   @@index([boardId, isArchived])
+}
+
+model CardMember {
+  id      String   @id @default(cuid())
+  cardId  String
+  userId  String
+  addedAt DateTime @default(now())
+
+  card Card @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([cardId, userId])
+  @@index([userId])
 }
