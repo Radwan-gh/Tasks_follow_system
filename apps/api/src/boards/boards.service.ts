@@ -55,7 +55,13 @@ export class BoardsService {
         lists: {
           where: { isArchived: false },
           orderBy: { position: "asc" },
-          include: { cards: { where: { isArchived: false }, orderBy: { position: "asc" } } },
+          include: {
+            cards: {
+              where: { isArchived: false },
+              orderBy: { position: "asc" },
+              include: { members: { select: { userId: true } } },
+            },
+          },
         },
       },
     });
@@ -76,7 +82,10 @@ export class BoardsService {
         position: list.position,
         isArchived: list.isArchived,
         createdAt: list.createdAt.toISOString(),
-        cards: list.cards.map(serializeCard),
+        // Restricted cards the requesting user can't access are hidden entirely.
+        cards: list.cards
+          .filter((card) => canAccessCard(userId, board.ownerId, card))
+          .map(serializeCard),
       })),
     };
   }
@@ -133,7 +142,11 @@ export class BoardsService {
     if (!target) throw new NotFoundException("Membership not found");
     if (target.role === "OWNER") throw new BadRequestException("Cannot remove the board owner");
 
-    await this.prisma.boardMember.delete({ where: { boardId_userId: { boardId, userId: targetUserId } } });
+    await this.prisma.$transaction([
+      // Drop any per-card access the user held on this board's cards.
+      this.prisma.cardMember.deleteMany({ where: { userId: targetUserId, card: { boardId } } }),
+      this.prisma.boardMember.delete({ where: { boardId_userId: { boardId, userId: targetUserId } } }),
+    ]);
   }
 
   /** Fresh-read helper for list ordering — used by ListsService when creating/moving lists. */
@@ -167,7 +180,7 @@ function serializeBoard(board: {
   };
 }
 
-function serializeCard(card: {
+interface CardWithMembers {
   id: string;
   listId: string;
   boardId: string;
@@ -177,9 +190,13 @@ function serializeCard(card: {
   dueDate: Date | null;
   createdById: string;
   isArchived: boolean;
+  isRestricted: boolean;
   createdAt: Date;
   updatedAt: Date;
-}) {
+  members?: { userId: string }[];
+}
+
+function serializeCard(card: CardWithMembers) {
   return {
     id: card.id,
     listId: card.listId,
@@ -190,9 +207,31 @@ function serializeCard(card: {
     dueDate: card.dueDate ? card.dueDate.toISOString() : null,
     createdById: card.createdById,
     isArchived: card.isArchived,
+    isRestricted: card.isRestricted,
+    memberIds: (card.members ?? []).map((m) => m.userId),
     createdAt: card.createdAt.toISOString(),
     updatedAt: card.updatedAt.toISOString(),
   };
 }
 
-export { serializeCard };
+/**
+ * Whether `userId` may see/open/edit a card. Open cards are visible to every
+ * board member; restricted cards only to their explicit members, plus the
+ * board owner and the card creator (who can also manage access).
+ */
+function canAccessCard(
+  userId: string,
+  boardOwnerId: string,
+  card: { createdById: string; isRestricted: boolean; members?: { userId: string }[] },
+): boolean {
+  if (!card.isRestricted) return true;
+  if (boardOwnerId === userId || card.createdById === userId) return true;
+  return (card.members ?? []).some((m) => m.userId === userId);
+}
+
+/** Whether `userId` may change a card's access config: board owner or creator. */
+function canManageCard(userId: string, boardOwnerId: string, card: { createdById: string }): boolean {
+  return boardOwnerId === userId || card.createdById === userId;
+}
+
+export { serializeCard, canAccessCard, canManageCard };

@@ -100,3 +100,14 @@ export const UpdateCardRequestSchema = z.object({
   move: MoveTargetSchema.optional(),
 });
 export type UpdateCardRequest = z.infer<typeof UpdateCardRequestSchema>;
+
+/**
+ * Atomic full-replace of a card's access config. `isRestricted: false` opens
+ * the card back up to all board members (memberUserIds ignored/cleared);
+ * `true` limits it to the listed board members (plus owner/creator).
+ */
+export const UpdateCardAccessRequestSchema = z.object({
+  isRestricted: z.boolean(),
+  memberUserIds: z.array(z.string()),
+});
+export type UpdateCardAccessRequest = z.infer<typeof UpdateCardAccessRequestSchema>;

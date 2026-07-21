@@ -3,6 +3,7 @@ import type {
   AdminUserList,
   AuthResponse,
   BoardDetail,
+  BoardMember,
   BoardSummary,
   Card,
   CardActivity,
@@ -14,6 +15,7 @@ import type {
   LoginRequest,
   RegisterRequest,
   UpdateBoardRequest,
+  UpdateCardAccessRequest,
   UpdateCardRequest,
   UpdateListRequest,
   UserRole,
@@ -113,7 +115,9 @@ export const api = {
     update: (id: string, body: UpdateBoardRequest) =>
       request<BoardSummary>(`/boards/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
     addMember: (id: string, email: string) =>
-      request<unknown>(`/boards/${id}/members`, { method: "POST", body: JSON.stringify({ email }) }),
+      request<BoardMember>(`/boards/${id}/members`, { method: "POST", body: JSON.stringify({ email }) }),
+    removeMember: (id: string, userId: string) =>
+      request<void>(`/boards/${id}/members/${userId}`, { method: "DELETE" }),
   },
   lists: {
     create: (boardId: string, body: CreateListRequest) =>
@@ -128,6 +132,8 @@ export const api = {
     update: (id: string, body: UpdateCardRequest) =>
       request<Card>(`/cards/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
     history: (id: string) => request<CardActivity[]>(`/cards/${id}/history`),
+    updateAccess: (id: string, body: UpdateCardAccessRequest) =>
+      request<Card>(`/cards/${id}/access`, { method: "PATCH", body: JSON.stringify(body) }),
     remove: (id: string) => request<void>(`/cards/${id}`, { method: "DELETE" }),
   },
 };

@@ -1,19 +1,36 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import type { Card, CardActivity, UpdateCardRequest } from "@app/types";
+import type { BoardMember, Card, CardActivity, UpdateCardAccessRequest, UpdateCardRequest } from "@app/types";
 import { api } from "../../../lib/api-client";
 
 interface CardDetailModalProps {
   card: Card;
+  boardMembers: BoardMember[];
+  boardOwnerId: string;
+  currentUserId: string;
   onClose: () => void;
   onSave: (updates: UpdateCardRequest) => Promise<void>;
+  onSaveAccess: (updates: UpdateCardAccessRequest) => Promise<void>;
 }
 
-export function CardDetailModal({ card, onClose, onSave }: CardDetailModalProps) {
+export function CardDetailModal({
+  card,
+  boardMembers,
+  boardOwnerId,
+  currentUserId,
+  onClose,
+  onSave,
+  onSaveAccess,
+}: CardDetailModalProps) {
   const [title, setTitle] = useState(card.title);
   const [description, setDescription] = useState(card.description ?? "");
   const [dueDate, setDueDate] = useState(card.dueDate ? card.dueDate.slice(0, 10) : "");
   const [saving, setSaving] = useState(false);
+
+  const canManageAccess = boardOwnerId === currentUserId || card.createdById === currentUserId;
+  const [restricted, setRestricted] = useState(card.isRestricted);
+  const [memberIds, setMemberIds] = useState<Set<string>>(new Set(card.memberIds));
+  const [savingAccess, setSavingAccess] = useState(false);
 
   const { data: history, isLoading: historyLoading } = useQuery({
     queryKey: ["cardHistory", card.id],
@@ -31,6 +48,27 @@ export function CardDetailModal({ card, onClose, onSave }: CardDetailModalProps)
       onClose();
     } finally {
       setSaving(false);
+    }
+  }
+
+  function toggleMember(userId: string) {
+    setMemberIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(userId)) next.delete(userId);
+      else next.add(userId);
+      return next;
+    });
+  }
+
+  async function handleSaveAccess() {
+    setSavingAccess(true);
+    try {
+      await onSaveAccess({
+        isRestricted: restricted,
+        memberUserIds: restricted ? Array.from(memberIds) : [],
+      });
+    } finally {
+      setSavingAccess(false);
     }
   }
 
@@ -73,6 +111,50 @@ export function CardDetailModal({ card, onClose, onSave }: CardDetailModalProps)
             {saving ? "جارٍ الحفظ..." : "حفظ"}
           </button>
         </div>
+
+        {/* Access control */}
+        {canManageAccess ? (
+          <div className="space-y-2 border-t border-slate-100 pt-3">
+            <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
+              <input type="checkbox" checked={restricted} onChange={(e) => setRestricted(e.target.checked)} />
+              تقييد الوصول لأشخاص محددين
+            </label>
+            {restricted && (
+              <div className="space-y-1 rounded border border-slate-200 p-2">
+                <p className="text-xs text-slate-500">
+                  مالك اللوحة وأنت (المُنشئ) تملكان الوصول دائمًا. اختر من يمكنه أيضًا رؤية هذه المهمة:
+                </p>
+                {boardMembers
+                  .filter((m) => m.userId !== boardOwnerId && m.userId !== card.createdById)
+                  .map((m) => (
+                    <label key={m.userId} className="flex items-center gap-2 text-sm text-slate-700">
+                      <input
+                        type="checkbox"
+                        checked={memberIds.has(m.userId)}
+                        onChange={() => toggleMember(m.userId)}
+                      />
+                      {m.user.displayName} <span className="text-slate-400">{m.user.email}</span>
+                    </label>
+                  ))}
+              </div>
+            )}
+            <div className="flex justify-end">
+              <button
+                onClick={handleSaveAccess}
+                disabled={savingAccess}
+                className="rounded border border-slate-300 px-3 py-1 text-xs text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+              >
+                {savingAccess ? "جارٍ التحديث..." : "تحديث الوصول"}
+              </button>
+            </div>
+          </div>
+        ) : (
+          card.isRestricted && (
+            <div className="border-t border-slate-100 pt-3 text-xs text-slate-500">
+              🔒 هذه المهمة خاصة بأشخاص محددين.
+            </div>
+          )
+        )}
 
         <CardHistory activities={history} loading={historyLoading} />
       </div>
