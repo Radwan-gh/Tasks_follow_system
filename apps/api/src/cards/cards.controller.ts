@@ -29,6 +29,11 @@ export class CardsController {
     return this.cards.getDetail(user.id, id);
   }
 
+  @Get("cards/:id/history")
+  getHistory(@CurrentUser() user: AuthUser, @Param("id") id: string) {
+    return this.cards.getHistory(user.id, id);
+  }
+
   @Patch("cards/:id")
   update(
     @CurrentUser() user: AuthUser,

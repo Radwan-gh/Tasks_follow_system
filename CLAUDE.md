@@ -98,6 +98,24 @@ differ from the card's current list; the service validates the target list
 belongs to the same board and that any neighbor IDs actually belong to the
 target list.
 
+### Card ("task") history / activity log
+
+Every card carries an append-only audit trail in the `CardActivity` table
+(`apps/api/prisma/schema.prisma`): who created it and its initial status, and
+who later changed its status (moved it between lists), renamed it, updated its
+description, changed the due date, or archived/unarchived it — each with an
+actor and timestamp. A card's **status is the list it lives in**, so a status
+change is a `MOVED` activity whose `fromValue`/`toValue` snapshot the old/new
+*list names* at the time of the move. `CardsService`
+(`apps/api/src/cards/cards.service.ts`) writes these rows *inside the same
+transaction* as the card mutation — `create` records `CREATED`, and `update`
+diffs the incoming patch against current state via `diffActivities` so a no-op
+PATCH records nothing and every real change is captured atomically. History is
+read-only over `GET /cards/:id/history` (auth via the same
+`assertMembership`), typed by `CardActivitySchema` in `packages/types`, and
+rendered as a timeline in `CardDetailModal.tsx`. Rows are never mutated, only
+inserted, and cascade-delete with their card.
+
 ### Authorization: single source of truth
 
 `BoardsService.assertMembership(userId, boardId, minRole)` in

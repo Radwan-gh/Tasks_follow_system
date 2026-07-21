@@ -5,6 +5,7 @@ import type {
   BoardDetail,
   BoardSummary,
   Card,
+  CardActivity,
   CreateBoardRequest,
   CreateCardRequest,
   CreateListRequest,
@@ -126,6 +127,7 @@ export const api = {
       request<Card>(`/lists/${listId}/cards`, { method: "POST", body: JSON.stringify(body) }),
     update: (id: string, body: UpdateCardRequest) =>
       request<Card>(`/cards/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+    history: (id: string) => request<CardActivity[]>(`/cards/${id}/history`),
     remove: (id: string) => request<void>(`/cards/${id}`, { method: "DELETE" }),
   },
 };

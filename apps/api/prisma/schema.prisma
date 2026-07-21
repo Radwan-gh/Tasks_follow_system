@@ -17,6 +17,16 @@ enum UserRole {
   ADMIN
 }
 
+enum CardActivityType {
+  CREATED
+  MOVED
+  RENAMED
+  DESCRIPTION_UPDATED
+  DUE_DATE_CHANGED
+  ARCHIVED
+  UNARCHIVED
+}
+
 model User {
   id           String   @id @default(cuid())
   email        String   @unique
@@ -30,6 +40,7 @@ model User {
   boardMemberships BoardMember[]
   createdCards   Card[]         @relation("CardCreator")
   ownedBoards    Board[]        @relation("BoardOwner")
+  cardActivities CardActivity[] @relation("CardActivityActor")
 }
 
 model RefreshToken {
@@ -103,9 +114,30 @@ model Card {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
-  list      List @relation(fields: [listId], references: [id], onDelete: Cascade)
-  createdBy User @relation("CardCreator", fields: [createdById], references: [id])
+  list       List           @relation(fields: [listId], references: [id], onDelete: Cascade)
+  createdBy  User           @relation("CardCreator", fields: [createdById], references: [id])
+  activities CardActivity[]
 
   @@index([listId, position])
   @@index([boardId, isArchived])
+}
+
+/// Append-only audit trail for a card ("task"): who created it, and who
+/// changed its status (list), title, description, due date, or archived
+/// state — and when. Rows are never mutated, only inserted, so the ordered
+/// stream is the card's full history. Deleting a card cascades its history.
+model CardActivity {
+  id        String           @id @default(cuid())
+  cardId    String
+  boardId   String
+  actorId   String
+  type      CardActivityType
+  fromValue String?
+  toValue   String?
+  createdAt DateTime         @default(now())
+
+  card  Card @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  actor User @relation("CardActivityActor", fields: [actorId], references: [id])
+
+  @@index([cardId, createdAt])
 }
