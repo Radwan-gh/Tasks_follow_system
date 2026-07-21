@@ -1,8 +1,10 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, UseGuards } from "@nestjs/common";
 import {
   CreateCardRequestSchema,
+  UpdateCardAccessRequestSchema,
   UpdateCardRequestSchema,
   type CreateCardRequest,
+  type UpdateCardAccessRequest,
   type UpdateCardRequest,
 } from "@app/types";
 import { CurrentUser, type AuthUser } from "../common/decorators/current-user.decorator";
@@ -36,6 +38,15 @@ export class CardsController {
     @Body(new ZodValidationPipe(UpdateCardRequestSchema)) body: UpdateCardRequest,
   ) {
     return this.cards.update(user.id, id, body);
+  }
+
+  @Patch("cards/:id/access")
+  updateAccess(
+    @CurrentUser() user: AuthUser,
+    @Param("id") id: string,
+    @Body(new ZodValidationPipe(UpdateCardAccessRequestSchema)) body: UpdateCardAccessRequest,
+  ) {
+    return this.cards.updateAccess(user.id, id, body);
   }
 
   @Delete("cards/:id")

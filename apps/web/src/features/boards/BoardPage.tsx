@@ -15,8 +15,10 @@ import {
 import { SortableContext, arrayMove, horizontalListSortingStrategy } from "@dnd-kit/sortable";
 import type { Card, List } from "@app/types";
 import { api } from "../../lib/api-client";
+import { useAuth } from "../auth/AuthContext";
 import { CardPreview } from "./components/CardItem";
 import { CardDetailModal } from "./components/CardDetailModal";
+import { BoardMembersModal } from "./components/BoardMembersModal";
 import { ListColumn } from "./components/ListColumn";
 
 function resolveTargetListId(
@@ -33,6 +35,7 @@ function resolveTargetListId(
 
 export function BoardPage() {
   const { boardId } = useParams<{ boardId: string }>();
+  const { user } = useAuth();
   const queryClient = useQueryClient();
   const { data: board, isLoading } = useQuery({
     queryKey: ["board", boardId],
@@ -44,6 +47,7 @@ export function BoardPage() {
   const [activeCard, setActiveCard] = useState<Card | null>(null);
   const [openCardId, setOpenCardId] = useState<string | null>(null);
   const [newListName, setNewListName] = useState("");
+  const [membersOpen, setMembersOpen] = useState(false);
 
   useEffect(() => {
     if (board) setLists(board.lists);
@@ -161,6 +165,17 @@ export function BoardPage() {
           ← Boards
         </Link>
         <h1 className="text-lg font-semibold text-slate-900">{board.name}</h1>
+        <span className="text-xs text-slate-400">
+          {board.members.length > 1 ? `${board.members.length} members` : "Personal"}
+        </span>
+        {board.ownerId === user?.id && (
+          <button
+            onClick={() => setMembersOpen(true)}
+            className="ml-auto rounded border border-slate-300 px-3 py-1 text-sm text-slate-700 hover:bg-slate-50"
+          >
+            Members
+          </button>
+        )}
       </header>
       <div className="flex-1 overflow-x-auto p-6">
         <DndContext
@@ -204,12 +219,22 @@ export function BoardPage() {
       {openCard && (
         <CardDetailModal
           card={openCard}
+          boardMembers={board.members}
+          boardOwnerId={board.ownerId}
+          currentUserId={user?.id ?? ""}
           onClose={() => setOpenCardId(null)}
           onSave={async (updates) => {
             await api.cards.update(openCard.id, updates);
             invalidate();
           }}
+          onSaveAccess={async (updates) => {
+            await api.cards.updateAccess(openCard.id, updates);
+            invalidate();
+          }}
         />
+      )}
+      {membersOpen && (
+        <BoardMembersModal boardId={board.id} members={board.members} onClose={() => setMembersOpen(false)} />
       )}
     </div>
   );
