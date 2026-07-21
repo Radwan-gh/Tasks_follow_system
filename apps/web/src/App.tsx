@@ -4,6 +4,7 @@ import { LoginPage } from "./features/auth/LoginPage";
 import { RegisterPage } from "./features/auth/RegisterPage";
 import { BoardsListPage } from "./features/boards/BoardsListPage";
 import { BoardPage } from "./features/boards/BoardPage";
+import { ReportsPage } from "./features/reports/ReportsPage";
 import { UsersAdminPage } from "./features/admin/UsersAdminPage";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -39,6 +40,14 @@ export function App() {
         element={
           <ProtectedRoute>
             <BoardPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/boards/:boardId/reports"
+        element={
+          <ProtectedRoute>
+            <ReportsPage />
           </ProtectedRoute>
         }
       />

@@ -25,6 +25,17 @@ enum CardActivityType {
   DUE_DATE_CHANGED
   ARCHIVED
   UNARCHIVED
+  CHECKLIST_ITEM_ADDED
+  CHECKLIST_ITEM_COMPLETED
+  CHECKLIST_ITEM_UNCOMPLETED
+  CHECKLIST_ITEM_REMOVED
+}
+
+/// How often a recurring-task template spawns a fresh occurrence. Stored as an
+/// enum so new cadences (DAILY/MONTHLY) can be added without a data migration;
+/// only WEEKLY is implemented today.
+enum RecurrenceCadence {
+  WEEKLY
 }
 
 model User {
@@ -41,6 +52,8 @@ model User {
   createdCards   Card[]         @relation("CardCreator")
   ownedBoards    Board[]        @relation("BoardOwner")
   cardActivities CardActivity[] @relation("CardActivityActor")
+  createdRecurringTasks   RecurringTask[]  @relation("RecurringTaskCreator")
+  completedChecklistItems ChecklistItem[]  @relation("ChecklistItemCompleter")
 }
 
 model RefreshToken {
@@ -68,6 +81,7 @@ model Board {
   owner   User          @relation("BoardOwner", fields: [ownerId], references: [id])
   members BoardMember[]
   lists   List[]
+  recurringTasks RecurringTask[]
 
   @@index([ownerId])
 }
@@ -97,6 +111,7 @@ model List {
 
   board Board  @relation(fields: [boardId], references: [id], onDelete: Cascade)
   cards Card[]
+  recurringTasks RecurringTask[] @relation("RecurringTaskTargetList")
 
   @@index([boardId, position])
 }
@@ -114,12 +129,86 @@ model Card {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
-  list       List           @relation(fields: [listId], references: [id], onDelete: Cascade)
-  createdBy  User           @relation("CardCreator", fields: [createdById], references: [id])
-  activities CardActivity[]
+  // When this card is a spawned occurrence of a recurring task, these link it
+  // back to its template and record which period (the Monday 00:00 UTC of the
+  // week) it represents. Null for ordinary, one-off cards.
+  recurringTaskId String?
+  occurrenceStart DateTime?
 
+  list          List            @relation(fields: [listId], references: [id], onDelete: Cascade)
+  createdBy     User            @relation("CardCreator", fields: [createdById], references: [id])
+  recurringTask RecurringTask?  @relation(fields: [recurringTaskId], references: [id], onDelete: SetNull)
+  activities    CardActivity[]
+  checklist     ChecklistItem[]
+
+  @@unique([recurringTaskId, occurrenceStart])
   @@index([listId, position])
   @@index([boardId, isArchived])
+}
+
+/// A recurring-task template: a repeatable chore (e.g. "تنظيف المعهد") whose
+/// fixed set of subtasks is snapshotted onto a fresh Card each period. The
+/// template itself is never "done"; each spawned occurrence Card is.
+model RecurringTask {
+  id           String            @id @default(cuid())
+  boardId      String
+  targetListId String
+  title        String
+  description  String?
+  cadence      RecurrenceCadence @default(WEEKLY)
+  isActive     Boolean           @default(true)
+  position     String
+  createdById  String
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  board      Board             @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  targetList List              @relation("RecurringTaskTargetList", fields: [targetListId], references: [id], onDelete: Cascade)
+  createdBy  User              @relation("RecurringTaskCreator", fields: [createdById], references: [id])
+  subtasks   RecurringSubtask[]
+  cards      Card[]
+
+  @@index([boardId, position])
+}
+
+/// One subtask of a recurring template. Its identity (`id`) is *stable across
+/// weeks* — every ChecklistItem spawned from it links back here, which is what
+/// lets a report ask "was 'غسل الدرج' done every week last month?".
+model RecurringSubtask {
+  id              String   @id @default(cuid())
+  recurringTaskId String
+  label           String
+  position        String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  recurringTask RecurringTask   @relation(fields: [recurringTaskId], references: [id], onDelete: Cascade)
+  checklistItems ChecklistItem[]
+
+  @@index([recurringTaskId, position])
+}
+
+/// A single tick-box on a card. Ad-hoc items on any card have a null
+/// `recurringSubtaskId`; items spawned from a recurring template carry the
+/// subtask link (for reporting) plus a snapshot of its `label`.
+model ChecklistItem {
+  id                String    @id @default(cuid())
+  cardId            String
+  recurringSubtaskId String?
+  label             String
+  position          String
+  isCompleted       Boolean   @default(false)
+  completedAt       DateTime?
+  completedById     String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  card             Card              @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  recurringSubtask RecurringSubtask? @relation(fields: [recurringSubtaskId], references: [id], onDelete: SetNull)
+  completedBy      User?             @relation("ChecklistItemCompleter", fields: [completedById], references: [id])
+
+  @@index([cardId, position])
+  @@index([recurringSubtaskId])
 }
 
 /// Append-only audit trail for a card ("task"): who created it, and who

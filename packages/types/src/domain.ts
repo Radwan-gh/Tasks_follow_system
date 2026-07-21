@@ -53,6 +53,20 @@ export const BoardSummarySchema = z.object({
 });
 export type BoardSummary = z.infer<typeof BoardSummarySchema>;
 
+/** One tick-box on a card. `recurringSubtaskId` is set only for items spawned
+ *  from a recurring template (and is the stable identity a report groups by). */
+export const ChecklistItemSchema = z.object({
+  id: z.string(),
+  cardId: z.string(),
+  recurringSubtaskId: z.string().nullable(),
+  label: z.string().min(1).max(300),
+  position: z.string(),
+  isCompleted: z.boolean(),
+  completedAt: z.string().datetime().nullable(),
+  completedById: z.string().nullable(),
+});
+export type ChecklistItem = z.infer<typeof ChecklistItemSchema>;
+
 export const CardSchema = z.object({
   id: z.string(),
   listId: z.string(),
@@ -65,6 +79,12 @@ export const CardSchema = z.object({
   isArchived: z.boolean(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
+  // Set when the card is an occurrence spawned from a recurring template.
+  recurringTaskId: z.string().nullable().optional(),
+  occurrenceStart: z.string().datetime().nullable().optional(),
+  // Embedded in board detail so the tile can show a progress badge; omitted
+  // by endpoints that don't join the checklist (treat as empty then).
+  checklist: z.array(ChecklistItemSchema).optional(),
 });
 export type Card = z.infer<typeof CardSchema>;
 
@@ -81,6 +101,10 @@ export const CardActivityType = z.enum([
   "DUE_DATE_CHANGED",
   "ARCHIVED",
   "UNARCHIVED",
+  "CHECKLIST_ITEM_ADDED",
+  "CHECKLIST_ITEM_COMPLETED",
+  "CHECKLIST_ITEM_UNCOMPLETED",
+  "CHECKLIST_ITEM_REMOVED",
 ]);
 export type CardActivityType = z.infer<typeof CardActivityType>;
 
@@ -117,3 +141,76 @@ export const BoardDetailSchema = BoardSummarySchema.extend({
   members: z.array(BoardMemberSchema),
 });
 export type BoardDetail = z.infer<typeof BoardDetailSchema>;
+
+// ---------------------------------------------------------------------------
+// Recurring tasks
+// ---------------------------------------------------------------------------
+
+export const RecurrenceCadence = z.enum(["WEEKLY"]);
+export type RecurrenceCadence = z.infer<typeof RecurrenceCadence>;
+
+export const RecurringSubtaskSchema = z.object({
+  id: z.string(),
+  recurringTaskId: z.string(),
+  label: z.string().min(1).max(300),
+  position: z.string(),
+});
+export type RecurringSubtask = z.infer<typeof RecurringSubtaskSchema>;
+
+/** A recurring-task template plus its fixed subtasks. */
+export const RecurringTaskSchema = z.object({
+  id: z.string(),
+  boardId: z.string(),
+  targetListId: z.string(),
+  title: z.string().min(1).max(300),
+  description: z.string().max(10_000).nullable(),
+  cadence: RecurrenceCadence,
+  isActive: z.boolean(),
+  position: z.string(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+  subtasks: z.array(RecurringSubtaskSchema),
+});
+export type RecurringTask = z.infer<typeof RecurringTaskSchema>;
+
+// ---------------------------------------------------------------------------
+// Recurring completion report
+// ---------------------------------------------------------------------------
+
+/** One period (week) column in the report grid. */
+export const ReportOccurrenceSchema = z.object({
+  cardId: z.string(),
+  occurrenceStart: z.string().datetime(),
+});
+export type ReportOccurrence = z.infer<typeof ReportOccurrenceSchema>;
+
+/** One subtask row: whether it was done in each occurrence, plus a tally. */
+export const ReportSubtaskRowSchema = z.object({
+  recurringSubtaskId: z.string(),
+  label: z.string(),
+  completedCount: z.number().int(),
+  totalCount: z.number().int(),
+  cells: z.array(
+    z.object({
+      occurrenceStart: z.string().datetime(),
+      isCompleted: z.boolean(),
+      completedAt: z.string().datetime().nullable(),
+    }),
+  ),
+});
+export type ReportSubtaskRow = z.infer<typeof ReportSubtaskRowSchema>;
+
+export const ReportTaskSchema = z.object({
+  recurringTaskId: z.string(),
+  title: z.string(),
+  occurrences: z.array(ReportOccurrenceSchema),
+  subtasks: z.array(ReportSubtaskRowSchema),
+});
+export type ReportTask = z.infer<typeof ReportTaskSchema>;
+
+export const RecurringReportSchema = z.object({
+  from: z.string().datetime(),
+  to: z.string().datetime(),
+  tasks: z.array(ReportTaskSchema),
+});
+export type RecurringReport = z.infer<typeof RecurringReportSchema>;

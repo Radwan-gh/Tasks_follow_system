@@ -1,10 +1,16 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
-import type { CardActivityType, CreateCardRequest, UpdateCardRequest } from "@app/types";
+import type {
+  CardActivityType,
+  CreateCardRequest,
+  CreateChecklistItemRequest,
+  UpdateCardRequest,
+  UpdateChecklistItemRequest,
+} from "@app/types";
 import type { Prisma } from "@prisma/client";
 import { generateKeyBetween } from "@app/ordering";
 import { computeMovePosition } from "../common/util/position.util";
 import { PrismaService } from "../prisma/prisma.service";
-import { BoardsService, serializeCard } from "../boards/boards.service";
+import { BoardsService, serializeCard, serializeChecklistItem } from "../boards/boards.service";
 
 /** Prisma transaction client — the subset of PrismaService usable inside `$transaction`. */
 type Tx = Prisma.TransactionClient;
@@ -212,6 +218,119 @@ export class CardsService {
     const card = await this.loadCard(cardId);
     await this.boards.assertMembership(userId, card.boardId);
     await this.prisma.card.delete({ where: { id: cardId } });
+  }
+
+  // -- Checklist items (subtasks on a card) --------------------------------
+
+  private async loadChecklistItem(itemId: string) {
+    const item = await this.prisma.checklistItem.findUnique({ where: { id: itemId } });
+    if (!item) throw new NotFoundException("Checklist item not found");
+    return item;
+  }
+
+  async listChecklist(userId: string, cardId: string) {
+    const card = await this.loadCard(cardId);
+    await this.boards.assertMembership(userId, card.boardId);
+    const items = await this.prisma.checklistItem.findMany({
+      where: { cardId },
+      orderBy: { position: "asc" },
+    });
+    return items.map(serializeChecklistItem);
+  }
+
+  async addChecklistItem(userId: string, cardId: string, input: CreateChecklistItemRequest) {
+    const card = await this.loadCard(cardId);
+    await this.boards.assertMembership(userId, card.boardId);
+
+    const last = await this.prisma.checklistItem.findFirst({
+      where: { cardId },
+      orderBy: { position: "desc" },
+      select: { position: true },
+    });
+    const position = generateKeyBetween(last?.position ?? null, null);
+
+    const item = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.checklistItem.create({
+        data: { cardId, label: input.label, position },
+      });
+      await this.recordActivity(tx, cardId, card.boardId, userId, {
+        type: "CHECKLIST_ITEM_ADDED",
+        toValue: input.label,
+      });
+      return created;
+    });
+    return serializeChecklistItem(item);
+  }
+
+  async updateChecklistItem(userId: string, itemId: string, input: UpdateChecklistItemRequest) {
+    const item = await this.loadChecklistItem(itemId);
+    const card = await this.loadCard(item.cardId);
+    await this.boards.assertMembership(userId, card.boardId);
+
+    if (input.move) {
+      await this.validateChecklistNeighbors(item.cardId, [input.move.beforeId, input.move.afterId], itemId);
+    }
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      let position: string | undefined;
+      if (input.move) {
+        position = await computeMovePosition(input.move.beforeId, input.move.afterId, async (id) => {
+          const neighbor = await tx.checklistItem.findUnique({ where: { id }, select: { position: true } });
+          return neighbor?.position ?? null;
+        });
+      }
+
+      // A completion state change stamps who/when; clearing it wipes the stamp.
+      const completionData =
+        input.isCompleted === undefined || input.isCompleted === item.isCompleted
+          ? {}
+          : input.isCompleted
+            ? { isCompleted: true, completedAt: new Date(), completedById: userId }
+            : { isCompleted: false, completedAt: null, completedById: null };
+
+      const result = await tx.checklistItem.update({
+        where: { id: itemId },
+        data: { label: input.label, position, ...completionData },
+      });
+
+      // Renames of a checklist label are minor and not recorded in history;
+      // only completion toggles produce an activity entry.
+      if (input.isCompleted !== undefined && input.isCompleted !== item.isCompleted) {
+        await this.recordActivity(tx, item.cardId, card.boardId, userId, {
+          type: input.isCompleted ? "CHECKLIST_ITEM_COMPLETED" : "CHECKLIST_ITEM_UNCOMPLETED",
+          toValue: result.label,
+        });
+      }
+      return result;
+    });
+    return serializeChecklistItem(updated);
+  }
+
+  async removeChecklistItem(userId: string, itemId: string) {
+    const item = await this.loadChecklistItem(itemId);
+    const card = await this.loadCard(item.cardId);
+    await this.boards.assertMembership(userId, card.boardId);
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.checklistItem.delete({ where: { id: itemId } });
+      await this.recordActivity(tx, item.cardId, card.boardId, userId, {
+        type: "CHECKLIST_ITEM_REMOVED",
+        fromValue: item.label,
+      });
+    });
+  }
+
+  private async validateChecklistNeighbors(
+    cardId: string,
+    neighborIds: (string | null | undefined)[],
+    excludeItemId: string,
+  ) {
+    const ids = neighborIds.filter((id): id is string => Boolean(id));
+    if (ids.length === 0) return;
+    const found = await this.prisma.checklistItem.findMany({ where: { id: { in: ids }, cardId } });
+    if (found.length !== ids.length || found.some((i) => i.id === excludeItemId)) {
+      throw new BadRequestException("Invalid checklist move target");
+    }
   }
 
   private async validateNeighborsBelongToList(

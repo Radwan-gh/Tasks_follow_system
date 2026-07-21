@@ -116,6 +116,35 @@ read-only over `GET /cards/:id/history` (auth via the same
 rendered as a timeline in `CardDetailModal.tsx`. Rows are never mutated, only
 inserted, and cascade-delete with their card.
 
+### Recurring tasks, checklists & completion reports
+
+Cards can carry a **checklist** of subtasks (`ChecklistItem` table) — each an
+ordered (fractional `position`), tickable row with `isCompleted`/`completedAt`/
+`completedById`. Checklist mutations live on `CardsService`
+(`addChecklistItem`/`updateChecklistItem`/`removeChecklistItem`) and record
+`CHECKLIST_ITEM_*` entries into the same `CardActivity` trail, inside the same
+transaction, so ticking a subtask shows up in the card timeline. The board
+detail payload embeds each card's `checklist` (via `serializeCard`) so the tile
+can show a progress badge without an extra fetch.
+
+A **`RecurringTask`** template (`apps/api/src/recurring/`) models a repeating
+chore: a title, a `targetListId`, a `WEEKLY` `RecurrenceCadence` (enum kept
+extensible), and a fixed set of **`RecurringSubtask`** rows. A subtask's `id` is
+the *stable identity across weeks* — this is what makes reporting possible.
+`POST /recurring-tasks/:id/generate` spawns one occurrence `Card` for the
+current ISO week (`startOfIsoWeek`, `common/util/week.util.ts`), seeding a
+`ChecklistItem` from each subtask (snapshotting its label, linking back via
+`recurringSubtaskId`). It is **idempotent** — the `@@unique([recurringTaskId,
+occurrenceStart])` constraint on `Card` means a second call the same week
+returns the existing card rather than duplicating it. `GET
+/boards/:boardId/recurring-report?from=&to=` (defaults to the previous calendar
+month) groups occurrence cards' checklist items by `recurringSubtaskId` into a
+grid — subtask rows × week columns, each cell done/not-done — answering "was
+subtask X done every week?". Rendered at `/boards/:boardId/reports`
+(`features/reports/ReportsPage.tsx`); templates are managed from
+`RecurringTasksModal.tsx`. All endpoints authorize through
+`BoardsService.assertMembership`.
+
 ### Authorization: single source of truth
 
 `BoardsService.assertMembership(userId, boardId, minRole)` in

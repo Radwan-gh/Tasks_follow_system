@@ -33,9 +33,21 @@ export function CardItem({ card, onOpen, onDelete }: { card: Card; onOpen: () =>
       className="group relative cursor-grab rounded bg-white p-2 pe-7 text-sm text-slate-800 shadow-sm hover:shadow"
     >
       {card.title}
-      {card.dueDate && (
-        <div className="mt-1 text-xs text-slate-400">{new Date(card.dueDate).toLocaleDateString()}</div>
-      )}
+      <div className="mt-1 flex items-center gap-2 text-xs text-slate-400">
+        {card.dueDate && <span>{new Date(card.dueDate).toLocaleDateString()}</span>}
+        {card.checklist && card.checklist.length > 0 && (
+          <span
+            className={
+              card.checklist.every((i) => i.isCompleted)
+                ? "rounded bg-green-100 px-1.5 py-0.5 text-green-700"
+                : "rounded bg-slate-100 px-1.5 py-0.5 text-slate-500"
+            }
+            title="البنود الفرعية المنجزة"
+          >
+            ☑ {card.checklist.filter((i) => i.isCompleted).length}/{card.checklist.length}
+          </span>
+        )}
+      </div>
       <button
         {...stop}
         onClick={(e) => {

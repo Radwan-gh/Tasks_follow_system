@@ -55,7 +55,13 @@ export class BoardsService {
         lists: {
           where: { isArchived: false },
           orderBy: { position: "asc" },
-          include: { cards: { where: { isArchived: false }, orderBy: { position: "asc" } } },
+          include: {
+            cards: {
+              where: { isArchived: false },
+              orderBy: { position: "asc" },
+              include: { checklist: { orderBy: { position: "asc" } } },
+            },
+          },
         },
       },
     });
@@ -167,6 +173,30 @@ function serializeBoard(board: {
   };
 }
 
+interface ChecklistItemRow {
+  id: string;
+  cardId: string;
+  recurringSubtaskId: string | null;
+  label: string;
+  position: string;
+  isCompleted: boolean;
+  completedAt: Date | null;
+  completedById: string | null;
+}
+
+function serializeChecklistItem(item: ChecklistItemRow) {
+  return {
+    id: item.id,
+    cardId: item.cardId,
+    recurringSubtaskId: item.recurringSubtaskId,
+    label: item.label,
+    position: item.position,
+    isCompleted: item.isCompleted,
+    completedAt: item.completedAt ? item.completedAt.toISOString() : null,
+    completedById: item.completedById,
+  };
+}
+
 function serializeCard(card: {
   id: string;
   listId: string;
@@ -179,6 +209,9 @@ function serializeCard(card: {
   isArchived: boolean;
   createdAt: Date;
   updatedAt: Date;
+  recurringTaskId?: string | null;
+  occurrenceStart?: Date | null;
+  checklist?: ChecklistItemRow[];
 }) {
   return {
     id: card.id,
@@ -192,7 +225,11 @@ function serializeCard(card: {
     isArchived: card.isArchived,
     createdAt: card.createdAt.toISOString(),
     updatedAt: card.updatedAt.toISOString(),
+    recurringTaskId: card.recurringTaskId ?? null,
+    occurrenceStart: card.occurrenceStart ? card.occurrenceStart.toISOString() : null,
+    ...(card.checklist ? { checklist: card.checklist.map(serializeChecklistItem) } : {}),
   };
 }
 
-export { serializeCard };
+export { serializeCard, serializeChecklistItem };
+export type { ChecklistItemRow };
