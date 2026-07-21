@@ -1,9 +1,19 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
-import type { CreateCardRequest, UpdateCardRequest } from "@app/types";
+import type { CardActivityType, CreateCardRequest, UpdateCardRequest } from "@app/types";
+import type { Prisma } from "@prisma/client";
 import { generateKeyBetween } from "@app/ordering";
 import { computeMovePosition } from "../common/util/position.util";
 import { PrismaService } from "../prisma/prisma.service";
 import { BoardsService, serializeCard } from "../boards/boards.service";
+
+/** Prisma transaction client — the subset of PrismaService usable inside `$transaction`. */
+type Tx = Prisma.TransactionClient;
+
+interface ActivityInput {
+  type: CardActivityType;
+  fromValue?: string | null;
+  toValue?: string | null;
+}
 
 @Injectable()
 export class CardsService {
@@ -38,16 +48,24 @@ export class CardsService {
     await this.boards.assertMembership(userId, list.boardId);
 
     const position = await this.nextCardPosition(listId);
-    const card = await this.prisma.card.create({
-      data: {
-        listId,
-        boardId: list.boardId,
-        title: input.title,
-        description: input.description ?? null,
-        dueDate: input.dueDate ? new Date(input.dueDate) : null,
-        position,
-        createdById: userId,
-      },
+    const card = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.card.create({
+        data: {
+          listId,
+          boardId: list.boardId,
+          title: input.title,
+          description: input.description ?? null,
+          dueDate: input.dueDate ? new Date(input.dueDate) : null,
+          position,
+          createdById: userId,
+        },
+      });
+      // First history entry: who added the card and its initial status (list).
+      await this.recordActivity(tx, created.id, created.boardId, userId, {
+        type: "CREATED",
+        toValue: list.name,
+      });
+      return created;
     });
     return serializeCard(card);
   }
@@ -90,7 +108,7 @@ export class CardsService {
         position = generateKeyBetween(last?.position ?? null, null);
       }
 
-      return tx.card.update({
+      const result = await tx.card.update({
         where: { id: cardId },
         data: {
           title: input.title,
@@ -101,9 +119,93 @@ export class CardsService {
           position,
         },
       });
+
+      for (const activity of await this.diffActivities(tx, card, input, targetListId)) {
+        await this.recordActivity(tx, cardId, card.boardId, userId, activity);
+      }
+
+      return result;
     });
 
     return serializeCard(updated);
+  }
+
+  /**
+   * Diff the incoming update against the card's current state and return the
+   * history events it produces. A change of list is the card's "status change".
+   * Called inside the update transaction so history and the mutation commit
+   * atomically. Field-level diffs only fire when a value is actually provided
+   * *and* different, so a no-op PATCH records nothing.
+   */
+  private async diffActivities(
+    tx: Tx,
+    card: { listId: string; title: string; description: string | null; dueDate: Date | null; isArchived: boolean },
+    input: UpdateCardRequest,
+    targetListId: string,
+  ): Promise<ActivityInput[]> {
+    const activities: ActivityInput[] = [];
+
+    if (targetListId !== card.listId) {
+      const [fromList, toList] = await Promise.all([
+        tx.list.findUnique({ where: { id: card.listId }, select: { name: true } }),
+        tx.list.findUnique({ where: { id: targetListId }, select: { name: true } }),
+      ]);
+      activities.push({ type: "MOVED", fromValue: fromList?.name ?? null, toValue: toList?.name ?? null });
+    }
+
+    if (input.title !== undefined && input.title !== card.title) {
+      activities.push({ type: "RENAMED", fromValue: card.title, toValue: input.title });
+    }
+
+    if (input.description !== undefined && (input.description ?? null) !== card.description) {
+      // Descriptions can be long; record only that it changed, not the full text.
+      activities.push({ type: "DESCRIPTION_UPDATED" });
+    }
+
+    if (input.dueDate !== undefined) {
+      const nextDue = input.dueDate ? new Date(input.dueDate).toISOString() : null;
+      const prevDue = card.dueDate ? card.dueDate.toISOString() : null;
+      if (nextDue !== prevDue) {
+        activities.push({ type: "DUE_DATE_CHANGED", fromValue: prevDue, toValue: nextDue });
+      }
+    }
+
+    if (input.isArchived !== undefined && input.isArchived !== card.isArchived) {
+      activities.push({ type: input.isArchived ? "ARCHIVED" : "UNARCHIVED" });
+    }
+
+    return activities;
+  }
+
+  private recordActivity(
+    tx: Tx,
+    cardId: string,
+    boardId: string,
+    actorId: string,
+    activity: ActivityInput,
+  ) {
+    return tx.cardActivity.create({
+      data: {
+        cardId,
+        boardId,
+        actorId,
+        type: activity.type,
+        fromValue: activity.fromValue ?? null,
+        toValue: activity.toValue ?? null,
+      },
+    });
+  }
+
+  async getHistory(userId: string, cardId: string) {
+    const card = await this.loadCard(cardId);
+    await this.boards.assertMembership(userId, card.boardId);
+
+    const activities = await this.prisma.cardActivity.findMany({
+      where: { cardId },
+      orderBy: { createdAt: "asc" },
+      include: { actor: { select: { id: true, email: true, displayName: true } } },
+    });
+    return activities.map(serializeCardActivity);
   }
 
   async remove(userId: string, cardId: string) {
@@ -124,4 +226,24 @@ export class CardsService {
       throw new BadRequestException("Invalid move target");
     }
   }
+}
+
+function serializeCardActivity(activity: {
+  id: string;
+  cardId: string;
+  type: CardActivityType;
+  fromValue: string | null;
+  toValue: string | null;
+  createdAt: Date;
+  actor: { id: string; email: string; displayName: string };
+}) {
+  return {
+    id: activity.id,
+    cardId: activity.cardId,
+    type: activity.type,
+    fromValue: activity.fromValue,
+    toValue: activity.toValue,
+    createdAt: activity.createdAt.toISOString(),
+    actor: activity.actor,
+  };
 }

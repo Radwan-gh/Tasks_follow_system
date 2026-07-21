@@ -68,6 +68,39 @@ export const CardSchema = z.object({
 });
 export type Card = z.infer<typeof CardSchema>;
 
+/**
+ * Kinds of card ("task") history events. A card's *status* in this Kanban
+ * model is the list it lives in, so a status change is a `MOVED` event whose
+ * `fromValue`/`toValue` are the previous/new list names.
+ */
+export const CardActivityType = z.enum([
+  "CREATED",
+  "MOVED",
+  "RENAMED",
+  "DESCRIPTION_UPDATED",
+  "DUE_DATE_CHANGED",
+  "ARCHIVED",
+  "UNARCHIVED",
+]);
+export type CardActivityType = z.infer<typeof CardActivityType>;
+
+/**
+ * One immutable entry in a card's history. `fromValue`/`toValue` hold a
+ * human-readable snapshot captured at the time of the change (list names for
+ * moves, titles for renames, ISO dates for due-date changes); they are null
+ * where a before/after value doesn't apply.
+ */
+export const CardActivitySchema = z.object({
+  id: z.string(),
+  cardId: z.string(),
+  type: CardActivityType,
+  fromValue: z.string().nullable(),
+  toValue: z.string().nullable(),
+  createdAt: z.string().datetime(),
+  actor: UserSchema.pick({ id: true, email: true, displayName: true }),
+});
+export type CardActivity = z.infer<typeof CardActivitySchema>;
+
 export const ListSchema = z.object({
   id: z.string(),
   boardId: z.string(),
