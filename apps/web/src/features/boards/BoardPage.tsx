@@ -15,11 +15,12 @@ import {
 import { SortableContext, arrayMove, horizontalListSortingStrategy } from "@dnd-kit/sortable";
 import type { Card, List } from "@app/types";
 import { api } from "../../lib/api-client";
+import { useAuth } from "../auth/AuthContext";
 import { CardPreview } from "./components/CardItem";
 import { CardDetailModal } from "./components/CardDetailModal";
 import { BoardSettingsModal } from "./components/BoardSettingsModal";
+import { BoardMembersModal } from "./components/BoardMembersModal";
 import { ListColumn } from "./components/ListColumn";
-import { useAuth } from "../auth/AuthContext";
 
 function resolveTargetListId(
   over: { id: string | number; data: { current?: Record<string, unknown> } },
@@ -49,6 +50,7 @@ export function BoardPage() {
   const [openCardId, setOpenCardId] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [newListName, setNewListName] = useState("");
+  const [membersOpen, setMembersOpen] = useState(false);
 
   useEffect(() => {
     if (board) setLists(board.lists);
@@ -188,6 +190,17 @@ export function BoardPage() {
         >
           تعديل
         </button>
+        <span className="text-xs text-slate-400">
+          {board.members.length > 1 ? `${board.members.length} أعضاء` : "خاصة"}
+        </span>
+        {isOwner && (
+          <button
+            onClick={() => setMembersOpen(true)}
+            className="ms-auto rounded border border-slate-300 px-3 py-1 text-sm text-slate-700 hover:bg-slate-50"
+          >
+            الأعضاء
+          </button>
+        )}
       </header>
       <div className="flex-1 overflow-x-auto p-6">
         <DndContext
@@ -232,9 +245,16 @@ export function BoardPage() {
       {openCard && (
         <CardDetailModal
           card={openCard}
+          boardMembers={board.members}
+          boardOwnerId={board.ownerId}
+          currentUserId={user?.id ?? ""}
           onClose={() => setOpenCardId(null)}
           onSave={async (updates) => {
             await api.cards.update(openCard.id, updates);
+            invalidate();
+          }}
+          onSaveAccess={async (updates) => {
+            await api.cards.updateAccess(openCard.id, updates);
             invalidate();
           }}
         />
@@ -255,6 +275,9 @@ export function BoardPage() {
             navigate("/boards");
           }}
         />
+      )}
+      {membersOpen && (
+        <BoardMembersModal boardId={board.id} members={board.members} onClose={() => setMembersOpen(false)} />
       )}
     </div>
   );

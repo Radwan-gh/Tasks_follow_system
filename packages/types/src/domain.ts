@@ -63,6 +63,10 @@ export const CardSchema = z.object({
   dueDate: z.string().datetime().nullable(),
   createdById: z.string(),
   isArchived: z.boolean(),
+  // Access control: when false the card inherits board membership. When true
+  // only `memberIds` (plus the board owner and creator) may see/edit it.
+  isRestricted: z.boolean(),
+  memberIds: z.array(z.string()),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 });

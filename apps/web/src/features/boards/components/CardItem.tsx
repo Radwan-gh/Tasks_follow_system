@@ -32,7 +32,10 @@ export function CardItem({ card, onOpen, onDelete }: { card: Card; onOpen: () =>
       onClick={onOpen}
       className="group relative cursor-grab rounded bg-white p-2 pe-7 text-sm text-slate-800 shadow-sm hover:shadow"
     >
-      {card.title}
+      <div className="flex items-start gap-1">
+        {card.isRestricted && <span title="Private task">🔒</span>}
+        <span>{card.title}</span>
+      </div>
       {card.dueDate && (
         <div className="mt-1 text-xs text-slate-400">{new Date(card.dueDate).toLocaleDateString()}</div>
       )}
