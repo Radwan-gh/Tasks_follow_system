@@ -34,6 +34,18 @@ export const AdminUserListSchema = z.object({
 });
 export type AdminUserList = z.infer<typeof AdminUserListSchema>;
 
+/** Minimal, non-sensitive user shape for the member-facing user picker. */
+export const PublicUserSchema = UserSchema.pick({ id: true, email: true, displayName: true });
+export type PublicUser = z.infer<typeof PublicUserSchema>;
+
+export const UserDirectoryListSchema = z.object({
+  users: z.array(PublicUserSchema),
+  total: z.number().int(),
+  page: z.number().int(),
+  pageSize: z.number().int(),
+});
+export type UserDirectoryList = z.infer<typeof UserDirectoryListSchema>;
+
 export const BoardMemberSchema = z.object({
   userId: z.string(),
   boardId: z.string(),

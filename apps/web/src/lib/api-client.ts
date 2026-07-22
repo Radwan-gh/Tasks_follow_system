@@ -18,6 +18,7 @@ import type {
   UpdateCardAccessRequest,
   UpdateCardRequest,
   UpdateListRequest,
+  UserDirectoryList,
   UserRole,
 } from "@app/types";
 import { tokenStore } from "./token-store";
@@ -107,6 +108,17 @@ export const api = {
       request<AdminUser>(`/admin/users/${id}/role`, { method: "PATCH", body: JSON.stringify({ role }) }),
     updateUserStatus: (id: string, isActive: boolean) =>
       request<AdminUser>(`/admin/users/${id}/status`, { method: "PATCH", body: JSON.stringify({ isActive }) }),
+  },
+  users: {
+    // Member-facing directory for the add-member picker (active users only).
+    list: (params: { search?: string; page?: number; pageSize?: number } = {}) => {
+      const query = new URLSearchParams();
+      if (params.search) query.set("search", params.search);
+      if (params.page) query.set("page", String(params.page));
+      if (params.pageSize) query.set("pageSize", String(params.pageSize));
+      const qs = query.toString();
+      return request<UserDirectoryList>(`/users${qs ? `?${qs}` : ""}`);
+    },
   },
   boards: {
     list: () => request<BoardSummary[]>("/boards"),

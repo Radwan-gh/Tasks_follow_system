@@ -1,5 +1,5 @@
 import { ConflictException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
-import type { AdminUser, AdminUserList, ListUsersQuery, UserRole } from "@app/types";
+import type { AdminUser, AdminUserList, ListUsersQuery, UserDirectoryList, UserRole } from "@app/types";
 import type { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 
@@ -45,6 +45,38 @@ export class UsersService {
     ]);
 
     return { users: users.map(serialize), total, page: query.page, pageSize: query.pageSize };
+  }
+
+  /**
+   * Member-facing directory for the "add board member" picker: only active
+   * users, minimal non-sensitive fields, searchable and paginated. Available
+   * to any authenticated user (no admin role required).
+   */
+  async searchDirectory(query: ListUsersQuery): Promise<UserDirectoryList> {
+    const where: Prisma.UserWhereInput = {
+      isActive: true,
+      ...(query.search
+        ? {
+            OR: [
+              { email: { contains: query.search, mode: "insensitive" } },
+              { displayName: { contains: query.search, mode: "insensitive" } },
+            ],
+          }
+        : {}),
+    };
+
+    const [users, total] = await this.prisma.$transaction([
+      this.prisma.user.findMany({
+        where,
+        select: { id: true, email: true, displayName: true },
+        orderBy: { displayName: "asc" },
+        skip: (query.page - 1) * query.pageSize,
+        take: query.pageSize,
+      }),
+      this.prisma.user.count({ where }),
+    ]);
+
+    return { users, total, page: query.page, pageSize: query.pageSize };
   }
 
   async updateRole(callerId: string, targetId: string, role: UserRole): Promise<AdminUser> {
