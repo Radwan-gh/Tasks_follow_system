@@ -33,10 +33,14 @@
 | `boards`/`lists`/`cards` (خدمات، متحكّمات، قواعد النقل) | [`05-boards-lists-cards.md`](./05-boards-lists-cards.md) |
 | `packages/ordering/*` أو `position.util.ts` | [`06-ordering.md`](./06-ordering.md) |
 | `users.service.ts`/`users.controller.ts` أو `seed.ts` | [`07-admin.md`](./07-admin.md) |
+| `boards/board-templates.ts` أو حقل `List.statusCategory` | [`09-list-status-templates.md`](./09-list-status-templates.md) |
+| `subtasks/*` أو الإسناد (`CardAssignee`/`SubtaskAssignee`, `updateAssignees`) | [`10-subtasks-and-assignment.md`](./10-subtasks-and-assignment.md) |
+| `reports/*` أو `packages/types/src/reports.ts` | [`11-reports.md`](./11-reports.md) |
 | مسار جديد، مكوّن معماري جديد، أو مصطلح جديد | [`01-overview.md`](./01-overview.md) + الملف المتخصّص |
 
 إن أضفت **موردًا جديدًا كليًا** (مثل التعليقات أو التسميات)، أنشئ ملفًا جديدًا
-`09-<الاسم>.md`، وأضِفه إلى الفهرس في [`README.md`](./README.md)، وإلى هذا الجدول.
+`NN-<الاسم>.md` بالرقم التالي المتاح، وأضِفه إلى الفهرس في [`README.md`](./README.md)،
+وإلى هذا الجدول.
 
 ## قائمة تحقّق قبل دمج أي تغيير (Checklist)
 

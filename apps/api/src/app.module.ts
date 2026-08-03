@@ -5,6 +5,8 @@ import { BoardsModule } from "./boards/boards.module";
 import { CardsModule } from "./cards/cards.module";
 import { ListsModule } from "./lists/lists.module";
 import { PrismaModule } from "./prisma/prisma.module";
+import { ReportsModule } from "./reports/reports.module";
+import { SubtasksModule } from "./subtasks/subtasks.module";
 import { UsersModule } from "./users/users.module";
 
 @Module({
@@ -15,6 +17,8 @@ import { UsersModule } from "./users/users.module";
     BoardsModule,
     ListsModule,
     CardsModule,
+    SubtasksModule,
+    ReportsModule,
     UsersModule,
   ],
 })

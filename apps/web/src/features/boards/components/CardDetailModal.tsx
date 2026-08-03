@@ -1,6 +1,14 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import type { BoardMember, Card, CardActivity, UpdateCardAccessRequest, UpdateCardRequest } from "@app/types";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import type {
+  BoardMember,
+  Card,
+  CardActivity,
+  Subtask,
+  UpdateAssigneesRequest,
+  UpdateCardAccessRequest,
+  UpdateCardRequest,
+} from "@app/types";
 import { api } from "../../../lib/api-client";
 
 interface CardDetailModalProps {
@@ -11,6 +19,7 @@ interface CardDetailModalProps {
   onClose: () => void;
   onSave: (updates: UpdateCardRequest) => Promise<void>;
   onSaveAccess: (updates: UpdateCardAccessRequest) => Promise<void>;
+  onSaveAssignees: (updates: UpdateAssigneesRequest) => Promise<void>;
 }
 
 export function CardDetailModal({
@@ -21,6 +30,7 @@ export function CardDetailModal({
   onClose,
   onSave,
   onSaveAccess,
+  onSaveAssignees,
 }: CardDetailModalProps) {
   const [title, setTitle] = useState(card.title);
   const [description, setDescription] = useState(card.description ?? "");
@@ -31,6 +41,9 @@ export function CardDetailModal({
   const [restricted, setRestricted] = useState(card.isRestricted);
   const [memberIds, setMemberIds] = useState<Set<string>>(new Set(card.memberIds));
   const [savingAccess, setSavingAccess] = useState(false);
+
+  const [assigneeIds, setAssigneeIds] = useState<Set<string>>(new Set(card.assigneeIds));
+  const [savingAssignees, setSavingAssignees] = useState(false);
 
   const { data: history, isLoading: historyLoading } = useQuery({
     queryKey: ["cardHistory", card.id],
@@ -52,12 +65,7 @@ export function CardDetailModal({
   }
 
   function toggleMember(userId: string) {
-    setMemberIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(userId)) next.delete(userId);
-      else next.add(userId);
-      return next;
-    });
+    setMemberIds((prev) => toggled(prev, userId));
   }
 
   async function handleSaveAccess() {
@@ -69,6 +77,15 @@ export function CardDetailModal({
       });
     } finally {
       setSavingAccess(false);
+    }
+  }
+
+  async function handleSaveAssignees() {
+    setSavingAssignees(true);
+    try {
+      await onSaveAssignees({ userIds: Array.from(assigneeIds) });
+    } finally {
+      setSavingAssignees(false);
     }
   }
 
@@ -111,6 +128,29 @@ export function CardDetailModal({
             {saving ? "جارٍ الحفظ..." : "حفظ"}
           </button>
         </div>
+
+        {/* Assignees — anyone with access to the card may assign it to board members */}
+        <div className="space-y-2 border-t border-slate-100 pt-3">
+          <p className="text-sm font-medium text-slate-700">المسؤولون عن المهمة</p>
+          <MemberChecklist
+            members={boardMembers}
+            selected={assigneeIds}
+            onToggle={(id) => setAssigneeIds((prev) => toggled(prev, id))}
+            emptyHint="لا يوجد أعضاء في اللوحة لإسنادها إليهم."
+          />
+          <div className="flex justify-end">
+            <button
+              onClick={handleSaveAssignees}
+              disabled={savingAssignees}
+              className="rounded border border-slate-300 px-3 py-1 text-xs text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            >
+              {savingAssignees ? "جارٍ الحفظ..." : "حفظ المسؤولين"}
+            </button>
+          </div>
+        </div>
+
+        {/* Subtasks */}
+        <SubtasksSection card={card} boardMembers={boardMembers} />
 
         {/* Access control */}
         {canManageAccess ? (
@@ -162,6 +202,166 @@ export function CardDetailModal({
   );
 }
 
+/** A checkbox list of board members, used to pick assignees (card or subtask). */
+function MemberChecklist({
+  members,
+  selected,
+  onToggle,
+  emptyHint,
+}: {
+  members: BoardMember[];
+  selected: Set<string>;
+  onToggle: (userId: string) => void;
+  emptyHint: string;
+}) {
+  if (members.length === 0) return <p className="text-xs text-slate-400">{emptyHint}</p>;
+  return (
+    <div className="space-y-1 rounded border border-slate-200 p-2">
+      {members.map((m) => (
+        <label key={m.userId} className="flex items-center gap-2 text-sm text-slate-700">
+          <input type="checkbox" checked={selected.has(m.userId)} onChange={() => onToggle(m.userId)} />
+          {m.user.displayName} <span className="text-slate-400">{m.user.email}</span>
+        </label>
+      ))}
+    </div>
+  );
+}
+
+function SubtasksSection({ card, boardMembers }: { card: Card; boardMembers: BoardMember[] }) {
+  const queryClient = useQueryClient();
+  const [newTitle, setNewTitle] = useState("");
+  const { data: subtasks, isLoading } = useQuery({
+    queryKey: ["subtasks", card.id],
+    queryFn: () => api.subtasks.list(card.id),
+  });
+  const refresh = () => queryClient.invalidateQueries({ queryKey: ["subtasks", card.id] });
+  const doneCount = subtasks?.filter((s) => s.isDone).length ?? 0;
+
+  async function addSubtask() {
+    const title = newTitle.trim();
+    if (!title) return;
+    await api.subtasks.create(card.id, { title });
+    setNewTitle("");
+    refresh();
+  }
+
+  return (
+    <div className="space-y-2 border-t border-slate-100 pt-3">
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-medium text-slate-700">المهام الفرعية</p>
+        {subtasks && subtasks.length > 0 && (
+          <span className="text-xs text-slate-400">
+            {doneCount}/{subtasks.length}
+          </span>
+        )}
+      </div>
+      {isLoading ? (
+        <p className="text-xs text-slate-400">جارٍ التحميل...</p>
+      ) : (
+        <ul className="space-y-1">
+          {subtasks?.map((subtask) => (
+            <SubtaskRow key={subtask.id} subtask={subtask} boardMembers={boardMembers} onChanged={refresh} />
+          ))}
+        </ul>
+      )}
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          addSubtask();
+        }}
+      >
+        <input
+          value={newTitle}
+          onChange={(e) => setNewTitle(e.target.value)}
+          placeholder="+ إضافة مهمة فرعية"
+          className="w-full rounded border border-slate-300 px-2 py-1 text-sm"
+        />
+      </form>
+    </div>
+  );
+}
+
+function SubtaskRow({
+  subtask,
+  boardMembers,
+  onChanged,
+}: {
+  subtask: Subtask;
+  boardMembers: BoardMember[];
+  onChanged: () => void;
+}) {
+  const [showAssign, setShowAssign] = useState(false);
+  const [assigneeIds, setAssigneeIds] = useState<Set<string>>(new Set(subtask.assigneeIds));
+  const [saving, setSaving] = useState(false);
+
+  async function toggleDone() {
+    await api.subtasks.update(subtask.id, { isDone: !subtask.isDone });
+    onChanged();
+  }
+
+  async function remove() {
+    await api.subtasks.remove(subtask.id);
+    onChanged();
+  }
+
+  async function saveAssignees() {
+    setSaving(true);
+    try {
+      await api.subtasks.updateAssignees(subtask.id, { userIds: Array.from(assigneeIds) });
+      setShowAssign(false);
+      onChanged();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <li className="rounded border border-slate-100 px-2 py-1">
+      <div className="flex items-center gap-2 text-sm">
+        <input type="checkbox" checked={subtask.isDone} onChange={toggleDone} />
+        <span className={subtask.isDone ? "text-slate-400 line-through" : "text-slate-700"}>{subtask.title}</span>
+        <button
+          onClick={() => setShowAssign((v) => !v)}
+          className="ms-auto rounded px-1 text-xs text-slate-500 hover:bg-slate-100"
+          title="المسؤولون"
+        >
+          👤 {subtask.assigneeIds.length > 0 ? subtask.assigneeIds.length : ""}
+        </button>
+        <button onClick={remove} className="rounded px-1 text-xs text-red-500 hover:bg-red-50" title="حذف">
+          ✕
+        </button>
+      </div>
+      {showAssign && (
+        <div className="mt-1 space-y-1">
+          <MemberChecklist
+            members={boardMembers}
+            selected={assigneeIds}
+            onToggle={(id) => setAssigneeIds((prev) => toggled(prev, id))}
+            emptyHint="لا يوجد أعضاء لإسنادها إليهم."
+          />
+          <div className="flex justify-end">
+            <button
+              onClick={saveAssignees}
+              disabled={saving}
+              className="rounded border border-slate-300 px-2 py-0.5 text-xs text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            >
+              {saving ? "..." : "حفظ"}
+            </button>
+          </div>
+        </div>
+      )}
+    </li>
+  );
+}
+
+/** Immutable toggle of a value in a Set (returns a new Set). */
+function toggled(prev: Set<string>, value: string): Set<string> {
+  const next = new Set(prev);
+  if (next.has(value)) next.delete(value);
+  else next.add(value);
+  return next;
+}
+
 function CardHistory({ activities, loading }: { activities?: CardActivity[]; loading: boolean }) {
   return (
     <div className="border-t border-slate-200 pt-3">
@@ -208,6 +408,10 @@ function describeActivity(activity: CardActivity): string {
       return "أرشف البطاقة";
     case "UNARCHIVED":
       return "أعاد البطاقة من الأرشيف";
+    case "ASSIGNED":
+      return activity.toValue ? `أسند المهمة إلى ${activity.toValue}` : "أسند المهمة";
+    case "UNASSIGNED":
+      return "أزال إسناد المهمة";
     default:
       return "حدّث البطاقة";
   }

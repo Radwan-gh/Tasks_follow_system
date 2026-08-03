@@ -36,9 +36,10 @@ export function CardItem({ card, onOpen, onDelete }: { card: Card; onOpen: () =>
         {card.isRestricted && <span title="Private task">🔒</span>}
         <span>{card.title}</span>
       </div>
-      {card.dueDate && (
-        <div className="mt-1 text-xs text-slate-400">{new Date(card.dueDate).toLocaleDateString()}</div>
-      )}
+      <div className="mt-1 flex items-center gap-2 text-xs text-slate-400">
+        {card.dueDate && <span>{new Date(card.dueDate).toLocaleDateString()}</span>}
+        {card.assigneeIds.length > 0 && <span title="عدد المسؤولين">👤 {card.assigneeIds.length}</span>}
+      </div>
       <button
         {...stop}
         onClick={(e) => {

@@ -42,6 +42,8 @@ BoardsService.assertMembership(userId, boardId, minRole = "MEMBER")
 | عرض اللوحة وقوائمها وبطاقاتها | MEMBER |
 | إنشاء/تعديل/حذف قائمة | MEMBER |
 | إنشاء/تعديل/نقل/حذف بطاقة | MEMBER |
+| إنشاء/تعديل/حذف مهمة فرعية | MEMBER (مع وصول للبطاقة الأمّ) |
+| إسناد بطاقة/مهمة فرعية لأعضاء | MEMBER (المُسنَد يجب أن يكون عضوًا) |
 | تعديل اسم/وصف اللوحة | MEMBER |
 | **أرشفة اللوحة** (`isArchived`) | **OWNER** |
 | **حذف اللوحة** | **OWNER** |
@@ -61,7 +63,10 @@ BoardsService.assertMembership(userId, boardId, minRole = "MEMBER")
 - يتطلّب أن يكون دور المستخدم `ADMIN`، وإلا يرفض بـ `Forbidden`.
 - يجب أن يعمل **بعد** `JwtAuthGuard` (الذي يملأ `request.user`)، ويُستخدم هكذا:
   `@UseGuards(JwtAuthGuard, AdminGuard)`.
-- يحمي مسارات الإدارة تحت `admin/users` فقط (انظر [`07-admin.md`](./07-admin.md)).
+- يحمي مسارات الإدارة تحت `admin/users` (انظر [`07-admin.md`](./07-admin.md))
+  **وكذلك قسم التقارير** تحت `reports/*` (انظر [`11-reports.md`](./11-reports.md)).
+  التقارير تشمل كل اللوحات، لذلك تُحمى بصلاحية النظام `ADMIN` ولا تمرّ عبر
+  `assertMembership` الخاصّ باللوحة.
 
 ## قاعدة ذهبية للصلاحيات
 

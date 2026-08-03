@@ -28,7 +28,13 @@ List (قائمة)
 Card (بطاقة)
  ├── list      : تنتمي لقائمة
  ├── board     : تحمل boardId مباشرةً (لتسريع الاستعلامات والتحقّق)
- └── createdBy : من أنشأها (User)
+ ├── createdBy : من أنشأها (User)
+ ├── assignees : مُسنَدون إليها (CardAssignee[] — عدة أشخاص)
+ └── subtasks  : مهام فرعية (Subtask[])
+
+Subtask (مهمة فرعية)
+ ├── card      : تنتمي لبطاقة
+ └── assignees : مُسنَدون إليها (SubtaskAssignee[])
 ```
 
 ## الكيانات بالتفصيل
@@ -87,6 +93,7 @@ Card (بطاقة)
 | `name` | الاسم (1 إلى 200 حرفًا) |
 | `position` | **سلسلة ترتيب معجمي** (وليست رقمًا) — انظر [`06-ordering.md`](./06-ordering.md) |
 | `isArchived` | القوائم المؤرشفة تُستبعَد من العرض والترتيب |
+| `statusCategory` | فئة الحالة الاختيارية (`NEW`/`READY`/`IN_PROGRESS`/`REVIEW`/`DONE`) — تُضبَط عند البذر من قالب؛ `null` للقوائم اليدوية. انظر [`09-list-status-templates.md`](./09-list-status-templates.md) |
 
 ### Card (البطاقة)
 
@@ -100,6 +107,26 @@ Card (بطاقة)
 | `dueDate` | تاريخ استحقاق اختياري |
 | `createdById` | منشئ البطاقة |
 | `isArchived` | البطاقات المؤرشفة تُستبعَد من العرض |
+| `isRestricted` | إن `true` تُقيَّد رؤية البطاقة على `CardMember` + المالك + المنشئ |
+| `assignees` | المُسنَدون إليها عبر `CardAssignee` (عدة أشخاص) — انظر [`10-subtasks-and-assignment.md`](./10-subtasks-and-assignment.md) |
+
+### Subtask (المهمة الفرعية)
+
+مهمة فرعية ضمن بطاقة. تفاصيل المنطق في [`10-subtasks-and-assignment.md`](./10-subtasks-and-assignment.md).
+
+| الحقل | ملاحظات منطق العمل |
+|---|---|
+| `cardId` | البطاقة الأمّ (حذف متسلسل) |
+| `title` | العنوان (1 إلى 300 حرفًا) |
+| `isDone` | منجَزة/غير منجَزة (افتراضيًا false) |
+| `position` | سلسلة ترتيب معجمي داخل البطاقة |
+| `createdById` | منشئ المهمة الفرعية |
+
+### CardAssignee / SubtaskAssignee (جدولا الإسناد)
+
+جدولا ربط للإسناد المتعدّد. `CardAssignee` يربط `(cardId, userId)` و
+`SubtaskAssignee` يربط `(subtaskId, userId)`، وكلاهما **فريد** على الزوج. مستقلّان
+عن `CardMember` (قائمة الوصول): هذان يمثّلان **المسؤولية عن العمل** لا الرؤية.
 
 ## قواعد سلامة البيانات (Integrity Rules)
 

@@ -5,6 +5,7 @@ import { RegisterPage } from "./features/auth/RegisterPage";
 import { BoardsListPage } from "./features/boards/BoardsListPage";
 import { BoardPage } from "./features/boards/BoardPage";
 import { UsersAdminPage } from "./features/admin/UsersAdminPage";
+import { ReportsPage } from "./features/reports/ReportsPage";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
@@ -47,6 +48,14 @@ export function App() {
         element={
           <AdminRoute>
             <UsersAdminPage />
+          </AdminRoute>
+        }
+      />
+      <Route
+        path="/reports"
+        element={
+          <AdminRoute>
+            <ReportsPage />
           </AdminRoute>
         }
       />

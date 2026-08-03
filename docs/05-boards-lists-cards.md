@@ -14,12 +14,19 @@
 - **اللوحات:** `GET/POST /boards`، `GET/PATCH/DELETE /boards/:id`،
   `POST/DELETE /boards/:id/members[/:userId]`
 - **القوائم:** `POST /boards/:boardId/lists`، `PATCH/DELETE /lists/:id`
-- **البطاقات:** `POST /lists/:listId/cards`، `GET/PATCH/DELETE /cards/:id`
+- **البطاقات:** `POST /lists/:listId/cards`، `GET/PATCH/DELETE /cards/:id`،
+  `GET /cards/:id/history`، `PATCH /cards/:id/access`، `PATCH /cards/:id/assignees`
+- **المهام الفرعية والتقارير:** لها ملفّاها المخصّصان
+  ([`10-subtasks-and-assignment.md`](./10-subtasks-and-assignment.md) و
+  [`11-reports.md`](./11-reports.md)).
 
 ## اللوحات (Boards)
 
 ### الإنشاء
 - ينشئ اللوحة ويُسجّل منشئها كعضو **OWNER** في نفس العملية.
+- يقبل حقلًا اختياريًا `template`: `EMPTY` (الافتراضي، لوحة بلا قوائم) أو
+  `TASK_WORKFLOW` الذي يبذر خمس قوائم حالات ضمن نفس العملية. التفاصيل في
+  [`09-list-status-templates.md`](./09-list-status-templates.md).
 
 ### القائمة (List for user)
 - تُرجَع فقط اللوحات التي المستخدم **عضو** فيها و**غير مؤرشفة**، مرتّبة بالأحدث تحديثًا.

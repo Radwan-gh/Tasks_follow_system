@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { BoardTemplate } from "@app/types";
 import { api } from "../../lib/api-client";
 import { useAuth } from "../auth/AuthContext";
 
@@ -9,16 +10,18 @@ export function BoardsListPage() {
   const queryClient = useQueryClient();
   const { data: boards, isLoading } = useQuery({ queryKey: ["boards"], queryFn: api.boards.list });
   const [name, setName] = useState("");
+  const [template, setTemplate] = useState<BoardTemplate>("EMPTY");
 
   const createBoard = useMutation({
-    mutationFn: (name: string) => api.boards.create({ name }),
+    mutationFn: (vars: { name: string; template: BoardTemplate }) =>
+      api.boards.create({ name: vars.name, template: vars.template }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["boards"] }),
   });
 
   function onSubmit(e: FormEvent) {
     e.preventDefault();
     if (!name.trim()) return;
-    createBoard.mutate(name.trim());
+    createBoard.mutate({ name: name.trim(), template });
     setName("");
   }
 
@@ -28,9 +31,14 @@ export function BoardsListPage() {
         <h1 className="text-lg font-semibold text-slate-900">اللوحات</h1>
         <div className="flex items-center gap-3 text-sm text-slate-600">
           {user?.role === "ADMIN" && (
-            <Link to="/admin/users" className="text-slate-500 underline">
-              المستخدمون والصلاحيات
-            </Link>
+            <>
+              <Link to="/reports" className="text-slate-500 underline">
+                التقارير
+              </Link>
+              <Link to="/admin/users" className="text-slate-500 underline">
+                المستخدمون والصلاحيات
+              </Link>
+            </>
           )}
           <span>{user?.displayName}</span>
           <button onClick={logout} className="text-slate-500 underline">
@@ -40,13 +48,22 @@ export function BoardsListPage() {
       </header>
 
       <main className="mx-auto max-w-3xl p-6">
-        <form onSubmit={onSubmit} className="mb-6 flex gap-2">
+        <form onSubmit={onSubmit} className="mb-6 flex flex-wrap gap-2">
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="اسم اللوحة الجديدة"
             className="flex-1 rounded border border-slate-300 px-3 py-2 text-sm"
           />
+          <select
+            value={template}
+            onChange={(e) => setTemplate(e.target.value as BoardTemplate)}
+            className="rounded border border-slate-300 px-3 py-2 text-sm text-slate-700"
+            title="قالب اللوحة"
+          >
+            <option value="EMPTY">لوحة فارغة</option>
+            <option value="TASK_WORKFLOW">قالب سير عمل المهام</option>
+          </select>
           <button
             type="submit"
             disabled={createBoard.isPending}
