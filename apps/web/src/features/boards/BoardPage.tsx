@@ -135,7 +135,13 @@ export function BoardPage() {
 
     if (active.data.current?.type === "list") {
       const oldIndex = lists.findIndex((l) => l.id === active.id);
-      const newIndex = lists.findIndex((l) => l.id === over.id);
+      // `over` may resolve to a card or an empty-list dropzone inside the
+      // target column (closestCorners picks the nearest droppable, and list
+      // columns are full of card droppables) — reconcile it back to a list id
+      // the same way the card branch does, otherwise the drop target is never
+      // recognized and the reorder is silently dropped.
+      const targetListId = resolveTargetListId(over, findListOfCard);
+      const newIndex = targetListId ? lists.findIndex((l) => l.id === targetListId) : -1;
       if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return;
 
       const reordered = arrayMove(lists, oldIndex, newIndex);
