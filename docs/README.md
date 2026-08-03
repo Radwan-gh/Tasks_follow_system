@@ -23,6 +23,9 @@
 | [`06-ordering.md`](./06-ordering.md) | الترتيب بالفهرسة الكسرية (Fractional Indexing) — أهم منطق للصحّة |
 | [`07-admin.md`](./07-admin.md) | لوحة الإدارة: إدارة المستخدمين والأدوار والتفعيل |
 | [`08-maintaining-docs.md`](./08-maintaining-docs.md) | **كيفية تحديث هذا التوثيق مع كل تغيير في الكود أو ميزة جديدة** |
+| [`09-list-status-templates.md`](./09-list-status-templates.md) | قوالب حالات القوائم: القالب الجاهز و`statusCategory` |
+| [`10-subtasks-and-assignment.md`](./10-subtasks-and-assignment.md) | المهام الفرعية وإسناد المهام لعدة أشخاص |
+| [`11-reports.md`](./11-reports.md) | قسم التقارير (محكوم بصلاحية ADMIN) |
 
 ## كيف تُحدَّث هذه الوثائق؟
 

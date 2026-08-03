@@ -7,18 +7,26 @@ import type {
   BoardSummary,
   Card,
   CardActivity,
+  CompletedTasksReport,
   CreateBoardRequest,
   CreateCardRequest,
   CreateListRequest,
+  CreateSubtaskRequest,
   CurrentUser,
   List,
   LoginRequest,
+  OverdueTasksReport,
   RegisterRequest,
+  ReportOverview,
+  Subtask,
+  UpdateAssigneesRequest,
   UpdateBoardRequest,
   UpdateCardAccessRequest,
   UpdateCardRequest,
   UpdateListRequest,
+  UpdateSubtaskRequest,
   UserRole,
+  WorkloadReport,
 } from "@app/types";
 import { tokenStore } from "./token-store";
 
@@ -134,7 +142,26 @@ export const api = {
     history: (id: string) => request<CardActivity[]>(`/cards/${id}/history`),
     updateAccess: (id: string, body: UpdateCardAccessRequest) =>
       request<Card>(`/cards/${id}/access`, { method: "PATCH", body: JSON.stringify(body) }),
+    updateAssignees: (id: string, body: UpdateAssigneesRequest) =>
+      request<Card>(`/cards/${id}/assignees`, { method: "PATCH", body: JSON.stringify(body) }),
     remove: (id: string) => request<void>(`/cards/${id}`, { method: "DELETE" }),
+  },
+  subtasks: {
+    list: (cardId: string) => request<Subtask[]>(`/cards/${cardId}/subtasks`),
+    create: (cardId: string, body: CreateSubtaskRequest) =>
+      request<Subtask>(`/cards/${cardId}/subtasks`, { method: "POST", body: JSON.stringify(body) }),
+    update: (id: string, body: UpdateSubtaskRequest) =>
+      request<Subtask>(`/subtasks/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+    updateAssignees: (id: string, body: UpdateAssigneesRequest) =>
+      request<Subtask>(`/subtasks/${id}/assignees`, { method: "PATCH", body: JSON.stringify(body) }),
+    remove: (id: string) => request<void>(`/subtasks/${id}`, { method: "DELETE" }),
+  },
+  reports: {
+    overview: () => request<ReportOverview>("/reports/overview"),
+    completed: (since?: string) =>
+      request<CompletedTasksReport>(`/reports/completed${since ? `?since=${encodeURIComponent(since)}` : ""}`),
+    overdue: () => request<OverdueTasksReport>("/reports/overdue"),
+    workload: () => request<WorkloadReport>("/reports/workload"),
   },
 };
 

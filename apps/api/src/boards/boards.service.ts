@@ -5,8 +5,9 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import type { BoardRole, CreateBoardRequest, UpdateBoardRequest } from "@app/types";
-import { generateKeyBetween } from "@app/ordering";
+import { generateKeyBetween, generateNKeysBetween } from "@app/ordering";
 import { PrismaService } from "../prisma/prisma.service";
+import { TASK_WORKFLOW_TEMPLATE } from "./board-templates";
 
 const ROLE_RANK: Record<BoardRole, number> = { MEMBER: 0, OWNER: 1 };
 
@@ -34,12 +35,27 @@ export class BoardsService {
   }
 
   async create(userId: string, input: CreateBoardRequest) {
+    // Seed the five status lists when the task-workflow template is chosen;
+    // otherwise the board starts empty (historical default). Positions are
+    // generated in one evenly-spaced batch so the fractional keys sort in order.
+    const templateLists = input.template === "TASK_WORKFLOW" ? TASK_WORKFLOW_TEMPLATE : [];
+    const positions = generateNKeysBetween(null, null, templateLists.length);
+
     const board = await this.prisma.board.create({
       data: {
         name: input.name,
         description: input.description ?? null,
         ownerId: userId,
         members: { create: { userId, role: "OWNER" } },
+        lists: templateLists.length
+          ? {
+              create: templateLists.map((list, i) => ({
+                name: list.name,
+                statusCategory: list.statusCategory,
+                position: positions[i],
+              })),
+            }
+          : undefined,
       },
     });
     return serializeBoard(board);
@@ -59,7 +75,10 @@ export class BoardsService {
             cards: {
               where: { isArchived: false },
               orderBy: { position: "asc" },
-              include: { members: { select: { userId: true } } },
+              include: {
+                members: { select: { userId: true } },
+                assignees: { select: { userId: true } },
+              },
             },
           },
         },
@@ -81,6 +100,7 @@ export class BoardsService {
         name: list.name,
         position: list.position,
         isArchived: list.isArchived,
+        statusCategory: list.statusCategory,
         createdAt: list.createdAt.toISOString(),
         // Restricted cards the requesting user can't access are hidden entirely.
         cards: list.cards
@@ -194,6 +214,7 @@ interface CardWithMembers {
   createdAt: Date;
   updatedAt: Date;
   members?: { userId: string }[];
+  assignees?: { userId: string }[];
 }
 
 function serializeCard(card: CardWithMembers) {
@@ -209,6 +230,7 @@ function serializeCard(card: CardWithMembers) {
     isArchived: card.isArchived,
     isRestricted: card.isRestricted,
     memberIds: (card.members ?? []).map((m) => m.userId),
+    assigneeIds: (card.assignees ?? []).map((a) => a.userId),
     createdAt: card.createdAt.toISOString(),
     updatedAt: card.updatedAt.toISOString(),
   };

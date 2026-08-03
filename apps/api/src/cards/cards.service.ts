@@ -1,5 +1,11 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
-import type { CardActivityType, CreateCardRequest, UpdateCardAccessRequest, UpdateCardRequest } from "@app/types";
+import type {
+  CardActivityType,
+  CreateCardRequest,
+  UpdateAssigneesRequest,
+  UpdateCardAccessRequest,
+  UpdateCardRequest,
+} from "@app/types";
 import type { Prisma } from "@prisma/client";
 import { generateKeyBetween } from "@app/ordering";
 import { computeMovePosition } from "../common/util/position.util";
@@ -25,7 +31,10 @@ export class CardsService {
   private async loadCard(cardId: string) {
     const card = await this.prisma.card.findUnique({
       where: { id: cardId },
-      include: { members: { select: { userId: true } } },
+      include: {
+        members: { select: { userId: true } },
+        assignees: { select: { userId: true } },
+      },
     });
     if (!card) throw new NotFoundException("Card not found");
     return card;
@@ -133,7 +142,10 @@ export class CardsService {
           listId: targetListId,
           position,
         },
-        include: { members: { select: { userId: true } } },
+        include: {
+          members: { select: { userId: true } },
+          assignees: { select: { userId: true } },
+        },
       });
 
       for (const activity of await this.diffActivities(tx, card, input, targetListId)) {
@@ -175,7 +187,64 @@ export class CardsService {
       return tx.card.update({
         where: { id: cardId },
         data: { isRestricted: input.isRestricted },
-        include: { members: { select: { userId: true } } },
+        include: {
+          members: { select: { userId: true } },
+          assignees: { select: { userId: true } },
+        },
+      });
+    });
+
+    return serializeCard(updated);
+  }
+
+  /**
+   * Replace a card's assignee set (several board members allowed). Any board
+   * member with access to the card may (re)assign it. Every listed user must be
+   * a member of the card's board. Records an ASSIGNED/UNASSIGNED activity — with
+   * a snapshot of the new assignees' names — only when the set actually changes.
+   */
+  async updateAssignees(userId: string, cardId: string, input: UpdateAssigneesRequest) {
+    const card = await this.loadCard(cardId);
+    await this.boards.assertMembership(userId, card.boardId);
+    const ownerId = await this.boardOwnerId(card.boardId);
+    if (!canAccessCard(userId, ownerId, card)) throw new NotFoundException("Card not found");
+
+    const userIds = [...new Set(input.userIds)];
+    const boardMembers = userIds.length
+      ? await this.prisma.boardMember.findMany({
+          where: { boardId: card.boardId, userId: { in: userIds } },
+          select: { userId: true, user: { select: { displayName: true } } },
+        })
+      : [];
+    if (boardMembers.length !== userIds.length) {
+      throw new BadRequestException("Every assignee must be a member of the board");
+    }
+
+    const before = new Set(card.assignees.map((a) => a.userId));
+    const changed = before.size !== userIds.length || userIds.some((id) => !before.has(id));
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      await tx.cardAssignee.deleteMany({ where: { cardId } });
+      if (userIds.length > 0) {
+        await tx.cardAssignee.createMany({ data: userIds.map((id) => ({ cardId, userId: id })) });
+      }
+      if (changed) {
+        await this.recordActivity(
+          tx,
+          cardId,
+          card.boardId,
+          userId,
+          userIds.length > 0
+            ? { type: "ASSIGNED", toValue: boardMembers.map((m) => m.user.displayName).join("، ") }
+            : { type: "UNASSIGNED" },
+        );
+      }
+      return tx.card.findUniqueOrThrow({
+        where: { id: cardId },
+        include: {
+          members: { select: { userId: true } },
+          assignees: { select: { userId: true } },
+        },
       });
     });
 

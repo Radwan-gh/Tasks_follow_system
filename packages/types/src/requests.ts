@@ -25,9 +25,19 @@ export const AuthResponseSchema = z.object({
 });
 export type AuthResponse = z.infer<typeof AuthResponseSchema>;
 
+/**
+ * Which starter layout to seed a new board with. `EMPTY` (default) keeps the
+ * historical behavior of a board with zero lists; `TASK_WORKFLOW` seeds the
+ * five status lists (جديد ← جاهز للتنفيذ ← قيد التنفيذ ← بانتظار تقييم ← تم
+ * التنفيذ) with their `statusCategory` set.
+ */
+export const BoardTemplate = z.enum(["EMPTY", "TASK_WORKFLOW"]);
+export type BoardTemplate = z.infer<typeof BoardTemplate>;
+
 export const CreateBoardRequestSchema = z.object({
   name: z.string().min(1).max(200),
   description: z.string().max(2000).optional(),
+  template: BoardTemplate.optional(),
 });
 export type CreateBoardRequest = z.infer<typeof CreateBoardRequestSchema>;
 
@@ -111,3 +121,24 @@ export const UpdateCardAccessRequestSchema = z.object({
   memberUserIds: z.array(z.string()),
 });
 export type UpdateCardAccessRequest = z.infer<typeof UpdateCardAccessRequestSchema>;
+
+export const CreateSubtaskRequestSchema = z.object({
+  title: z.string().min(1).max(300),
+});
+export type CreateSubtaskRequest = z.infer<typeof CreateSubtaskRequestSchema>;
+
+export const UpdateSubtaskRequestSchema = z.object({
+  title: z.string().min(1).max(300).optional(),
+  isDone: z.boolean().optional(),
+  move: MoveTargetSchema.optional(),
+});
+export type UpdateSubtaskRequest = z.infer<typeof UpdateSubtaskRequestSchema>;
+
+/**
+ * Atomic full-replace of an assignee set (for a card or a subtask). Every
+ * listed user must be a member of the owning board; duplicates are collapsed.
+ */
+export const UpdateAssigneesRequestSchema = z.object({
+  userIds: z.array(z.string()),
+});
+export type UpdateAssigneesRequest = z.infer<typeof UpdateAssigneesRequestSchema>;

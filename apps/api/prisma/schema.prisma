@@ -25,6 +25,19 @@ enum CardActivityType {
   DUE_DATE_CHANGED
   ARCHIVED
   UNARCHIVED
+  ASSIGNED
+  UNASSIGNED
+}
+
+/// Semantic status of a list, set when a board is seeded from a built-in
+/// template. Lets features (esp. reports) identify the terminal `DONE` status
+/// without depending on the list's renameable name. Null for manual lists.
+enum ListStatusCategory {
+  NEW
+  READY
+  IN_PROGRESS
+  REVIEW
+  DONE
 }
 
 model User {
@@ -42,6 +55,9 @@ model User {
   createdCards   Card[]         @relation("CardCreator")
   ownedBoards    Board[]        @relation("BoardOwner")
   cardActivities CardActivity[] @relation("CardActivityActor")
+  cardAssignments    CardAssignee[]
+  createdSubtasks    Subtask[]         @relation("SubtaskCreator")
+  subtaskAssignments SubtaskAssignee[]
 }
 
 model RefreshToken {
@@ -88,13 +104,14 @@ model BoardMember {
 }
 
 model List {
-  id         String   @id @default(cuid())
-  boardId    String
-  name       String
-  position   String
-  isArchived Boolean  @default(false)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id             String              @id @default(cuid())
+  boardId        String
+  name           String
+  position       String
+  isArchived     Boolean             @default(false)
+  statusCategory ListStatusCategory?
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
 
   board Board  @relation(fields: [boardId], references: [id], onDelete: Cascade)
   cards Card[]
@@ -123,6 +140,8 @@ model Card {
   createdBy  User           @relation("CardCreator", fields: [createdById], references: [id])
   activities CardActivity[]
   members    CardMember[]
+  assignees  CardAssignee[]
+  subtasks   Subtask[]
 
   @@index([listId, position])
   @@index([boardId, isArchived])
@@ -158,5 +177,54 @@ model CardMember {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([cardId, userId])
+  @@index([userId])
+}
+
+/// People a card ("task") is assigned to. A card can be assigned to several
+/// board members. Distinct from `CardMember` (an access allow-list) — this is
+/// assignment/ownership of the work.
+model CardAssignee {
+  id         String   @id @default(cuid())
+  cardId     String
+  userId     String
+  assignedAt DateTime @default(now())
+
+  card Card @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([cardId, userId])
+  @@index([userId])
+}
+
+/// A sub-task belonging to a card, ordered within it by a fractional-index
+/// `position` (same scheme as lists/cards) and checkable via `isDone`.
+model Subtask {
+  id          String   @id @default(cuid())
+  cardId      String
+  title       String
+  isDone      Boolean  @default(false)
+  position    String
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  card      Card              @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  createdBy User              @relation("SubtaskCreator", fields: [createdById], references: [id])
+  assignees SubtaskAssignee[]
+
+  @@index([cardId, position])
+}
+
+/// People a sub-task is assigned to (several board members allowed).
+model SubtaskAssignee {
+  id         String   @id @default(cuid())
+  subtaskId  String
+  userId     String
+  assignedAt DateTime @default(now())
+
+  subtask Subtask @relation(fields: [subtaskId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([subtaskId, userId])
   @@index([userId])
 }

@@ -257,6 +257,10 @@ export function BoardPage() {
             await api.cards.updateAccess(openCard.id, updates);
             invalidate();
           }}
+          onSaveAssignees={async (updates) => {
+            await api.cards.updateAssignees(openCard.id, updates);
+            invalidate();
+          }}
         />
       )}
       {settingsOpen && (
