@@ -1,12 +1,11 @@
-import { ConflictException, ForbiddenException, Injectable, UnauthorizedException } from "@nestjs/common";
+import { BadRequestException, ForbiddenException, Injectable, UnauthorizedException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { JwtService } from "@nestjs/jwt";
-import type { AuthResponse, LoginRequest, RegisterRequest } from "@app/types";
+import type { AuthResponse, LoginRequest } from "@app/types";
 import * as bcrypt from "bcrypt";
 import { createHash, randomUUID } from "crypto";
 import { PrismaService } from "../prisma/prisma.service";
-
-const PASSWORD_HASH_ROUNDS = 12;
+import { hashPassword } from "../common/util/password.util";
 
 function hashToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
@@ -31,17 +30,6 @@ export class AuthService {
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
   ) {}
-
-  async register(input: RegisterRequest): Promise<AuthResponse> {
-    const existing = await this.prisma.user.findUnique({ where: { email: input.email } });
-    if (existing) throw new ConflictException("Email already registered");
-
-    const passwordHash = await bcrypt.hash(input.password, PASSWORD_HASH_ROUNDS);
-    const user = await this.prisma.user.create({
-      data: { email: input.email, passwordHash, displayName: input.displayName },
-    });
-    return this.issueTokens(user);
-  }
 
   async login(input: LoginRequest): Promise<AuthResponse> {
     const user = await this.prisma.user.findUnique({ where: { email: input.email } });
@@ -79,6 +67,29 @@ export class AuthService {
     } catch {
       // Already invalid/expired — nothing to revoke.
     }
+  }
+
+  /**
+   * Self-service password change for the logged-in user. Re-authenticates with
+   * the current password, then hashes and stores the new one. All of the user's
+   * refresh tokens are revoked so other sessions can't outlive the change — the
+   * caller's own live access token stays valid only until its short TTL.
+   */
+  async changePassword(userId: string, currentPassword: string, newPassword: string): Promise<void> {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new UnauthorizedException("Invalid credentials");
+    if (!(await bcrypt.compare(currentPassword, user.passwordHash))) {
+      throw new BadRequestException("Current password is incorrect");
+    }
+
+    const passwordHash = await hashPassword(newPassword);
+    await this.prisma.$transaction([
+      this.prisma.user.update({ where: { id: userId }, data: { passwordHash } }),
+      this.prisma.refreshToken.updateMany({
+        where: { userId, revokedAt: null },
+        data: { revokedAt: new Date() },
+      }),
+    ]);
   }
 
   private async verifyRefreshToken(refreshToken: string): Promise<RefreshPayload> {

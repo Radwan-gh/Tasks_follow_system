@@ -1,8 +1,12 @@
-import { Body, Controller, Get, Param, Patch, Query, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from "@nestjs/common";
 import {
+  AdminSetPasswordRequestSchema,
+  CreateUserRequestSchema,
   ListUsersQuerySchema,
   UpdateUserRoleRequestSchema,
   UpdateUserStatusRequestSchema,
+  type AdminSetPasswordRequest,
+  type CreateUserRequest,
   type ListUsersQuery,
   type UpdateUserRoleRequest,
   type UpdateUserStatusRequest,
@@ -21,6 +25,19 @@ export class UsersController {
   @Get()
   list(@Query(new ZodValidationPipe(ListUsersQuerySchema)) query: ListUsersQuery) {
     return this.users.list(query);
+  }
+
+  @Post()
+  create(@Body(new ZodValidationPipe(CreateUserRequestSchema)) body: CreateUserRequest) {
+    return this.users.create(body);
+  }
+
+  @Patch(":id/password")
+  setPassword(
+    @Param("id") id: string,
+    @Body(new ZodValidationPipe(AdminSetPasswordRequestSchema)) body: AdminSetPasswordRequest,
+  ) {
+    return this.users.setPassword(id, body.password);
   }
 
   @Patch(":id/role")

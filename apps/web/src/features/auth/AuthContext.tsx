@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-import type { CurrentUser, LoginRequest, RegisterRequest } from "@app/types";
+import type { CurrentUser, LoginRequest } from "@app/types";
 import { api } from "../../lib/api-client";
 import { tokenStore } from "../../lib/token-store";
 
@@ -7,7 +7,6 @@ interface AuthContextValue {
   user: CurrentUser | null;
   isLoading: boolean;
   login: (input: LoginRequest) => Promise<void>;
-  register: (input: RegisterRequest) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -35,12 +34,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(await api.auth.me());
   }
 
-  async function register(input: RegisterRequest) {
-    const tokens = await api.auth.register(input);
-    tokenStore.setTokens(tokens.accessToken, tokens.refreshToken);
-    setUser(await api.auth.me());
-  }
-
   async function logout() {
     const refreshToken = tokenStore.getRefreshToken();
     if (refreshToken) await api.auth.logout(refreshToken).catch(() => undefined);
@@ -49,7 +42,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, register, logout }}>{children}</AuthContext.Provider>
+    <AuthContext.Provider value={{ user, isLoading, login, logout }}>{children}</AuthContext.Provider>
   );
 }
 

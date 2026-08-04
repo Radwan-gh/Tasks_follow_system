@@ -40,6 +40,9 @@ export function BoardsListPage() {
               </Link>
             </>
           )}
+          <Link to="/account" className="text-slate-500 underline">
+            حسابي
+          </Link>
           <span>{user?.displayName}</span>
           <button onClick={logout} className="text-slate-500 underline">
             تسجيل الخروج

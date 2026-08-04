@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { UserRole } from "@app/types";
@@ -14,6 +14,13 @@ export function UsersAdminPage() {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [page, setPage] = useState(1);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  // New-user form state.
+  const [newName, setNewName] = useState("");
+  const [newEmail, setNewEmail] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [newIsAdmin, setNewIsAdmin] = useState(false);
 
   useEffect(() => {
     const handle = setTimeout(() => {
@@ -30,12 +37,57 @@ export function UsersAdminPage() {
   });
 
   const onMutationError = (err: unknown) => {
+    setNotice(null);
     setError(err instanceof ApiError ? err.message : "حدث خطأ ما");
   };
   const onMutationSuccess = () => {
     setError(null);
     queryClient.invalidateQueries({ queryKey: ["admin-users"] });
   };
+
+  const createUser = useMutation({
+    mutationFn: (vars: { email: string; password: string; displayName: string; role: UserRole }) =>
+      api.admin.createUser(vars),
+    onSuccess: (created) => {
+      onMutationSuccess();
+      setNotice(`تم إنشاء الحساب ${created.email}.`);
+      setNewName("");
+      setNewEmail("");
+      setNewPassword("");
+      setNewIsAdmin(false);
+    },
+    onError: onMutationError,
+  });
+
+  const setPassword = useMutation({
+    mutationFn: ({ id, password }: { id: string; password: string }) => api.admin.setUserPassword(id, password),
+    onSuccess: (updated) => {
+      onMutationSuccess();
+      setNotice(`تم تغيير كلمة مرور ${updated.email}.`);
+    },
+    onError: onMutationError,
+  });
+
+  function onCreateUser(e: FormEvent) {
+    e.preventDefault();
+    createUser.mutate({
+      email: newEmail.trim(),
+      password: newPassword,
+      displayName: newName.trim(),
+      role: newIsAdmin ? "ADMIN" : "USER",
+    });
+  }
+
+  function onSetPassword(id: string, email: string) {
+    const password = window.prompt(`أدخل كلمة مرور جديدة لـ ${email} (8 أحرف على الأقل):`);
+    if (password === null) return;
+    if (password.length < 8) {
+      setNotice(null);
+      setError("كلمة المرور يجب أن تكون 8 أحرف على الأقل.");
+      return;
+    }
+    setPassword.mutate({ id, password });
+  }
 
   const updateRole = useMutation({
     mutationFn: ({ id, role }: { id: string; role: UserRole }) => api.admin.updateUserRole(id, role),
@@ -64,7 +116,7 @@ export function UsersAdminPage() {
   }
 
   const totalPages = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1;
-  const isMutating = updateRole.isPending || updateStatus.isPending;
+  const isMutating = updateRole.isPending || updateStatus.isPending || setPassword.isPending;
 
   return (
     <div className="min-h-screen bg-slate-100">
@@ -99,6 +151,48 @@ export function UsersAdminPage() {
         </div>
 
         {error && <div className="mb-4 rounded bg-red-50 px-3 py-2 text-sm text-red-600">{error}</div>}
+        {notice && <div className="mb-4 rounded bg-green-50 px-3 py-2 text-sm text-green-700">{notice}</div>}
+
+        <form onSubmit={onCreateUser} className="mb-6 rounded-lg bg-white p-4 shadow-sm">
+          <h2 className="mb-3 text-sm font-semibold text-slate-900">إنشاء مستخدم جديد</h2>
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              required
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              placeholder="الاسم"
+              className="w-40 rounded border border-slate-300 px-3 py-2 text-sm"
+            />
+            <input
+              type="email"
+              required
+              value={newEmail}
+              onChange={(e) => setNewEmail(e.target.value)}
+              placeholder="البريد الإلكتروني"
+              className="w-56 rounded border border-slate-300 px-3 py-2 text-sm"
+            />
+            <input
+              type="password"
+              required
+              minLength={8}
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              placeholder="كلمة المرور (8 أحرف على الأقل)"
+              className="w-56 rounded border border-slate-300 px-3 py-2 text-sm"
+            />
+            <label className="flex items-center gap-1.5 text-sm text-slate-600">
+              <input type="checkbox" checked={newIsAdmin} onChange={(e) => setNewIsAdmin(e.target.checked)} />
+              مشرف
+            </label>
+            <button
+              type="submit"
+              disabled={createUser.isPending}
+              className="rounded bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
+            >
+              {createUser.isPending ? "جارٍ الإنشاء..." : "إنشاء الحساب"}
+            </button>
+          </div>
+        </form>
 
         {isLoading && <p className="text-slate-500">جارٍ تحميل المستخدمين...</p>}
         {!isLoading && data?.users.length === 0 && <p className="text-slate-500">لا يوجد مستخدمون يطابقون بحثك.</p>}
@@ -166,6 +260,13 @@ export function UsersAdminPage() {
                             className="rounded border border-slate-300 px-2 py-1 text-xs text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
                           >
                             {u.isActive ? "إلغاء التفعيل" : "إعادة التفعيل"}
+                          </button>
+                          <button
+                            onClick={() => onSetPassword(u.id, u.email)}
+                            disabled={isMutating}
+                            className="rounded border border-slate-300 px-2 py-1 text-xs text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                          >
+                            تغيير كلمة المرور
                           </button>
                         </div>
                       </td>
