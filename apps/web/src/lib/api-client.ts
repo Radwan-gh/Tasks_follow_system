@@ -2,6 +2,8 @@ import type {
   AdminUser,
   AdminUserList,
   AuthResponse,
+  ChangePasswordRequest,
+  CreateUserRequest,
   BoardDetail,
   BoardMember,
   BoardSummary,
@@ -16,7 +18,6 @@ import type {
   List,
   LoginRequest,
   OverdueTasksReport,
-  RegisterRequest,
   ReportOverview,
   Subtask,
   UpdateAssigneesRequest,
@@ -97,9 +98,10 @@ async function request<T>(path: string, options: RequestInit = {}, isRetry = fal
 
 export const api = {
   auth: {
-    register: (body: RegisterRequest) => request<AuthResponse>("/auth/register", { method: "POST", body: JSON.stringify(body) }),
     login: (body: LoginRequest) => request<AuthResponse>("/auth/login", { method: "POST", body: JSON.stringify(body) }),
     logout: (refreshToken: string) => request<void>("/auth/logout", { method: "POST", body: JSON.stringify({ refreshToken }) }),
+    changePassword: (body: ChangePasswordRequest) =>
+      request<void>("/auth/change-password", { method: "POST", body: JSON.stringify(body) }),
     me: () => request<CurrentUser>("/auth/me"),
   },
   admin: {
@@ -111,6 +113,10 @@ export const api = {
       const qs = query.toString();
       return request<AdminUserList>(`/admin/users${qs ? `?${qs}` : ""}`);
     },
+    createUser: (body: CreateUserRequest) =>
+      request<AdminUser>("/admin/users", { method: "POST", body: JSON.stringify(body) }),
+    setUserPassword: (id: string, password: string) =>
+      request<AdminUser>(`/admin/users/${id}/password`, { method: "PATCH", body: JSON.stringify({ password }) }),
     updateUserRole: (id: string, role: UserRole) =>
       request<AdminUser>(`/admin/users/${id}/role`, { method: "PATCH", body: JSON.stringify({ role }) }),
     updateUserStatus: (id: string, isActive: boolean) =>
