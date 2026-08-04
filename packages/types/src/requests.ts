@@ -1,18 +1,21 @@
 import { z } from "zod";
 import { UserRole } from "./domain";
 
-export const RegisterRequestSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(8).max(200),
-  displayName: z.string().min(1).max(100),
-});
-export type RegisterRequest = z.infer<typeof RegisterRequestSchema>;
-
 export const LoginRequestSchema = z.object({
   email: z.string().email(),
   password: z.string().min(1),
 });
 export type LoginRequest = z.infer<typeof LoginRequestSchema>;
+
+/**
+ * Self-service password change for the logged-in user. Requires the current
+ * password (re-authentication) plus the new one — see `POST /auth/change-password`.
+ */
+export const ChangePasswordRequestSchema = z.object({
+  currentPassword: z.string().min(1),
+  newPassword: z.string().min(8).max(200),
+});
+export type ChangePasswordRequest = z.infer<typeof ChangePasswordRequestSchema>;
 
 export const RefreshRequestSchema = z.object({
   refreshToken: z.string().min(1),
@@ -52,6 +55,25 @@ export const AddBoardMemberRequestSchema = z.object({
   email: z.string().email(),
 });
 export type AddBoardMemberRequest = z.infer<typeof AddBoardMemberRequestSchema>;
+
+/**
+ * Admin-only creation of a user account. Public self-registration was removed —
+ * new accounts are provisioned by an admin, who sets the initial password and
+ * (optionally) the role. See `POST /admin/users`.
+ */
+export const CreateUserRequestSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(8).max(200),
+  displayName: z.string().min(1).max(100),
+  role: UserRole.optional(),
+});
+export type CreateUserRequest = z.infer<typeof CreateUserRequestSchema>;
+
+/** Admin-only reset of another user's password. See `PATCH /admin/users/:id/password`. */
+export const AdminSetPasswordRequestSchema = z.object({
+  password: z.string().min(8).max(200),
+});
+export type AdminSetPasswordRequest = z.infer<typeof AdminSetPasswordRequestSchema>;
 
 export const ListUsersQuerySchema = z.object({
   search: z.string().max(200).optional(),

@@ -25,7 +25,7 @@ support for the kind of multi-container sortable UI a Kanban board needs.
 apps/
   api/            NestJS backend
     src/
-      auth/       JWT login/register/refresh/logout
+      auth/       JWT login/refresh/logout + self change-password
       boards/     Board CRUD, membership + roles (owner/member)
       lists/      List CRUD + reorder
       cards/      Card CRUD + move/reorder (incl. across lists)
@@ -36,7 +36,7 @@ apps/
       migrations/
   web/            React + Vite + Tailwind + dnd-kit
     src/
-      features/auth/    Login/register pages, auth context
+      features/auth/    Login + account (change-password) pages, auth context
       features/boards/  Boards list, board view, drag-and-drop, card modal
       lib/               API client, token storage, React Query setup
 
@@ -81,7 +81,8 @@ log, and a multi-tenant "Organization" layer above boards.
 
 REST, JSON, JWT bearer auth on everything except `/auth/*`:
 
-- **Auth:** `POST /auth/register`, `/auth/login`, `/auth/refresh`, `/auth/logout`, `GET /auth/me`
+- **Auth:** `POST /auth/login`, `/auth/refresh`, `/auth/logout`, `/auth/change-password`, `GET /auth/me` (no public registration — accounts are created by an admin)
+- **Admin users:** `GET/POST /admin/users`, `PATCH /admin/users/:id/{password,role,status}` (ADMIN only)
 - **Boards:** `GET/POST /boards`, `GET/PATCH/DELETE /boards/:id`, `POST/DELETE /boards/:id/members[/:userId]`
 - **Lists:** `POST /boards/:boardId/lists`, `PATCH/DELETE /lists/:id`
 - **Cards:** `POST /lists/:listId/cards`, `GET/PATCH/DELETE /cards/:id`
@@ -107,8 +108,10 @@ cd ../..
 pnpm dev                    # runs api (port 3000) and web (port 5173) together
 ```
 
-Open http://localhost:5173, register an account, create a board, and drag
-cards between lists.
+Open http://localhost:5173, sign in with the seeded admin account
+(`prisma/seed.ts`), create a board, and drag cards between lists. New user
+accounts are provisioned from the admin users page — there is no public
+sign-up.
 
 ### Running tests
 
@@ -116,7 +119,7 @@ cards between lists.
 pnpm --filter @app/ordering test   # fractional-index unit tests
 ```
 
-The API and web app have been verified end-to-end manually (register → login
+The API and web app have been verified end-to-end manually (login
 → board/list/card CRUD → drag-and-drop across lists, within a list, and list
 reordering, all confirmed to persist through a page reload) but do not yet
 have an automated e2e test suite — see [Roadmap](#roadmap).

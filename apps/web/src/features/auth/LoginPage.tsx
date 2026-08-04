@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "./AuthContext";
 
 export function LoginPage() {
@@ -52,11 +52,8 @@ export function LoginPage() {
         >
           {submitting ? "جارٍ تسجيل الدخول..." : "تسجيل الدخول"}
         </button>
-        <p className="text-center text-sm text-slate-500">
-          ليس لديك حساب؟{" "}
-          <Link to="/register" className="text-slate-900 underline">
-            إنشاء حساب
-          </Link>
+        <p className="text-center text-xs text-slate-400">
+          لإنشاء حساب جديد، تواصل مع مدير النظام.
         </p>
       </form>
     </div>

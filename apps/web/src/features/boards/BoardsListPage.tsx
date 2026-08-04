@@ -10,7 +10,7 @@ export function BoardsListPage() {
   const queryClient = useQueryClient();
   const { data: boards, isLoading } = useQuery({ queryKey: ["boards"], queryFn: api.boards.list });
   const [name, setName] = useState("");
-  const [template, setTemplate] = useState<BoardTemplate>("EMPTY");
+  const [template, setTemplate] = useState<BoardTemplate>("TASK_WORKFLOW");
 
   const createBoard = useMutation({
     mutationFn: (vars: { name: string; template: BoardTemplate }) =>
@@ -40,6 +40,9 @@ export function BoardsListPage() {
               </Link>
             </>
           )}
+          <Link to="/account" className="text-slate-500 underline">
+            حسابي
+          </Link>
           <span>{user?.displayName}</span>
           <button onClick={logout} className="text-slate-500 underline">
             تسجيل الخروج
@@ -61,8 +64,8 @@ export function BoardsListPage() {
             className="rounded border border-slate-300 px-3 py-2 text-sm text-slate-700"
             title="قالب اللوحة"
           >
-            <option value="EMPTY">لوحة فارغة</option>
             <option value="TASK_WORKFLOW">قالب سير عمل المهام</option>
+            <option value="EMPTY">لوحة فارغة</option>
           </select>
           <button
             type="submit"
