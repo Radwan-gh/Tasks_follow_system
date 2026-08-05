@@ -4,8 +4,8 @@ import { LoginPage } from "./features/auth/LoginPage";
 import { AccountPage } from "./features/auth/AccountPage";
 import { BoardsListPage } from "./features/boards/BoardsListPage";
 import { BoardPage } from "./features/boards/BoardPage";
-import { UsersAdminPage } from "./features/admin/UsersAdminPage";
 import { ReportsPage } from "./features/reports/ReportsPage";
+import { UsersAdminPage } from "./features/admin/UsersAdminPage";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();

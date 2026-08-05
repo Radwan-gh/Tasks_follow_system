@@ -76,6 +76,7 @@ export class BoardsService {
               where: { isArchived: false },
               orderBy: { position: "asc" },
               include: {
+                checklist: { orderBy: { position: "asc" } },
                 members: { select: { userId: true } },
                 assignees: { select: { userId: true } },
               },
@@ -200,6 +201,30 @@ function serializeBoard(board: {
   };
 }
 
+interface ChecklistItemRow {
+  id: string;
+  cardId: string;
+  recurringSubtaskId: string | null;
+  label: string;
+  position: string;
+  isCompleted: boolean;
+  completedAt: Date | null;
+  completedById: string | null;
+}
+
+function serializeChecklistItem(item: ChecklistItemRow) {
+  return {
+    id: item.id,
+    cardId: item.cardId,
+    recurringSubtaskId: item.recurringSubtaskId,
+    label: item.label,
+    position: item.position,
+    isCompleted: item.isCompleted,
+    completedAt: item.completedAt ? item.completedAt.toISOString() : null,
+    completedById: item.completedById,
+  };
+}
+
 interface CardWithMembers {
   id: string;
   listId: string;
@@ -215,6 +240,9 @@ interface CardWithMembers {
   updatedAt: Date;
   members?: { userId: string }[];
   assignees?: { userId: string }[];
+  recurringTaskId?: string | null;
+  occurrenceStart?: Date | null;
+  checklist?: ChecklistItemRow[];
 }
 
 function serializeCard(card: CardWithMembers) {
@@ -233,6 +261,9 @@ function serializeCard(card: CardWithMembers) {
     assigneeIds: (card.assignees ?? []).map((a) => a.userId),
     createdAt: card.createdAt.toISOString(),
     updatedAt: card.updatedAt.toISOString(),
+    recurringTaskId: card.recurringTaskId ?? null,
+    occurrenceStart: card.occurrenceStart ? card.occurrenceStart.toISOString() : null,
+    ...(card.checklist ? { checklist: card.checklist.map(serializeChecklistItem) } : {}),
   };
 }
 
@@ -256,4 +287,5 @@ function canManageCard(userId: string, boardOwnerId: string, card: { createdById
   return boardOwnerId === userId || card.createdById === userId;
 }
 
-export { serializeCard, canAccessCard, canManageCard };
+export { serializeCard, serializeChecklistItem, canAccessCard, canManageCard };
+export type { ChecklistItemRow };

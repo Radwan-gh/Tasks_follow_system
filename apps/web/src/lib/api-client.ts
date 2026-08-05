@@ -9,22 +9,31 @@ import type {
   BoardSummary,
   Card,
   CardActivity,
+  ChecklistItem,
   CompletedTasksReport,
   CreateBoardRequest,
   CreateCardRequest,
+  CreateChecklistItemRequest,
   CreateListRequest,
+  CreateRecurringSubtaskRequest,
+  CreateRecurringTaskRequest,
   CreateSubtaskRequest,
   CurrentUser,
   List,
   LoginRequest,
   OverdueTasksReport,
+  RecurringReport,
+  RecurringTask,
   ReportOverview,
   Subtask,
   UpdateAssigneesRequest,
   UpdateBoardRequest,
   UpdateCardAccessRequest,
   UpdateCardRequest,
+  UpdateChecklistItemRequest,
   UpdateListRequest,
+  UpdateRecurringSubtaskRequest,
+  UpdateRecurringTaskRequest,
   UpdateSubtaskRequest,
   UserRole,
   WorkloadReport,
@@ -151,6 +160,28 @@ export const api = {
     updateAssignees: (id: string, body: UpdateAssigneesRequest) =>
       request<Card>(`/cards/${id}/assignees`, { method: "PATCH", body: JSON.stringify(body) }),
     remove: (id: string) => request<void>(`/cards/${id}`, { method: "DELETE" }),
+    checklist: (id: string) => request<ChecklistItem[]>(`/cards/${id}/checklist`),
+    addChecklistItem: (id: string, body: CreateChecklistItemRequest) =>
+      request<ChecklistItem>(`/cards/${id}/checklist`, { method: "POST", body: JSON.stringify(body) }),
+    updateChecklistItem: (itemId: string, body: UpdateChecklistItemRequest) =>
+      request<ChecklistItem>(`/checklist-items/${itemId}`, { method: "PATCH", body: JSON.stringify(body) }),
+    removeChecklistItem: (itemId: string) =>
+      request<void>(`/checklist-items/${itemId}`, { method: "DELETE" }),
+  },
+  recurringTasks: {
+    list: (boardId: string) => request<RecurringTask[]>(`/boards/${boardId}/recurring-tasks`),
+    create: (boardId: string, body: CreateRecurringTaskRequest) =>
+      request<RecurringTask>(`/boards/${boardId}/recurring-tasks`, { method: "POST", body: JSON.stringify(body) }),
+    update: (id: string, body: UpdateRecurringTaskRequest) =>
+      request<RecurringTask>(`/recurring-tasks/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+    remove: (id: string) => request<void>(`/recurring-tasks/${id}`, { method: "DELETE" }),
+    addSubtask: (id: string, body: CreateRecurringSubtaskRequest) =>
+      request<RecurringTask>(`/recurring-tasks/${id}/subtasks`, { method: "POST", body: JSON.stringify(body) }),
+    updateSubtask: (subtaskId: string, body: UpdateRecurringSubtaskRequest) =>
+      request<RecurringTask>(`/recurring-subtasks/${subtaskId}`, { method: "PATCH", body: JSON.stringify(body) }),
+    removeSubtask: (subtaskId: string) =>
+      request<RecurringTask>(`/recurring-subtasks/${subtaskId}`, { method: "DELETE" }),
+    generate: (id: string) => request<Card>(`/recurring-tasks/${id}/generate`, { method: "POST" }),
   },
   subtasks: {
     list: (cardId: string) => request<Subtask[]>(`/cards/${cardId}/subtasks`),
@@ -168,6 +199,13 @@ export const api = {
       request<CompletedTasksReport>(`/reports/completed${since ? `?since=${encodeURIComponent(since)}` : ""}`),
     overdue: () => request<OverdueTasksReport>("/reports/overdue"),
     workload: () => request<WorkloadReport>("/reports/workload"),
+    recurring: (boardId: string, params: { from?: string; to?: string } = {}) => {
+      const query = new URLSearchParams();
+      if (params.from) query.set("from", params.from);
+      if (params.to) query.set("to", params.to);
+      const qs = query.toString();
+      return request<RecurringReport>(`/boards/${boardId}/recurring-report${qs ? `?${qs}` : ""}`);
+    },
   },
 };
 

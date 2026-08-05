@@ -1,15 +1,17 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
+import type { ReportTask } from "@app/types";
 import { api } from "../../lib/api-client";
 
-type Tab = "overview" | "completed" | "overdue" | "workload";
+type Tab = "overview" | "completed" | "overdue" | "workload" | "recurring";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "overview", label: "نظرة عامة على اللوحات" },
   { id: "completed", label: "المُنجَز آخر أسبوع" },
   { id: "overdue", label: "المهام المتأخّرة" },
   { id: "workload", label: "عبء العمل حسب الشخص" },
+  { id: "recurring", label: "المهام الدورية" },
 ];
 
 export function ReportsPage() {
@@ -45,6 +47,7 @@ export function ReportsPage() {
         {tab === "completed" && <CompletedReport />}
         {tab === "overdue" && <OverdueReport />}
         {tab === "workload" && <WorkloadReport />}
+        {tab === "recurring" && <RecurringReport />}
       </main>
     </div>
   );
@@ -169,6 +172,146 @@ function WorkloadReport() {
       )}
     </div>
   );
+}
+
+/**
+ * Recurring-task completion report. Because this page is global (not scoped to
+ * a board), it starts with a board picker, then renders one grid per recurring
+ * template on that board: subtasks as rows, weekly occurrences as columns, each
+ * cell showing whether that subtask was done that week — answering "was X done
+ * every week?". Window defaults to the previous calendar month.
+ */
+function RecurringReport() {
+  const [boardId, setBoardId] = useState("");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+
+  const { data: boards } = useQuery({ queryKey: ["boards"], queryFn: api.boards.list });
+  const selectedBoardId = boardId || boards?.[0]?.id || "";
+
+  const { data: report, isLoading } = useQuery({
+    queryKey: ["recurringReport", selectedBoardId, from, to],
+    queryFn: () =>
+      api.reports.recurring(selectedBoardId, {
+        from: from ? new Date(from).toISOString() : undefined,
+        to: to ? new Date(to).toISOString() : undefined,
+      }),
+    enabled: Boolean(selectedBoardId),
+  });
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-3 rounded-lg bg-white p-4 text-sm shadow-sm">
+        <label className="flex items-center gap-1 text-slate-500">
+          اللوحة
+          <select
+            value={selectedBoardId}
+            onChange={(e) => setBoardId(e.target.value)}
+            className="rounded border border-slate-300 px-2 py-1"
+          >
+            {(boards ?? []).map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="flex items-center gap-1 text-slate-500">
+          من
+          <input
+            type="date"
+            value={from}
+            onChange={(e) => setFrom(e.target.value)}
+            className="rounded border border-slate-300 px-2 py-1"
+          />
+        </label>
+        <label className="flex items-center gap-1 text-slate-500">
+          إلى
+          <input
+            type="date"
+            value={to}
+            onChange={(e) => setTo(e.target.value)}
+            className="rounded border border-slate-300 px-2 py-1"
+          />
+        </label>
+        {report && (
+          <span className="text-slate-500">
+            الفترة: {formatDate(report.from)} — {formatDate(report.to)}
+            {!from && !to && " (الشهر الماضي افتراضياً)"}
+          </span>
+        )}
+      </div>
+
+      {isLoading ? (
+        <p className="text-sm text-slate-400">جارٍ تحميل التقرير...</p>
+      ) : !report || report.tasks.length === 0 ? (
+        <p className="text-sm text-slate-400">لا توجد مهام دورية على هذه اللوحة.</p>
+      ) : (
+        report.tasks.map((task) => <TaskReport key={task.recurringTaskId} task={task} />)
+      )}
+    </div>
+  );
+}
+
+function TaskReport({ task }: { task: ReportTask }) {
+  return (
+    <section className="rounded-lg bg-white p-4 shadow-sm">
+      <h2 className="mb-3 text-base font-semibold text-slate-900">{task.title}</h2>
+      {task.occurrences.length === 0 ? (
+        <p className="text-sm text-slate-400">لم تُنشأ أي مهمة في هذه الفترة.</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse text-sm">
+            <thead>
+              <tr>
+                <th className="border-b border-slate-200 p-2 text-start font-medium text-slate-500">البند</th>
+                {task.occurrences.map((occ) => (
+                  <th
+                    key={occ.cardId}
+                    className="border-b border-slate-200 p-2 text-center font-medium text-slate-500"
+                  >
+                    {formatWeek(occ.occurrenceStart)}
+                  </th>
+                ))}
+                <th className="border-b border-slate-200 p-2 text-center font-medium text-slate-500">الإجمالي</th>
+              </tr>
+            </thead>
+            <tbody>
+              {task.subtasks.map((row) => (
+                <tr key={row.recurringSubtaskId}>
+                  <td className="border-b border-slate-100 p-2 text-slate-700">{row.label}</td>
+                  {row.cells.map((cell, i) => (
+                    <td key={i} className="border-b border-slate-100 p-2 text-center">
+                      {cell.isCompleted ? (
+                        <span className="text-green-600" title={cell.completedAt ? formatDate(cell.completedAt) : ""}>
+                          ✓
+                        </span>
+                      ) : (
+                        <span className="text-slate-300">—</span>
+                      )}
+                    </td>
+                  ))}
+                  <td
+                    className={
+                      row.completedCount === row.totalCount
+                        ? "border-b border-slate-100 p-2 text-center font-medium text-green-600"
+                        : "border-b border-slate-100 p-2 text-center font-medium text-slate-600"
+                    }
+                  >
+                    {row.completedCount}/{row.totalCount}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function formatWeek(iso: string): string {
+  return new Date(iso).toLocaleDateString("ar", { day: "numeric", month: "short" });
 }
 
 function formatDate(iso: string): string {

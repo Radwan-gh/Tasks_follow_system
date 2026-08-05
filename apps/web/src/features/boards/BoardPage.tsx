@@ -19,6 +19,7 @@ import { useAuth } from "../auth/AuthContext";
 import { CardPreview } from "./components/CardItem";
 import { CardDetailModal } from "./components/CardDetailModal";
 import { BoardSettingsModal } from "./components/BoardSettingsModal";
+import { RecurringTasksModal } from "./components/RecurringTasksModal";
 import { BoardMembersModal } from "./components/BoardMembersModal";
 import { ListColumn } from "./components/ListColumn";
 
@@ -49,6 +50,7 @@ export function BoardPage() {
   const [activeCard, setActiveCard] = useState<Card | null>(null);
   const [openCardId, setOpenCardId] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [recurringOpen, setRecurringOpen] = useState(false);
   const [newListName, setNewListName] = useState("");
   const [membersOpen, setMembersOpen] = useState(false);
 
@@ -189,24 +191,42 @@ export function BoardPage() {
             </p>
           )}
         </div>
-        <button
-          onClick={() => setSettingsOpen(true)}
-          className="rounded px-2 py-1 text-sm text-slate-500 hover:bg-slate-100"
-          title="إعدادات اللوحة"
-        >
-          تعديل
-        </button>
         <span className="text-xs text-slate-400">
           {board.members.length > 1 ? `${board.members.length} أعضاء` : "خاصة"}
         </span>
-        {isOwner && (
+        <div className="ms-auto flex items-center gap-2">
           <button
-            onClick={() => setMembersOpen(true)}
-            className="ms-auto rounded border border-slate-300 px-3 py-1 text-sm text-slate-700 hover:bg-slate-50"
+            onClick={() => setRecurringOpen(true)}
+            className="rounded px-2 py-1 text-sm text-slate-500 hover:bg-slate-100"
+            title="إدارة المهام الدورية"
           >
-            الأعضاء
+            المهام الدورية
           </button>
-        )}
+          {user?.role === "ADMIN" && (
+            <Link
+              to="/reports"
+              className="rounded px-2 py-1 text-sm text-slate-500 hover:bg-slate-100"
+              title="تقرير الإنجاز"
+            >
+              التقارير
+            </Link>
+          )}
+          {isOwner && (
+            <button
+              onClick={() => setMembersOpen(true)}
+              className="rounded border border-slate-300 px-3 py-1 text-sm text-slate-700 hover:bg-slate-50"
+            >
+              الأعضاء
+            </button>
+          )}
+          <button
+            onClick={() => setSettingsOpen(true)}
+            className="rounded px-2 py-1 text-sm text-slate-500 hover:bg-slate-100"
+            title="إعدادات اللوحة"
+          >
+            تعديل
+          </button>
+        </div>
       </header>
       <div className="flex-1 overflow-x-auto p-6">
         <DndContext
@@ -268,6 +288,9 @@ export function BoardPage() {
             invalidate();
           }}
         />
+      )}
+      {recurringOpen && (
+        <RecurringTasksModal boardId={board.id} lists={lists} onClose={() => setRecurringOpen(false)} />
       )}
       {settingsOpen && (
         <BoardSettingsModal

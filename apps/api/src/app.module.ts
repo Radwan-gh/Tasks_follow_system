@@ -5,6 +5,7 @@ import { BoardsModule } from "./boards/boards.module";
 import { CardsModule } from "./cards/cards.module";
 import { ListsModule } from "./lists/lists.module";
 import { PrismaModule } from "./prisma/prisma.module";
+import { RecurringModule } from "./recurring/recurring.module";
 import { ReportsModule } from "./reports/reports.module";
 import { SubtasksModule } from "./subtasks/subtasks.module";
 import { UsersModule } from "./users/users.module";
@@ -17,6 +18,7 @@ import { UsersModule } from "./users/users.module";
     BoardsModule,
     ListsModule,
     CardsModule,
+    RecurringModule,
     SubtasksModule,
     ReportsModule,
     UsersModule,
