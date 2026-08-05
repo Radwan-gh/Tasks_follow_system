@@ -5,8 +5,9 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import type { BoardRole, CreateBoardRequest, UpdateBoardRequest } from "@app/types";
-import { generateKeyBetween } from "@app/ordering";
+import { generateKeyBetween, generateNKeysBetween } from "@app/ordering";
 import { PrismaService } from "../prisma/prisma.service";
+import { TASK_WORKFLOW_TEMPLATE } from "./board-templates";
 
 const ROLE_RANK: Record<BoardRole, number> = { MEMBER: 0, OWNER: 1 };
 
@@ -34,12 +35,27 @@ export class BoardsService {
   }
 
   async create(userId: string, input: CreateBoardRequest) {
+    // Seed the five status lists when the task-workflow template is chosen;
+    // otherwise the board starts empty (historical default). Positions are
+    // generated in one evenly-spaced batch so the fractional keys sort in order.
+    const templateLists = input.template === "TASK_WORKFLOW" ? TASK_WORKFLOW_TEMPLATE : [];
+    const positions = generateNKeysBetween(null, null, templateLists.length);
+
     const board = await this.prisma.board.create({
       data: {
         name: input.name,
         description: input.description ?? null,
         ownerId: userId,
         members: { create: { userId, role: "OWNER" } },
+        lists: templateLists.length
+          ? {
+              create: templateLists.map((list, i) => ({
+                name: list.name,
+                statusCategory: list.statusCategory,
+                position: positions[i],
+              })),
+            }
+          : undefined,
       },
     });
     return serializeBoard(board);
@@ -59,7 +75,11 @@ export class BoardsService {
             cards: {
               where: { isArchived: false },
               orderBy: { position: "asc" },
-              include: { checklist: { orderBy: { position: "asc" } } },
+              include: {
+                checklist: { orderBy: { position: "asc" } },
+                members: { select: { userId: true } },
+                assignees: { select: { userId: true } },
+              },
             },
           },
         },
@@ -81,8 +101,12 @@ export class BoardsService {
         name: list.name,
         position: list.position,
         isArchived: list.isArchived,
+        statusCategory: list.statusCategory,
         createdAt: list.createdAt.toISOString(),
-        cards: list.cards.map(serializeCard),
+        // Restricted cards the requesting user can't access are hidden entirely.
+        cards: list.cards
+          .filter((card) => canAccessCard(userId, board.ownerId, card))
+          .map(serializeCard),
       })),
     };
   }
@@ -139,7 +163,11 @@ export class BoardsService {
     if (!target) throw new NotFoundException("Membership not found");
     if (target.role === "OWNER") throw new BadRequestException("Cannot remove the board owner");
 
-    await this.prisma.boardMember.delete({ where: { boardId_userId: { boardId, userId: targetUserId } } });
+    await this.prisma.$transaction([
+      // Drop any per-card access the user held on this board's cards.
+      this.prisma.cardMember.deleteMany({ where: { userId: targetUserId, card: { boardId } } }),
+      this.prisma.boardMember.delete({ where: { boardId_userId: { boardId, userId: targetUserId } } }),
+    ]);
   }
 
   /** Fresh-read helper for list ordering — used by ListsService when creating/moving lists. */
@@ -197,7 +225,7 @@ function serializeChecklistItem(item: ChecklistItemRow) {
   };
 }
 
-function serializeCard(card: {
+interface CardWithMembers {
   id: string;
   listId: string;
   boardId: string;
@@ -207,12 +235,17 @@ function serializeCard(card: {
   dueDate: Date | null;
   createdById: string;
   isArchived: boolean;
+  isRestricted: boolean;
   createdAt: Date;
   updatedAt: Date;
+  members?: { userId: string }[];
+  assignees?: { userId: string }[];
   recurringTaskId?: string | null;
   occurrenceStart?: Date | null;
   checklist?: ChecklistItemRow[];
-}) {
+}
+
+function serializeCard(card: CardWithMembers) {
   return {
     id: card.id,
     listId: card.listId,
@@ -223,6 +256,9 @@ function serializeCard(card: {
     dueDate: card.dueDate ? card.dueDate.toISOString() : null,
     createdById: card.createdById,
     isArchived: card.isArchived,
+    isRestricted: card.isRestricted,
+    memberIds: (card.members ?? []).map((m) => m.userId),
+    assigneeIds: (card.assignees ?? []).map((a) => a.userId),
     createdAt: card.createdAt.toISOString(),
     updatedAt: card.updatedAt.toISOString(),
     recurringTaskId: card.recurringTaskId ?? null,
@@ -231,5 +267,25 @@ function serializeCard(card: {
   };
 }
 
-export { serializeCard, serializeChecklistItem };
+/**
+ * Whether `userId` may see/open/edit a card. Open cards are visible to every
+ * board member; restricted cards only to their explicit members, plus the
+ * board owner and the card creator (who can also manage access).
+ */
+function canAccessCard(
+  userId: string,
+  boardOwnerId: string,
+  card: { createdById: string; isRestricted: boolean; members?: { userId: string }[] },
+): boolean {
+  if (!card.isRestricted) return true;
+  if (boardOwnerId === userId || card.createdById === userId) return true;
+  return (card.members ?? []).some((m) => m.userId === userId);
+}
+
+/** Whether `userId` may change a card's access config: board owner or creator. */
+function canManageCard(userId: string, boardOwnerId: string, card: { createdById: string }): boolean {
+  return boardOwnerId === userId || card.createdById === userId;
+}
+
+export { serializeCard, serializeChecklistItem, canAccessCard, canManageCard };
 export type { ChecklistItemRow };

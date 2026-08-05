@@ -2,10 +2,14 @@ import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, UseGuards 
 import {
   CreateCardRequestSchema,
   CreateChecklistItemRequestSchema,
+  UpdateAssigneesRequestSchema,
+  UpdateCardAccessRequestSchema,
   UpdateCardRequestSchema,
   UpdateChecklistItemRequestSchema,
   type CreateCardRequest,
   type CreateChecklistItemRequest,
+  type UpdateAssigneesRequest,
+  type UpdateCardAccessRequest,
   type UpdateCardRequest,
   type UpdateChecklistItemRequest,
 } from "@app/types";
@@ -45,6 +49,24 @@ export class CardsController {
     @Body(new ZodValidationPipe(UpdateCardRequestSchema)) body: UpdateCardRequest,
   ) {
     return this.cards.update(user.id, id, body);
+  }
+
+  @Patch("cards/:id/access")
+  updateAccess(
+    @CurrentUser() user: AuthUser,
+    @Param("id") id: string,
+    @Body(new ZodValidationPipe(UpdateCardAccessRequestSchema)) body: UpdateCardAccessRequest,
+  ) {
+    return this.cards.updateAccess(user.id, id, body);
+  }
+
+  @Patch("cards/:id/assignees")
+  updateAssignees(
+    @CurrentUser() user: AuthUser,
+    @Param("id") id: string,
+    @Body(new ZodValidationPipe(UpdateAssigneesRequestSchema)) body: UpdateAssigneesRequest,
+  ) {
+    return this.cards.updateAssignees(user.id, id, body);
   }
 
   @Delete("cards/:id")

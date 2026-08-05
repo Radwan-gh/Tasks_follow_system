@@ -1,7 +1,8 @@
 import { ConflictException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
-import type { AdminUser, AdminUserList, ListUsersQuery, UserRole } from "@app/types";
+import type { AdminUser, AdminUserList, CreateUserRequest, ListUsersQuery, UserRole } from "@app/types";
 import type { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
+import { hashPassword } from "../common/util/password.util";
 
 type UserWithBoardCount = Prisma.UserGetPayload<{ include: { _count: { select: { boardMemberships: true } } } }>;
 
@@ -45,6 +46,48 @@ export class UsersService {
     ]);
 
     return { users: users.map(serialize), total, page: query.page, pageSize: query.pageSize };
+  }
+
+  /**
+   * Provision a new account. Public self-registration was removed — an admin
+   * sets the initial email, display name, password, and (optionally) role.
+   */
+  async create(input: CreateUserRequest): Promise<AdminUser> {
+    const existing = await this.prisma.user.findUnique({ where: { email: input.email } });
+    if (existing) throw new ConflictException("Email already registered");
+
+    const passwordHash = await hashPassword(input.password);
+    const user = await this.prisma.user.create({
+      data: {
+        email: input.email,
+        passwordHash,
+        displayName: input.displayName,
+        role: input.role ?? "USER",
+      },
+      include: BOARD_COUNT_INCLUDE,
+    });
+    return serialize(user);
+  }
+
+  /**
+   * Admin reset of another user's password. Revokes the target's refresh
+   * tokens so any live sessions can't outlive the reset beyond an access-token
+   * TTL — the same session-capping rationale as role/status changes.
+   */
+  async setPassword(targetId: string, password: string): Promise<AdminUser> {
+    return this.prisma.$transaction(async (tx) => {
+      const target = await tx.user.findUnique({ where: { id: targetId }, include: BOARD_COUNT_INCLUDE });
+      if (!target) throw new NotFoundException("User not found");
+
+      const passwordHash = await hashPassword(password);
+      const updated = await tx.user.update({
+        where: { id: targetId },
+        data: { passwordHash },
+        include: BOARD_COUNT_INCLUDE,
+      });
+      await this.revokeRefreshTokens(tx, targetId);
+      return serialize(updated);
+    });
   }
 
   async updateRole(callerId: string, targetId: string, role: UserRole): Promise<AdminUser> {

@@ -6,6 +6,16 @@ export type BoardRole = z.infer<typeof BoardRole>;
 export const UserRole = z.enum(["USER", "ADMIN"]);
 export type UserRole = z.infer<typeof UserRole>;
 
+/**
+ * Semantic status category of a list, set when a board is seeded from a
+ * built-in template. A card's *status* is the list it lives in; this optional
+ * category lets features (notably the reports section) reason about a list's
+ * meaning — especially the terminal `DONE` — without relying on the list's
+ * (renameable, localized) name. Manually created lists carry `null`.
+ */
+export const ListStatusCategory = z.enum(["NEW", "READY", "IN_PROGRESS", "REVIEW", "DONE"]);
+export type ListStatusCategory = z.infer<typeof ListStatusCategory>;
+
 export const UserSchema = z.object({
   id: z.string(),
   email: z.string().email(),
@@ -77,6 +87,13 @@ export const CardSchema = z.object({
   dueDate: z.string().datetime().nullable(),
   createdById: z.string(),
   isArchived: z.boolean(),
+  // Access control: when false the card inherits board membership. When true
+  // only `memberIds` (plus the board owner and creator) may see/edit it.
+  isRestricted: z.boolean(),
+  memberIds: z.array(z.string()),
+  // People this task is assigned to (a card can be assigned to several board
+  // members). Distinct from `memberIds`, which is an access allow-list.
+  assigneeIds: z.array(z.string()),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
   // Set when the card is an occurrence spawned from a recurring template.
@@ -87,6 +104,24 @@ export const CardSchema = z.object({
   checklist: z.array(ChecklistItemSchema).optional(),
 });
 export type Card = z.infer<typeof CardSchema>;
+
+/**
+ * A sub-task ("مهمة فرعية") belonging to a card. Ordered within its parent
+ * card via a fractional-index `position` (same scheme as lists/cards), can be
+ * checked off (`isDone`), and can be assigned to several board members.
+ */
+export const SubtaskSchema = z.object({
+  id: z.string(),
+  cardId: z.string(),
+  title: z.string().min(1).max(300),
+  isDone: z.boolean(),
+  position: z.string(),
+  createdById: z.string(),
+  assigneeIds: z.array(z.string()),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+});
+export type Subtask = z.infer<typeof SubtaskSchema>;
 
 /**
  * Kinds of card ("task") history events. A card's *status* in this Kanban
@@ -101,6 +136,10 @@ export const CardActivityType = z.enum([
   "DUE_DATE_CHANGED",
   "ARCHIVED",
   "UNARCHIVED",
+  // Assignment changes: `toValue` holds a snapshot of the assignees' names
+  // after the change (comma-separated), or null when cleared.
+  "ASSIGNED",
+  "UNASSIGNED",
   "CHECKLIST_ITEM_ADDED",
   "CHECKLIST_ITEM_COMPLETED",
   "CHECKLIST_ITEM_UNCOMPLETED",
@@ -131,6 +170,7 @@ export const ListSchema = z.object({
   name: z.string().min(1).max(200),
   position: z.string(),
   isArchived: z.boolean(),
+  statusCategory: ListStatusCategory.nullable(),
   createdAt: z.string().datetime(),
   cards: z.array(CardSchema),
 });

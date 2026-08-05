@@ -2,30 +2,41 @@ import type {
   AdminUser,
   AdminUserList,
   AuthResponse,
+  ChangePasswordRequest,
+  CreateUserRequest,
   BoardDetail,
+  BoardMember,
   BoardSummary,
   Card,
   CardActivity,
   ChecklistItem,
+  CompletedTasksReport,
   CreateBoardRequest,
   CreateCardRequest,
   CreateChecklistItemRequest,
   CreateListRequest,
   CreateRecurringSubtaskRequest,
   CreateRecurringTaskRequest,
+  CreateSubtaskRequest,
   CurrentUser,
   List,
   LoginRequest,
+  OverdueTasksReport,
   RecurringReport,
   RecurringTask,
-  RegisterRequest,
+  ReportOverview,
+  Subtask,
+  UpdateAssigneesRequest,
   UpdateBoardRequest,
+  UpdateCardAccessRequest,
   UpdateCardRequest,
   UpdateChecklistItemRequest,
   UpdateListRequest,
   UpdateRecurringSubtaskRequest,
   UpdateRecurringTaskRequest,
+  UpdateSubtaskRequest,
   UserRole,
+  WorkloadReport,
 } from "@app/types";
 import { tokenStore } from "./token-store";
 
@@ -96,9 +107,10 @@ async function request<T>(path: string, options: RequestInit = {}, isRetry = fal
 
 export const api = {
   auth: {
-    register: (body: RegisterRequest) => request<AuthResponse>("/auth/register", { method: "POST", body: JSON.stringify(body) }),
     login: (body: LoginRequest) => request<AuthResponse>("/auth/login", { method: "POST", body: JSON.stringify(body) }),
     logout: (refreshToken: string) => request<void>("/auth/logout", { method: "POST", body: JSON.stringify({ refreshToken }) }),
+    changePassword: (body: ChangePasswordRequest) =>
+      request<void>("/auth/change-password", { method: "POST", body: JSON.stringify(body) }),
     me: () => request<CurrentUser>("/auth/me"),
   },
   admin: {
@@ -110,6 +122,10 @@ export const api = {
       const qs = query.toString();
       return request<AdminUserList>(`/admin/users${qs ? `?${qs}` : ""}`);
     },
+    createUser: (body: CreateUserRequest) =>
+      request<AdminUser>("/admin/users", { method: "POST", body: JSON.stringify(body) }),
+    setUserPassword: (id: string, password: string) =>
+      request<AdminUser>(`/admin/users/${id}/password`, { method: "PATCH", body: JSON.stringify({ password }) }),
     updateUserRole: (id: string, role: UserRole) =>
       request<AdminUser>(`/admin/users/${id}/role`, { method: "PATCH", body: JSON.stringify({ role }) }),
     updateUserStatus: (id: string, isActive: boolean) =>
@@ -122,7 +138,9 @@ export const api = {
     update: (id: string, body: UpdateBoardRequest) =>
       request<BoardSummary>(`/boards/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
     addMember: (id: string, email: string) =>
-      request<unknown>(`/boards/${id}/members`, { method: "POST", body: JSON.stringify({ email }) }),
+      request<BoardMember>(`/boards/${id}/members`, { method: "POST", body: JSON.stringify({ email }) }),
+    removeMember: (id: string, userId: string) =>
+      request<void>(`/boards/${id}/members/${userId}`, { method: "DELETE" }),
   },
   lists: {
     create: (boardId: string, body: CreateListRequest) =>
@@ -137,6 +155,10 @@ export const api = {
     update: (id: string, body: UpdateCardRequest) =>
       request<Card>(`/cards/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
     history: (id: string) => request<CardActivity[]>(`/cards/${id}/history`),
+    updateAccess: (id: string, body: UpdateCardAccessRequest) =>
+      request<Card>(`/cards/${id}/access`, { method: "PATCH", body: JSON.stringify(body) }),
+    updateAssignees: (id: string, body: UpdateAssigneesRequest) =>
+      request<Card>(`/cards/${id}/assignees`, { method: "PATCH", body: JSON.stringify(body) }),
     remove: (id: string) => request<void>(`/cards/${id}`, { method: "DELETE" }),
     checklist: (id: string) => request<ChecklistItem[]>(`/cards/${id}/checklist`),
     addChecklistItem: (id: string, body: CreateChecklistItemRequest) =>
@@ -161,7 +183,22 @@ export const api = {
       request<RecurringTask>(`/recurring-subtasks/${subtaskId}`, { method: "DELETE" }),
     generate: (id: string) => request<Card>(`/recurring-tasks/${id}/generate`, { method: "POST" }),
   },
+  subtasks: {
+    list: (cardId: string) => request<Subtask[]>(`/cards/${cardId}/subtasks`),
+    create: (cardId: string, body: CreateSubtaskRequest) =>
+      request<Subtask>(`/cards/${cardId}/subtasks`, { method: "POST", body: JSON.stringify(body) }),
+    update: (id: string, body: UpdateSubtaskRequest) =>
+      request<Subtask>(`/subtasks/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+    updateAssignees: (id: string, body: UpdateAssigneesRequest) =>
+      request<Subtask>(`/subtasks/${id}/assignees`, { method: "PATCH", body: JSON.stringify(body) }),
+    remove: (id: string) => request<void>(`/subtasks/${id}`, { method: "DELETE" }),
+  },
   reports: {
+    overview: () => request<ReportOverview>("/reports/overview"),
+    completed: (since?: string) =>
+      request<CompletedTasksReport>(`/reports/completed${since ? `?since=${encodeURIComponent(since)}` : ""}`),
+    overdue: () => request<OverdueTasksReport>("/reports/overdue"),
+    workload: () => request<WorkloadReport>("/reports/workload"),
     recurring: (boardId: string, params: { from?: string; to?: string } = {}) => {
       const query = new URLSearchParams();
       if (params.from) query.set("from", params.from);

@@ -2,6 +2,21 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## توثيق منطق العمل (`docs/`) — حافظ على تطابقه مع الكود
+
+مجلّد `docs/` يحتوي توثيقًا **بالعربية** لمنطق عمل المشروع (نموذج المجال،
+المصادقة، الصلاحيات، قواعد اللوحات/القوائم/البطاقات، الترتيب بالفهرسة الكسرية،
+قواعد الإدارة). وهو المرجع المقروء للإنسان حول *ماذا يفعل النظام ولماذا*.
+
+**يجب أن يبقى هذا التوثيق مطابقًا للكود.** كلما غيّرت منطق عمل أو أضفت ميزة — قاعدة
+صلاحية، شكل طلب/استجابة، حقلًا في المخطّط، خوارزمية الترتيب، مسارًا (Endpoint)
+جديدًا، أو أي قرار منطقي جديد — حدّث الملف المعني في `docs/` **ضمن نفس التغيير**.
+التغيير غير مكتمل حتى يُحدَّث التوثيق. استعمل خريطة "أين أوثّق ماذا" وقائمة التحقّق في
+[`docs/08-maintaining-docs.md`](docs/08-maintaining-docs.md) لتحديد الملف الصحيح؛
+وأضِف ملفًا جديدًا `docs/NN-*.md` (واربطه من `docs/README.md`) عند إدخال مورد جديد
+كليًا. أبقِ التوثيق بالعربية، وأبقِ معرّفات الكود (أسماء الملفات والدوال والحقول)
+بالإنجليزية.
+
 ## Commands
 
 This is a Turborepo + pnpm workspace monorepo. Run all commands from the repo root unless noted.
@@ -161,14 +176,20 @@ board and managing membership require `OWNER`, everything else requires
 ### Auth
 
 JWT access tokens (short-lived) + refresh tokens (long-lived, rotating).
-`AuthService` (`apps/api/src/auth/auth.service.ts`) signs both on
-login/register, storing only a SHA-256 hash of the refresh token
-(`RefreshToken.tokenHash`) keyed by a `jti` UUID — never the raw token. Every
-`/auth/refresh` call revokes the token it was called with and issues a new
-one (rotation), so a leaked-then-reused refresh token is detectable/rejected.
-`JwtStrategy` + `JwtAuthGuard` (`common/guards/jwt-auth.guard.ts`) protect
-all non-auth routes; `@CurrentUser()` (`common/decorators/current-user.decorator.ts`)
-pulls `{ id, email }` off the validated request.
+`AuthService` (`apps/api/src/auth/auth.service.ts`) signs both on login,
+storing only a SHA-256 hash of the refresh token (`RefreshToken.tokenHash`)
+keyed by a `jti` UUID — never the raw token. Every `/auth/refresh` call
+revokes the token it was called with and issues a new one (rotation), so a
+leaked-then-reused refresh token is detectable/rejected. `JwtStrategy` +
+`JwtAuthGuard` (`common/guards/jwt-auth.guard.ts`) protect all non-auth
+routes; `@CurrentUser()` (`common/decorators/current-user.decorator.ts`)
+pulls `{ id, email }` off the validated request. There is **no public
+self-registration**: accounts are created only by an ADMIN via
+`POST /admin/users`, admins reset any user's password via
+`PATCH /admin/users/:id/password`, and a user changes their own via
+`POST /auth/change-password`. All password hashing goes through
+`hashPassword` (`common/util/password.util.ts`), so the bcrypt cost factor
+lives in one place.
 
 ### Request validation
 
