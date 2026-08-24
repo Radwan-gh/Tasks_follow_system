@@ -93,7 +93,7 @@ Subtask (مهمة فرعية)
 | `name` | الاسم (1 إلى 200 حرفًا) |
 | `position` | **سلسلة ترتيب معجمي** (وليست رقمًا) — انظر [`06-ordering.md`](./06-ordering.md) |
 | `isArchived` | القوائم المؤرشفة تُستبعَد من العرض والترتيب |
-| `statusCategory` | فئة الحالة الاختيارية (`NEW`/`READY`/`IN_PROGRESS`/`REVIEW`/`DONE`) — تُضبَط عند البذر من قالب؛ `null` للقوائم اليدوية. انظر [`09-list-status-templates.md`](./09-list-status-templates.md) |
+| `statusCategory` | فئة الحالة الاختيارية (`NEW`/`READY`/`IN_PROGRESS`/`REVIEW`/`DONE`/`CLOSED`) — تُضبَط عند البذر من قالب؛ `null` للقوائم اليدوية. الفئتان `DONE` و`CLOSED` كلتاهما «عمل منتهٍ» لكنهما ليستا مترادفتين — انظر [`09-list-status-templates.md`](./09-list-status-templates.md) |
 
 ### Card (البطاقة)
 

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { isCompleted } from "@app/types";
 import { generateNKeysBetween } from "@app/ordering";
 import { TASK_WORKFLOW_TEMPLATE } from "./board-templates";
 
@@ -8,15 +9,24 @@ describe("TASK_WORKFLOW_TEMPLATE", () => {
       "NEW",
       "READY",
       "IN_PROGRESS",
-      "REVIEW",
       "DONE",
+      "CLOSED",
     ]);
   });
 
-  it("has exactly one terminal DONE status, as the last list", () => {
-    const done = TASK_WORKFLOW_TEMPLATE.filter((l) => l.statusCategory === "DONE");
-    expect(done).toHaveLength(1);
-    expect(TASK_WORKFLOW_TEMPLATE.at(-1)?.statusCategory).toBe("DONE");
+  it("ends with the two terminal statuses, DONE then CLOSED", () => {
+    // A card reaches "انتهى" by way of "تم التنفيذ", so CLOSED must sit after
+    // DONE — the board renders lists in this order and the quick-move arrow
+    // walks it one step at a time.
+    const terminal = TASK_WORKFLOW_TEMPLATE.filter((l) => isCompleted(l.statusCategory));
+    expect(terminal.map((l) => l.statusCategory)).toEqual(["DONE", "CLOSED"]);
+    expect(TASK_WORKFLOW_TEMPLATE.slice(-2).map((l) => l.statusCategory)).toEqual(["DONE", "CLOSED"]);
+  });
+
+  it("no longer seeds REVIEW, which is retired but still a valid category", () => {
+    // Boards created before CLOSED existed still carry a "بانتظار تقييم" list,
+    // so the enum keeps the value — new boards just do not get one.
+    expect(TASK_WORKFLOW_TEMPLATE.some((l) => l.statusCategory === "REVIEW")).toBe(false);
   });
 
   it("seeds positions that sort in template order and are unique", () => {

@@ -5,6 +5,7 @@ import type {
   ReportOverview,
   WorkloadReport,
 } from "@app/types";
+import { COMPLETED_CATEGORIES } from "@app/types";
 import { PrismaService } from "../prisma/prisma.service";
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
@@ -63,6 +64,12 @@ export class ReportsService {
    * `DONE`. We match MOVED activities in the window against the set of DONE list
    * names per board (activities snapshot list *names* in `toValue`), and dedupe
    * by card keeping the most recent completion.
+   *
+   * Note this deliberately does **not** use `COMPLETED_CATEGORIES`. `CLOSED`
+   * means "delivered and confirmed", which is a later step on a task that was
+   * already completed — counting the move into it as a second completion would
+   * count the same task twice in one window. Completion is entry into `DONE`
+   * and nothing else.
    */
   async completed(since?: string): Promise<CompletedTasksReport> {
     const sinceDate = parseSince(since);
@@ -111,7 +118,9 @@ export class ReportsService {
 
   /**
    * Report 3a — overdue tasks: past their due date, not archived, and not in a
-   * DONE list (null-category/manual lists count as not-done).
+   * completed list. "Completed" is `DONE` *or* `CLOSED` — a task that was
+   * delivered and confirmed is not overdue. Null-category (manual) lists count
+   * as not completed, as they always have.
    */
   async overdue(): Promise<OverdueTasksReport> {
     const now = new Date();
@@ -120,7 +129,7 @@ export class ReportsService {
       where: {
         isArchived: false,
         dueDate: { lt: now },
-        NOT: { list: { statusCategory: "DONE" } },
+        NOT: { list: { statusCategory: { in: COMPLETED_CATEGORIES } } },
       },
       orderBy: { dueDate: "asc" },
       include: {
@@ -151,12 +160,15 @@ export class ReportsService {
   }
 
   /**
-   * Report 3b — workload: for each user, how many open tasks (non-archived, not
-   * in a DONE list) are assigned to them. Sorted by load, heaviest first.
+   * Report 3b — workload: for each user, how many open tasks are assigned to
+   * them — non-archived, and not in a completed (`DONE` or `CLOSED`) list.
+   * Sorted by load, heaviest first.
    */
   async workload(): Promise<WorkloadReport> {
     const assignments = await this.prisma.cardAssignee.findMany({
-      where: { card: { isArchived: false, NOT: { list: { statusCategory: "DONE" } } } },
+      where: {
+        card: { isArchived: false, NOT: { list: { statusCategory: { in: COMPLETED_CATEGORIES } } } },
+      },
       select: { userId: true, user: { select: { displayName: true, email: true } } },
     });
 

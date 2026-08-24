@@ -10,11 +10,51 @@ export type UserRole = z.infer<typeof UserRole>;
  * Semantic status category of a list, set when a board is seeded from a
  * built-in template. A card's *status* is the list it lives in; this optional
  * category lets features (notably the reports section) reason about a list's
- * meaning — especially the terminal `DONE` — without relying on the list's
+ * meaning — especially the terminal ones — without relying on the list's
  * (renameable, localized) name. Manually created lists carry `null`.
+ *
+ * `REVIEW` ("بانتظار تقييم") was dropped from the built-in template when
+ * `CLOSED` was added, but remains a valid value: boards seeded before that
+ * still have a list carrying it.
  */
-export const ListStatusCategory = z.enum(["NEW", "READY", "IN_PROGRESS", "REVIEW", "DONE"]);
+export const ListStatusCategory = z.enum([
+  "NEW",
+  "READY",
+  "IN_PROGRESS",
+  "REVIEW",
+  "DONE",
+  "CLOSED",
+]);
 export type ListStatusCategory = z.infer<typeof ListStatusCategory>;
+
+/**
+ * The categories that mean "this work is finished".
+ *
+ * `DONE` ("تم التنفيذ") is done; `CLOSED` ("انتهى") is delivered and
+ * confirmed. They collapse into one idea — *not open* — for anything counting
+ * outstanding work: overdue tasks, a person's workload, "مهامي".
+ *
+ * They deliberately do **not** collapse for *completion timing*. A task is
+ * counted as completed at its **first** move into `DONE`, so a card that
+ * passes `DONE` and then `CLOSED` in the same week is counted once, and
+ * average completion time stops at `DONE` rather than including however long
+ * confirmation took. See `docs/11-reports.md`.
+ *
+ * Typed as a mutable array rather than a `readonly` tuple because Prisma's
+ * generated `in:` filters reject `readonly` arrays.
+ */
+export const COMPLETED_CATEGORIES: ListStatusCategory[] = ["DONE", "CLOSED"];
+
+/**
+ * Whether a list's category means the work in it is finished. Manual lists
+ * (`null`) are not — the same rule the reports have always applied.
+ *
+ * Shared by the API, the web app and the mobile app so the definition of
+ * "open" cannot drift between them.
+ */
+export function isCompleted(category: ListStatusCategory | null | undefined): boolean {
+  return category === "DONE" || category === "CLOSED";
+}
 
 export const UserSchema = z.object({
   id: z.string(),

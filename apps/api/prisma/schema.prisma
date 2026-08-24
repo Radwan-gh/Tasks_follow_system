@@ -30,14 +30,24 @@ enum CardActivityType {
 }
 
 /// Semantic status of a list, set when a board is seeded from a built-in
-/// template. Lets features (esp. reports) identify the terminal `DONE` status
-/// without depending on the list's renameable name. Null for manual lists.
+/// template. Lets features (esp. reports) identify terminal statuses without
+/// depending on the list's renameable name. Null for manual lists.
+///
+/// `DONE` ("تم التنفيذ") and `CLOSED` ("انتهى") are both finished work, but
+/// they are not interchangeable: `DONE` means the work is done, `CLOSED` means
+/// it was delivered and confirmed. Anything asking "is this still open?" must
+/// treat them together (`isCompleted` in `@app/types`); anything asking "when
+/// was it completed?" keys on the *first* move into `DONE` only.
+///
+/// `REVIEW` is no longer part of the built-in template but is kept here
+/// because boards created before it was retired still carry lists with it.
 enum ListStatusCategory {
   NEW
   READY
   IN_PROGRESS
   REVIEW
   DONE
+  CLOSED
 }
 
 model User {
