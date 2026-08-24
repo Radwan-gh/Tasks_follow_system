@@ -1,0 +1,18 @@
+{
+  "extends": "../config/tsconfig.base.json",
+  "compilerOptions": {
+    // ESM output — see the note in package.json. Relative imports carry an
+    // explicit `.js` extension so the emitted files are valid Node ESM too,
+    // not only bundler-resolvable.
+    "module": "ES2022",
+    "moduleResolution": "Bundler",
+    // `fetch`/`Headers`/`RequestInit` are typed by the DOM lib. Both runtimes
+    // that consume this package provide them: browsers natively, and React
+    // Native through its own fetch polyfill with the same shape.
+    "lib": ["ES2022", "DOM"],
+    "outDir": "dist",
+    "rootDir": "src"
+  },
+  "include": ["src"],
+  "exclude": ["src/**/*.test.ts"]
+}

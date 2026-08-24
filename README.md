@@ -1,9 +1,9 @@
 # Kanban Board System
 
 A Trello-style Kanban board: boards → lists (columns) → cards, with drag-and-drop
-reordering. This repo currently contains the **web MVP** — a NestJS API and a
-React web app. Realtime collaboration and a mobile app are planned follow-up
-phases (see [Roadmap](#roadmap) below).
+reordering. This repo contains a NestJS API, a React web app, and an
+Expo/React Native mobile app under construction in `apps/mobile`. Realtime
+collaboration is a planned follow-up phase (see [Roadmap](#roadmap) below).
 
 ## Tech stack
 
@@ -11,6 +11,7 @@ phases (see [Roadmap](#roadmap) below).
 |---|---|
 | Backend | Node.js + TypeScript, [NestJS](https://nestjs.com/), [PostgreSQL](https://www.postgresql.org/), [Prisma](https://www.prisma.io/) |
 | Web frontend | React + TypeScript + [Vite](https://vitejs.dev/), Tailwind CSS, [dnd-kit](https://dndkit.com/) for drag-and-drop, [TanStack Query](https://tanstack.com/query) |
+| Mobile app | [Expo](https://expo.dev/) SDK 57 / React Native + [expo-router](https://docs.expo.dev/router/introduction/), TanStack Query, RTL + Cairo |
 | Auth | JWT access tokens + rotating refresh tokens |
 | Monorepo | [Turborepo](https://turbo.build/) + pnpm workspaces |
 
@@ -38,11 +39,22 @@ apps/
     src/
       features/auth/    Login + account (change-password) pages, auth context
       features/boards/  Boards list, board view, drag-and-drop, card modal
-      lib/               API client, token storage, React Query setup
+      lib/               API client wiring, token storage, React Query setup
+  mobile/         Expo / React Native (expo-router), RTL + Cairo
+    src/
+      app/        File-based routes: login + the (tabs) shell
+      components/ Shared primitives (text, screen, button, skeletons, states)
+      features/   Per-feature logic (auth, boards, ...)
+      lib/        API client instance, SecureStore tokens, React Query setup
+      theme/      Design tokens — the single source for colours/radii/spacing
 
 packages/
   types/          Shared zod schemas/DTOs (domain models, request bodies,
                   realtime event contracts used by both api and web)
+  api-client/     The API client shared by web and mobile: attaches the access
+                  token, transparently refreshes once on a 401 (de-duplicated),
+                  retries. Token storage and the session-expired action are
+                  injected, since they are the only platform-specific parts.
   ordering/       Fractional-index ("LexoRank"-style) key generator — the
                   core drag-and-drop correctness logic, unit tested in
                   isolation (including a simulated concurrent-move sequence)
@@ -113,11 +125,37 @@ Open http://localhost:5173, sign in with the seeded admin account
 accounts are provisioned from the admin users page — there is no public
 sign-up.
 
+### Running the mobile app
+
+```bash
+cd apps/mobile
+cp .env.example .env        # set EXPO_PUBLIC_API_URL to your machine's LAN
+                            # address — a phone cannot reach your localhost
+cd ../..
+pnpm --filter @app/mobile dev
+```
+
+Then scan the QR code with Expo Go, or press `a`/`i` for an emulator. Note the
+app forces RTL: in Expo Go the *first* launch may render left-to-right until you
+reload, because React Native only picks up a direction change on restart and
+config plugins do not apply in Expo Go. A dev build is correct from the first
+frame.
+
 ### Running tests
 
 ```bash
-pnpm --filter @app/ordering test   # fractional-index unit tests
+pnpm test                               # everything below, via turbo
+pnpm --filter @app/ordering test        # fractional-index unit tests
+pnpm --filter @app/api-client test      # session behaviour: token attach,
+                                        # refresh-on-401, single-flight refresh
+pnpm --filter @app/mobile bundle:check  # proves the Expo app still bundles
 ```
+
+`bundle:check` runs `expo export` for Android. It is the only automated proof
+the mobile app builds in an environment with no device or emulator — it catches
+Metro module-resolution breakage that `pnpm typecheck` cannot see. Actual
+rendering (RTL layout, Cairo, gestures) still has to be checked by running
+`pnpm --filter @app/mobile dev` and opening the app.
 
 The API and web app have been verified end-to-end manually (login
 → board/list/card CRUD → drag-and-drop across lists, within a list, and list
@@ -132,9 +170,11 @@ Phases not yet built, in planned order:
    events (`card.moved`, `card.created`, ...) so multiple users see edits
    live. The fractional-index data model above was chosen specifically so
    this slots in as small, additive event payloads rather than a rewrite.
-2. **Mobile app** — Expo/React Native, reusing `packages/types` and a
-   shared API client, with a simpler "move to list" affordance in place of
-   full drag-and-drop and a foreground-only realtime connection.
+2. **Mobile app** — Expo/React Native, reusing `packages/types` and the
+   shared `packages/api-client`, with a simpler "move to list" affordance in
+   place of full drag-and-drop and a foreground-only realtime connection.
+   **In progress** — the app shell, login and a read-only boards list are
+   built; see `docs/12-mobile-app.md` for what is done and what is not.
 3. **Automated backend e2e tests** (NestJS + supertest) covering auth,
    CRUD, and concurrent-move scenarios.
 4. **Further features**, all additive to the current schema: labels,

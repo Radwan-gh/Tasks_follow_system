@@ -26,6 +26,7 @@
 | [`09-list-status-templates.md`](./09-list-status-templates.md) | قوالب حالات القوائم: القالب الجاهز و`statusCategory` |
 | [`10-subtasks-and-assignment.md`](./10-subtasks-and-assignment.md) | المهام الفرعية وإسناد المهام لعدة أشخاص |
 | [`11-reports.md`](./11-reports.md) | قسم التقارير (محكوم بصلاحية ADMIN) |
+| [`12-mobile-app.md`](./12-mobile-app.md) | تطبيق الجوال (Expo/React Native) وعميل الـ API المشترك |
 
 ## كيف تُحدَّث هذه الوثائق؟
 

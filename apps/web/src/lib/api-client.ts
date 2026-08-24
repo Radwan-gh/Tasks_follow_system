@@ -1,174 +1,21 @@
-import type {
-  AdminUser,
-  AdminUserList,
-  AuthResponse,
-  ChangePasswordRequest,
-  CreateUserRequest,
-  BoardDetail,
-  BoardMember,
-  BoardSummary,
-  Card,
-  CardActivity,
-  CompletedTasksReport,
-  CreateBoardRequest,
-  CreateCardRequest,
-  CreateListRequest,
-  CreateSubtaskRequest,
-  CurrentUser,
-  List,
-  LoginRequest,
-  OverdueTasksReport,
-  ReportOverview,
-  Subtask,
-  UpdateAssigneesRequest,
-  UpdateBoardRequest,
-  UpdateCardAccessRequest,
-  UpdateCardRequest,
-  UpdateListRequest,
-  UpdateSubtaskRequest,
-  UserRole,
-  WorkloadReport,
-} from "@app/types";
+import { ApiError, createApiClient } from "@app/api-client";
 import { tokenStore } from "./token-store";
 
+// The client itself lives in `packages/api-client` so the web app and the
+// Expo app call the API through one implementation (single-flight refresh,
+// 401-retry and all). Only the two browser-specific bits are supplied here.
+//
 // In local dev, "/api" is proxied to the NestJS server by vite.config.ts.
 // In production the web app is served as static files with no proxy, so the
 // deployed API's absolute URL must be baked in at build time via this env var.
 const API_BASE = import.meta.env.VITE_API_URL ?? "/api";
 
-class ApiError extends Error {
-  constructor(
-    public status: number,
-    message: string,
-  ) {
-    super(message);
-  }
-}
-
-let refreshInFlight: Promise<boolean> | null = null;
-
-async function refreshAccessToken(): Promise<boolean> {
-  const refreshToken = tokenStore.getRefreshToken();
-  if (!refreshToken) return false;
-
-  if (!refreshInFlight) {
-    refreshInFlight = fetch(`${API_BASE}/auth/refresh`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ refreshToken }),
-    })
-      .then(async (res) => {
-        if (!res.ok) return false;
-        const data: AuthResponse = await res.json();
-        tokenStore.setTokens(data.accessToken, data.refreshToken);
-        return true;
-      })
-      .catch(() => false)
-      .finally(() => {
-        refreshInFlight = null;
-      });
-  }
-  return refreshInFlight;
-}
-
-async function request<T>(path: string, options: RequestInit = {}, isRetry = false): Promise<T> {
-  const accessToken = tokenStore.getAccessToken();
-  const headers = new Headers(options.headers);
-  headers.set("Content-Type", "application/json");
-  if (accessToken) headers.set("Authorization", `Bearer ${accessToken}`);
-
-  const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
-
-  if (res.status === 401 && !isRetry) {
-    const refreshed = await refreshAccessToken();
-    if (refreshed) return request<T>(path, options, true);
-    tokenStore.clear();
+export const api = createApiClient({
+  baseUrl: API_BASE,
+  storage: tokenStore,
+  onUnauthorized: () => {
     window.location.href = "/login";
-    throw new ApiError(401, "Session expired");
-  }
-
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({ message: res.statusText }));
-    throw new ApiError(res.status, body.message ?? "Request failed");
-  }
-
-  if (res.status === 204) return undefined as T;
-  return res.json();
-}
-
-export const api = {
-  auth: {
-    login: (body: LoginRequest) => request<AuthResponse>("/auth/login", { method: "POST", body: JSON.stringify(body) }),
-    logout: (refreshToken: string) => request<void>("/auth/logout", { method: "POST", body: JSON.stringify({ refreshToken }) }),
-    changePassword: (body: ChangePasswordRequest) =>
-      request<void>("/auth/change-password", { method: "POST", body: JSON.stringify(body) }),
-    me: () => request<CurrentUser>("/auth/me"),
   },
-  admin: {
-    listUsers: (params: { search?: string; page?: number; pageSize?: number } = {}) => {
-      const query = new URLSearchParams();
-      if (params.search) query.set("search", params.search);
-      if (params.page) query.set("page", String(params.page));
-      if (params.pageSize) query.set("pageSize", String(params.pageSize));
-      const qs = query.toString();
-      return request<AdminUserList>(`/admin/users${qs ? `?${qs}` : ""}`);
-    },
-    createUser: (body: CreateUserRequest) =>
-      request<AdminUser>("/admin/users", { method: "POST", body: JSON.stringify(body) }),
-    setUserPassword: (id: string, password: string) =>
-      request<AdminUser>(`/admin/users/${id}/password`, { method: "PATCH", body: JSON.stringify({ password }) }),
-    updateUserRole: (id: string, role: UserRole) =>
-      request<AdminUser>(`/admin/users/${id}/role`, { method: "PATCH", body: JSON.stringify({ role }) }),
-    updateUserStatus: (id: string, isActive: boolean) =>
-      request<AdminUser>(`/admin/users/${id}/status`, { method: "PATCH", body: JSON.stringify({ isActive }) }),
-  },
-  boards: {
-    list: () => request<BoardSummary[]>("/boards"),
-    create: (body: CreateBoardRequest) => request<BoardSummary>("/boards", { method: "POST", body: JSON.stringify(body) }),
-    get: (id: string) => request<BoardDetail>(`/boards/${id}`),
-    update: (id: string, body: UpdateBoardRequest) =>
-      request<BoardSummary>(`/boards/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
-    addMember: (id: string, email: string) =>
-      request<BoardMember>(`/boards/${id}/members`, { method: "POST", body: JSON.stringify({ email }) }),
-    removeMember: (id: string, userId: string) =>
-      request<void>(`/boards/${id}/members/${userId}`, { method: "DELETE" }),
-  },
-  lists: {
-    create: (boardId: string, body: CreateListRequest) =>
-      request<List>(`/boards/${boardId}/lists`, { method: "POST", body: JSON.stringify(body) }),
-    update: (id: string, body: UpdateListRequest) =>
-      request<List>(`/lists/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
-    remove: (id: string) => request<void>(`/lists/${id}`, { method: "DELETE" }),
-  },
-  cards: {
-    create: (listId: string, body: CreateCardRequest) =>
-      request<Card>(`/lists/${listId}/cards`, { method: "POST", body: JSON.stringify(body) }),
-    update: (id: string, body: UpdateCardRequest) =>
-      request<Card>(`/cards/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
-    history: (id: string) => request<CardActivity[]>(`/cards/${id}/history`),
-    updateAccess: (id: string, body: UpdateCardAccessRequest) =>
-      request<Card>(`/cards/${id}/access`, { method: "PATCH", body: JSON.stringify(body) }),
-    updateAssignees: (id: string, body: UpdateAssigneesRequest) =>
-      request<Card>(`/cards/${id}/assignees`, { method: "PATCH", body: JSON.stringify(body) }),
-    remove: (id: string) => request<void>(`/cards/${id}`, { method: "DELETE" }),
-  },
-  subtasks: {
-    list: (cardId: string) => request<Subtask[]>(`/cards/${cardId}/subtasks`),
-    create: (cardId: string, body: CreateSubtaskRequest) =>
-      request<Subtask>(`/cards/${cardId}/subtasks`, { method: "POST", body: JSON.stringify(body) }),
-    update: (id: string, body: UpdateSubtaskRequest) =>
-      request<Subtask>(`/subtasks/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
-    updateAssignees: (id: string, body: UpdateAssigneesRequest) =>
-      request<Subtask>(`/subtasks/${id}/assignees`, { method: "PATCH", body: JSON.stringify(body) }),
-    remove: (id: string) => request<void>(`/subtasks/${id}`, { method: "DELETE" }),
-  },
-  reports: {
-    overview: () => request<ReportOverview>("/reports/overview"),
-    completed: (since?: string) =>
-      request<CompletedTasksReport>(`/reports/completed${since ? `?since=${encodeURIComponent(since)}` : ""}`),
-    overdue: () => request<OverdueTasksReport>("/reports/overdue"),
-    workload: () => request<WorkloadReport>("/reports/workload"),
-  },
-};
+});
 
 export { ApiError };

@@ -30,6 +30,7 @@ pnpm install                          # install all workspace deps
 # do not.
 pnpm --filter @app/ordering build
 pnpm --filter @app/types build
+pnpm --filter @app/api-client build   # depends on @app/types
 
 pnpm dev                              # runs apps/api (port 3000) + apps/web (port 5173) together
 pnpm build                            # turbo build across all packages/apps
@@ -40,6 +41,13 @@ pnpm test                             # turbo test (currently only packages/orde
 pnpm --filter @app/ordering test      # fractional-index unit tests (vitest)
 pnpm --filter @app/api dev            # NestJS only (nest start --watch)
 pnpm --filter @app/web dev            # Vite dev server only
+
+# Mobile app (Expo). There is no device or emulator in CI/sandbox environments,
+# so `bundle:check` is how you prove the app still builds — it catches Metro
+# resolution breakage that `typecheck` cannot.
+pnpm --filter @app/mobile dev         # expo start
+pnpm --filter @app/mobile typecheck
+pnpm --filter @app/mobile bundle:check   # expo export --platform android
 
 # Run a single test file/case (from packages/ordering)
 cd packages/ordering && npx vitest run src/index.test.ts
@@ -70,6 +78,23 @@ package (`pnpm --filter @app/ordering build`) before rebuilding/running
 through the workspace dependency graph — prefer those over ad-hoc `nest
 build` invocations in the `apps/api` directory.
 
+**`packages/api-client` is the exception: it emits ESM, not CommonJS.** It is
+consumed only by bundlers (Vite for `apps/web`, Metro for `apps/mobile`) and,
+unlike `packages/types`, it ships runtime code rather than types that erase at
+compile time — Rollup cannot name-import from a CommonJS module, so CJS output
+fails `pnpm --filter @app/web build`. Its relative imports carry explicit `.js`
+extensions so the output is valid Node ESM as well. Keep `apps/api` off this
+package unless you make it dual-format first.
+
+**Two React majors live in this workspace**: `apps/web` is on React 18,
+`apps/mobile` on React 19. pnpm hoists the *highest* `@types/react` into its
+virtual store, so a `.d.ts` inside a dependency that imports from `"react"`
+without declaring `@types/react` itself resolves to React 19's types — which
+then fails to typecheck against React 18's JSX. `apps/web/tsconfig.json` pins
+`react`/`react-dom` to its own copies via `paths` to keep one React version per
+compilation. If web typecheck suddenly reports `'X' cannot be used as a JSX
+component`, that pin is what to look at.
+
 Relatedly: if `tsc --noEmit` (typecheck) and `tsc` (build) are run against
 the same package back-to-back, a stale `tsconfig.tsbuildinfo` from the
 `--noEmit` run can cause the subsequent build to silently omit files it
@@ -79,8 +104,31 @@ output is missing files that exist in `src/`.
 ## Architecture
 
 Trello-style Kanban board (boards → lists → cards, drag-and-drop reorder).
-Currently: NestJS API + React web app. Realtime (Socket.IO) and a mobile app
-(Expo/React Native) are planned but not yet built — see README's Roadmap.
+Currently: NestJS API + React web app + an Expo/React Native app under
+construction in `apps/mobile`. Realtime (Socket.IO) is still unbuilt — see
+README's Roadmap.
+
+### Mobile app (`apps/mobile`)
+
+Expo SDK 57 + expo-router, implementing the Arabic mobile design. RTL is the
+layout, not a preference: `expo-localization`'s `forcesRTL` handles native
+builds and `I18nManager.forceRTL` covers Expo Go, where config plugins do not
+apply. React Native does not inherit fonts, so **all** text goes through
+`src/components/text.tsx` (Cairo + palette + Arabic line height) — a bare
+`<Text>` silently falls back to the system face. Colours, radii and spacing come
+from `src/theme/tokens.ts`; a hex literal in a component is a bug. Per
+README's roadmap the app uses a "move to list" affordance instead of
+drag-and-drop. See `docs/12-mobile-app.md`.
+
+### Shared API client (`packages/api-client`)
+
+`createApiClient({ baseUrl, storage, onUnauthorized })` — the token-attaching,
+refresh-on-401 client, extracted from the web app so both frontends share one
+implementation. Only the two platform-specific bits are injected: `storage`
+(`localStorage` on web, `expo-secure-store` on mobile — `TokenStorage` accepts
+sync *or* async methods for exactly this reason) and `onUnauthorized` (a
+redirect on web, dropping the user from state on mobile). Add new endpoints
+here, not in either app.
 
 ### Fractional-index positions (`packages/ordering`)
 

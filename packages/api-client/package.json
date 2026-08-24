@@ -1,0 +1,30 @@
+{
+  "name": "@app/api-client",
+  "version": "0.0.0",
+  "private": true,
+  "//": "ESM, unlike @app/types and @app/ordering which emit CommonJS for apps/api. This package is consumed only by bundlers (Vite for the web app, Metro for the Expo app) and it ships runtime code, not just erased types \u2014 Rollup cannot name-import from a CJS module, so CJS output breaks `pnpm build` in apps/web.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@app/types": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

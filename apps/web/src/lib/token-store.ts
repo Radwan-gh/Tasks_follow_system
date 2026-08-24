@@ -1,6 +1,9 @@
+import type { TokenStorage } from "@app/api-client";
+
 const ACCESS_KEY = "kanban.accessToken";
 const REFRESH_KEY = "kanban.refreshToken";
 
+/** The web adapter for `@app/api-client`'s `TokenStorage` — plain localStorage. */
 export const tokenStore = {
   getAccessToken: () => localStorage.getItem(ACCESS_KEY),
   getRefreshToken: () => localStorage.getItem(REFRESH_KEY),
@@ -12,4 +15,4 @@ export const tokenStore = {
     localStorage.removeItem(ACCESS_KEY);
     localStorage.removeItem(REFRESH_KEY);
   },
-};
+} satisfies TokenStorage;
