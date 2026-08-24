@@ -36,6 +36,7 @@
 | `boards/board-templates.ts` أو حقل `List.statusCategory` | [`09-list-status-templates.md`](./09-list-status-templates.md) |
 | `subtasks/*` أو الإسناد (`CardAssignee`/`SubtaskAssignee`, `updateAssignees`) | [`10-subtasks-and-assignment.md`](./10-subtasks-and-assignment.md) |
 | `reports/*` أو `packages/types/src/reports.ts` | [`11-reports.md`](./11-reports.md) |
+| `apps/mobile/*` أو `packages/api-client/*` | [`12-mobile-app.md`](./12-mobile-app.md) |
 | مسار جديد، مكوّن معماري جديد، أو مصطلح جديد | [`01-overview.md`](./01-overview.md) + الملف المتخصّص |
 
 إن أضفت **موردًا جديدًا كليًا** (مثل التعليقات أو التسميات)، أنشئ ملفًا جديدًا

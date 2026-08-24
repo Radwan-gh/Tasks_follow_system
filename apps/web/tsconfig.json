@@ -8,7 +8,20 @@
     "moduleResolution": "Bundler",
     "jsx": "react-jsx",
     "noEmit": true,
-    "isolatedModules": true
+    "isolatedModules": true,
+    // The workspace now holds two React majors: this app is on React 18, the
+    // Expo app in `apps/mobile` is on React 19. pnpm hoists the *highest*
+    // `@types/react` into its virtual store, so a `.d.ts` inside a dependency
+    // (react-router's, for one) that imports from "react" without declaring
+    // `@types/react` itself resolves to React 19's types — and JSX from that
+    // dependency then fails to typecheck against this app's React 18.
+    //
+    // Pinning the two module names to this app's own copies keeps one React
+    // version in this compilation. Types only; nothing about the bundle changes.
+    "paths": {
+      "react": ["./node_modules/@types/react"],
+      "react-dom": ["./node_modules/@types/react-dom"]
+    }
   },
   "include": ["src"]
 }
