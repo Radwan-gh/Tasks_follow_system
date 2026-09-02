@@ -264,4 +264,32 @@ update:configure` يكتب `extra.eas.projectId` و`updates.url` (مُشيرًا
 والخط، وإيماءات الأوراق السفلية فلا يمكن التحقّق منها إلا بتشغيل التطبيق على
 جهاز أو محاكي.
 
+## بناء APK آليًا: GitHub Actions، لا EAS Build
+
+`.github/workflows/mobile-build.yml` يبني APK قابلًا للتثبيت مباشرةً من دفعة
+(push) إلى `main` تمسّ `apps/mobile` أو الحزم المشتركة (`packages/api-client`،
+`packages/types`، `packages/ordering`)، أو يدويًا عبر تبويب Actions. نفس منطق
+"لا EAS" في قسم تحديثات OTA أعلاه: بدل `eas build` — الذي يتطلّب حساب Expo/EAS
+وربّما رسومًا — يُشغِّل سير العمل `expo prebuild --platform android` لتوليد
+مشروع `android/` الأصيل (المُستبعَد من git، انظر `.gitignore`) ثم `gradlew
+assembleRelease` محليًا داخل المُشغِّل (runner)، تمامًا كما لو نُفِّذ الأمران
+يدويًا على أي جهاز تطوير.
+
+- **التوقيع**: نوع البناء `release` يُوقَّع بمفتاح التطوير (debug keystore)
+  الافتراضي الذي يولّده قالب React Native — إذ لا يوجد مفتاح توقيع إنتاجي
+  مُهيَّأ في هذا المستودع. صالح للتوزيع الداخلي والاختبار، **غير** صالح للنشر
+  على متجر Google Play (يتطلّب مفتاح توقيع حقيقي مُدار كسرّ في GitHub Actions).
+- **`EXPO_PUBLIC_API_URL`**: يُقرأ من متغيّر مستودع GitHub Actions (Settings →
+  Secrets and variables → Actions → Variables) باسم `EXPO_PUBLIC_API_URL`،
+  ويُمرَّر وقت البناء (مثل أي بناء محلي، يُخبَز داخل حزمة JS وقت
+  `assembleRelease`، لا وقت التشغيل). دون ضبط هذا المتغيّر يُبنى التطبيق بلا
+  عنوان API صالح.
+- **النشر**: كل تشغيل ناجح يرفع الـ APK كـ Artifact على تشغيلة العمل (Actions
+  run)، وينشئ أيضًا GitHub Release بوسم `mobile-v<الإصدار>-<رقم-التشغيلة>`
+  (الإصدار = `expo.version` في `app.json`) مع إرفاق الملف — رابط تنزيل ثابت
+  يمكن مشاركته دون العودة لتبويب Actions.
+- **ليس بديلًا لتحديثات OTA أعلاه**: هذا يبني ثنائيًا أصيلًا جديدًا بالكامل
+  (لازم عند تغيّر كود أصيل أو رفع `version`)؛ تغييرات JS البحتة بين إصدارين
+  أسرع وأخفّ عبر `publish-update` بدل إعادة بناء APK كامل.
+
 </div>

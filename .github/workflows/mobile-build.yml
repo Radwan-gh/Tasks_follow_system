@@ -1,0 +1,113 @@
+name: Mobile app - build & publish APK
+
+# Builds an Android APK for apps/mobile via a local Gradle build (expo
+# prebuild generates the native android/ project, which is gitignored — see
+# apps/mobile/.gitignore and docs/12-mobile-app.md). No EAS account/token is
+# needed: the release build type is signed with the RN template's debug
+# keystore, same as running `expo prebuild && ./gradlew assembleRelease`
+# locally, so this is meant for internal distribution/testing, not the Play
+# Store.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/mobile/**"
+      - "packages/api-client/**"
+      - "packages/types/**"
+      - "packages/ordering/**"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/mobile-build.yml"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write # to create the GitHub Release and upload the APK asset
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: apps/mobile
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Install dependencies
+        working-directory: .
+        run: pnpm install --frozen-lockfile
+
+      # apps/mobile depends on the compiled dist/ of these workspace
+      # packages at runtime — see "Workspace package build order" in
+      # CLAUDE.md. Build order matters: @app/api-client depends on
+      # @app/types.
+      - name: Build shared packages
+        working-directory: .
+        run: |
+          pnpm --filter @app/ordering build
+          pnpm --filter @app/types build
+          pnpm --filter @app/api-client build
+
+      - name: Read app version
+        id: app-version
+        run: echo "version=$(jq -r .expo.version app.json)" >> "$GITHUB_OUTPUT"
+
+      - name: Generate native Android project
+        run: npx expo prebuild --platform android --no-install
+        env:
+          EXPO_PUBLIC_API_URL: ${{ vars.EXPO_PUBLIC_API_URL }}
+
+      # Must run after prebuild since android/ is gitignored (regenerated
+      # each run) and hashFiles needs it to exist to key the cache.
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('apps/mobile/android/**/*.gradle*', 'apps/mobile/android/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-
+
+      - name: Build release APK
+        working-directory: apps/mobile/android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon
+        env:
+          EXPO_PUBLIC_API_URL: ${{ vars.EXPO_PUBLIC_API_URL }}
+
+      - name: Rename APK
+        id: apk
+        run: |
+          SRC="android/app/build/outputs/apk/release/app-release.apk"
+          DEST="tasks-follow-system-v${{ steps.app-version.outputs.version }}-${{ github.run_number }}.apk"
+          cp "$SRC" "$DEST"
+          echo "path=apps/mobile/$DEST" >> "$GITHUB_OUTPUT"
+          echo "name=$DEST" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.apk.outputs.name }}
+          path: ${{ steps.apk.outputs.path }}
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: mobile-v${{ steps.app-version.outputs.version }}-${{ github.run_number }}
+          name: Mobile v${{ steps.app-version.outputs.version }} (build ${{ github.run_number }})
+          files: ${{ steps.apk.outputs.path }}
+          generate_release_notes: false
