@@ -87,7 +87,10 @@ export const BoardMemberSchema = z.object({
   userId: z.string(),
   boardId: z.string(),
   role: BoardRole,
-  user: UserSchema.pick({ id: true, email: true, displayName: true }),
+  // `isActive` lets the mobile client fade a disabled member's avatar and
+  // badge them "معطَّل" wherever they're shown as an assignee — see
+  // `design-prompt-group-3.md` §3b-6.
+  user: UserSchema.pick({ id: true, email: true, displayName: true, isActive: true }),
 });
 export type BoardMember = z.infer<typeof BoardMemberSchema>;
 
@@ -216,6 +219,24 @@ export const BoardDetailSchema = BoardSummarySchema.extend({
   members: z.array(BoardMemberSchema),
 });
 export type BoardDetail = z.infer<typeof BoardDetailSchema>;
+
+/**
+ * Report 3b-5 — `GET /boards/:id/summary`, owner-only. Spares the board
+ * owner a trip to the ADMIN-only `/reports/*` section: last-7-days
+ * completions, current overdue count, a top-3 workload split (`workload`)
+ * plus how many more assignees are folded into "الباقي"
+ * (`workloadRestCount`), and this month's total cost — `null` when no card
+ * on the board carries a cost yet (never rendered as "0"). See
+ * `design-prompt-group-3.md` §3b-5.
+ */
+export const BoardOwnerSummarySchema = z.object({
+  completedLast7Days: z.number().int(),
+  overdueCount: z.number().int(),
+  workload: z.array(z.object({ userId: z.string(), displayName: z.string(), openCards: z.number().int() })),
+  workloadRestCount: z.number().int(),
+  costThisMonth: z.string().nullable(),
+});
+export type BoardOwnerSummary = z.infer<typeof BoardOwnerSummarySchema>;
 
 /**
  * A text comment on a card. Rendered merged with `CardActivity` into one

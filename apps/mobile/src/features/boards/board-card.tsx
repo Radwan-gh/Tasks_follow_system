@@ -18,10 +18,13 @@ export function BoardCard({
   board,
   isOwner,
   onPress,
+  archived,
 }: {
   board: BoardSummary;
   isOwner: boolean;
   onPress: () => void;
+  /** Grey "مؤرشفة" badge for the archived-boards list — §3b-3. */
+  archived?: boolean;
 }) {
   const overdue = board.dueDate ? isOverdue(board.dueDate) : false;
   const doneRatio = board.cardCount > 0 ? board.doneCount / board.cardCount : 0;
@@ -70,17 +73,26 @@ export function BoardCard({
             </View>
           ) : null}
         </View>
-        <View
-          style={{
-            borderRadius: radii.chip,
-            backgroundColor: isOwner ? colors.accentSoft : colors.canvas,
-            paddingHorizontal: spacing.md,
-            paddingVertical: 2,
-          }}
-        >
-          <AppText size="caption" weight="medium" color={isOwner ? colors.accent : colors.muted}>
-            {isOwner ? "مالك" : "عضو"}
-          </AppText>
+        <View style={{ flexDirection: "row", gap: spacing.xs }}>
+          {archived ? (
+            <View style={{ borderRadius: radii.chip, backgroundColor: colors.line, paddingHorizontal: spacing.md, paddingVertical: 2 }}>
+              <AppText size="caption" weight="medium" color={colors.muted}>
+                مؤرشفة
+              </AppText>
+            </View>
+          ) : null}
+          <View
+            style={{
+              borderRadius: radii.chip,
+              backgroundColor: isOwner ? colors.accentSoft : colors.canvas,
+              paddingHorizontal: spacing.md,
+              paddingVertical: 2,
+            }}
+          >
+            <AppText size="caption" weight="medium" color={isOwner ? colors.accent : colors.muted}>
+              {isOwner ? "مالك" : "عضو"}
+            </AppText>
+          </View>
         </View>
       </View>
 

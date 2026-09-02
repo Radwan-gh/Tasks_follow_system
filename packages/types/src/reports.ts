@@ -80,6 +80,10 @@ export const AssigneeWorkloadSchema = z.object({
   displayName: z.string(),
   email: z.string(),
   openCards: z.number().int(),
+  // A disabled user keeps their existing assignments (never silently
+  // reassigned) but is flagged "يحتاج إعادة إسناد" wherever workload is shown
+  // — see `design-prompt-group-3.md` §3b-6.
+  isActive: z.boolean(),
 });
 export type AssigneeWorkload = z.infer<typeof AssigneeWorkloadSchema>;
 

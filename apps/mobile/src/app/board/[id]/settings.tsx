@@ -78,6 +78,12 @@ export default function BoardSettingsScreen() {
     onError: reportError,
   });
 
+  const restore = useMutation({
+    mutationFn: () => api.boards.update(id, { isArchived: false }),
+    onSuccess: invalidate,
+    onError: reportError,
+  });
+
   const addMember = useMutation({
     mutationFn: (email: string) => api.boards.addMember(id, email),
     onSuccess: () => {
@@ -271,6 +277,7 @@ export default function BoardSettingsScreen() {
                     padding: spacing.md,
                     backgroundColor: colors.canvas,
                     borderRadius: radii.card,
+                    opacity: member.user.isActive ? 1 : 0.6,
                   }}
                 >
                   <View
@@ -295,6 +302,13 @@ export default function BoardSettingsScreen() {
                       {member.user.email}
                     </AppText>
                   </View>
+                  {!member.user.isActive ? (
+                    <View style={{ borderRadius: radii.chip, backgroundColor: colors.alertSoft, paddingHorizontal: spacing.sm, paddingVertical: 3 }}>
+                      <AppText size="caption" weight="semibold" color={colors.alert}>
+                        معطَّل
+                      </AppText>
+                    </View>
+                  ) : null}
                   <View
                     style={{
                       borderRadius: radii.chip,
@@ -326,21 +340,40 @@ export default function BoardSettingsScreen() {
 
         {canArchive ? (
           <View style={{ borderTopWidth: 1, borderTopColor: colors.line, paddingTop: spacing.lg }}>
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => setConfirmingArchive(true)}
-              style={{
-                minHeight: MIN_TOUCH_TARGET,
-                borderRadius: radii.field,
-                backgroundColor: colors.alertSoft,
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <AppText weight="semibold" color={colors.alert}>
-                أرشفة اللوحة
-              </AppText>
-            </Pressable>
+            {board.data.isArchived ? (
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => restore.mutate()}
+                disabled={restore.isPending}
+                style={{
+                  minHeight: MIN_TOUCH_TARGET,
+                  borderRadius: radii.field,
+                  backgroundColor: colors.accentSoft,
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <AppText weight="semibold" color={colors.accent}>
+                  {restore.isPending ? "جارٍ الاستعادة..." : "استعادة اللوحة"}
+                </AppText>
+              </Pressable>
+            ) : (
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => setConfirmingArchive(true)}
+                style={{
+                  minHeight: MIN_TOUCH_TARGET,
+                  borderRadius: radii.field,
+                  backgroundColor: colors.alertSoft,
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <AppText weight="semibold" color={colors.alert}>
+                  أرشفة اللوحة
+                </AppText>
+              </Pressable>
+            )}
           </View>
         ) : null}
       </ScrollView>

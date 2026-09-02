@@ -131,6 +131,7 @@ export class CardsService {
   async create(userId: string, listId: string, input: CreateCardRequest) {
     const list = await this.loadList(listId);
     await this.boards.assertMembership(userId, list.boardId);
+    await this.boards.assertBoardMutable(list.boardId);
 
     const position = await this.nextCardPosition(listId);
     const card = await this.prisma.$transaction(async (tx) => {
@@ -141,6 +142,7 @@ export class CardsService {
           title: input.title,
           description: input.description ?? null,
           dueDate: input.dueDate ? new Date(input.dueDate) : null,
+          priority: input.priority,
           recurrence: input.recurrence ?? undefined,
           position,
           createdById: userId,
@@ -168,6 +170,7 @@ export class CardsService {
   async update(userId: string, cardId: string, input: UpdateCardRequest) {
     const card = await this.loadCard(cardId);
     await this.boards.assertMembership(userId, card.boardId);
+    await this.boards.assertBoardMutable(card.boardId);
     const ownerId = await this.boardOwnerId(card.boardId);
     if (!canAccessCard(userId, ownerId, card)) throw new NotFoundException("Card not found");
 
@@ -178,6 +181,17 @@ export class CardsService {
       targetList = await this.loadList(targetListId);
       if (targetList.boardId !== card.boardId) {
         throw new BadRequestException("Cannot move a card to a list on a different board");
+      }
+      // §3b-4 "تعديل لقرار سابق": moving *into* «انتهى» (CLOSED) is restricted
+      // to the board owner and this card's own assignees — every other move
+      // stays open to any board member.
+      if (targetList.statusCategory === "CLOSED") {
+        const isAssignee = card.assignees.some((a) => a.userId === userId);
+        if (ownerId !== userId && !isAssignee) {
+          throw new ForbiddenException(
+            'Only the board owner or this task\'s assignees can move it to "انتهى"',
+          );
+        }
       }
     }
     if (input.move) {
@@ -208,6 +222,7 @@ export class CardsService {
           description: input.description,
           dueDate: input.dueDate === undefined ? undefined : input.dueDate ? new Date(input.dueDate) : null,
           isArchived: input.isArchived,
+          priority: input.priority,
           recurrence: input.recurrence === undefined ? undefined : (input.recurrence ?? Prisma.JsonNull),
           listId: targetListId,
           position,
@@ -250,6 +265,7 @@ export class CardsService {
   async updateAccess(userId: string, cardId: string, input: UpdateCardAccessRequest) {
     const card = await this.loadCard(cardId);
     await this.boards.assertMembership(userId, card.boardId);
+    await this.boards.assertBoardMutable(card.boardId);
     const ownerId = await this.boardOwnerId(card.boardId);
     if (!canManageCard(userId, ownerId, card)) {
       throw new ForbiddenException("Only the board owner or the task creator can change task access");
@@ -294,6 +310,7 @@ export class CardsService {
   async updateAssignees(userId: string, cardId: string, input: UpdateAssigneesRequest) {
     const card = await this.loadCard(cardId);
     await this.boards.assertMembership(userId, card.boardId);
+    await this.boards.assertBoardMutable(card.boardId);
     const ownerId = await this.boardOwnerId(card.boardId);
     if (!canAccessCard(userId, ownerId, card)) throw new NotFoundException("Card not found");
 

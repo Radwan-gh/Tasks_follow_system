@@ -8,6 +8,7 @@ import {
   BoardMemberSchema,
   BoardSummarySchema,
   BoardDetailSchema,
+  BoardOwnerSummarySchema,
   CardSchema,
   SubtaskSchema,
   CardActivitySchema,
@@ -62,6 +63,7 @@ registry.register("AdminUserList", AdminUserListSchema);
 registry.register("BoardMember", BoardMemberSchema);
 registry.register("BoardSummary", BoardSummarySchema);
 registry.register("BoardDetail", BoardDetailSchema);
+registry.register("BoardOwnerSummary", BoardOwnerSummarySchema);
 registry.register("Card", CardSchema);
 registry.register("Subtask", SubtaskSchema);
 registry.register("CardActivity", CardActivitySchema);

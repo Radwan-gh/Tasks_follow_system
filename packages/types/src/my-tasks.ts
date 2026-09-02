@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { CardPriority } from "./domain";
 
 /**
  * One row in `GET /my-tasks` — either a card or a subtask assigned to the
@@ -19,6 +20,9 @@ export const MyTaskItemSchema = z.object({
   listName: z.string(),
   // Subtasks have no due date of their own — always null for SUBTASK rows.
   dueDate: z.string().datetime().nullable(),
+  // The parent card's priority (a subtask has no priority of its own) — used
+  // for "مهامي" ordering: overdue first, then urgent — `design-prompt-group-3.md` §3b-1.
+  priority: CardPriority,
 });
 export type MyTaskItem = z.infer<typeof MyTaskItemSchema>;
 

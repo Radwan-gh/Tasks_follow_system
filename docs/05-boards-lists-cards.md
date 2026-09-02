@@ -11,8 +11,8 @@
 
 كل المسارات تتطلّب مصادقة (Bearer JWT) ما عدا `/auth/*`.
 
-- **اللوحات:** `GET/POST /boards`، `GET/PATCH/DELETE /boards/:id`،
-  `POST/DELETE /boards/:id/members[/:userId]`
+- **اللوحات:** `GET/POST /boards`، `GET /boards/archived`، `GET/PATCH/DELETE /boards/:id`،
+  `GET /boards/:id/summary`، `POST/DELETE /boards/:id/members[/:userId]`
 - **القوائم:** `POST /boards/:boardId/lists`، `PATCH/DELETE /lists/:id`
 - **البطاقات:** `POST /lists/:listId/cards`، `GET/PATCH/DELETE /cards/:id`،
   `GET /cards/:id/history`، `PATCH /cards/:id/access`، `PATCH /cards/:id/assignees`
@@ -37,13 +37,40 @@
   بطاقاتها **غير المؤرشفة** مرتّبة بالموضع.
 
 ### التعديل والحذف
-- تعديل الاسم/الوصف: MEMBER. أرشفة اللوحة: OWNER. الحذف: OWNER (انظر
-  [`04-authorization.md`](./04-authorization.md)).
+- تعديل الاسم/الوصف: MEMBER. أرشفة اللوحة (أو استعادتها بـ`isArchived: false`): OWNER.
+  الحذف: OWNER (انظر [`04-authorization.md`](./04-authorization.md)).
+
+### الأرشفة — للقراءة فقط (`design-prompt-group-3.md` §3b-3)
+- `PATCH /boards/:id { isArchived: true }` (OWNER فقط) يجعل اللوحة **للقراءة فقط**:
+  `BoardsService.assertBoardMutable(boardId)` تُستدعى في بداية كل عملية تعديل عبر
+  `ListsService`/`CardsService`/`SubtasksService`/`CommentsService.create`/
+  `AttachmentsService.create` وتُلقي 403 إن كانت اللوحة مؤرشفة — بمعزل تامّ عن
+  `assertMembership` حتى تبقى **مسارات القراءة** (`getDetail` وغيرها) تعمل بلا قيد على
+  لوحة مؤرشفة. لا تُطبَّق على الحذف (`remove`) في أيّ من هذه الخدمات — يبقى ممكنًا
+  تنظيف محتوى قديم حتى بعد الأرشفة.
+- `GET /boards/archived` (`BoardsService.listArchivedForUser`) تُرجع لوحات المستخدم
+  المؤرشفة فقط — نظير `GET /boards` تمامًا لكن بعكس شرط `isArchived`.
+- الاستعادة (`isArchived: false`) متاحة للمالك فقط من نفس مسار `PATCH /boards/:id`.
+- `ReportsService.overdue()`/`workload()` (انظر [`11-reports.md`](./11-reports.md))
+  تستثنيان بطاقات أي لوحة مؤرشفة.
 
 ### إدارة الأعضاء
 - **الإضافة (OWNER):** يُبحث عن المستخدم بالبريد؛ يُرفض إن لم يوجد، أو إن كان عضوًا
   بالفعل. يُضاف بدور **MEMBER**.
 - **الإزالة (OWNER):** يُرفض إن لم توجد العضوية، و**يُمنع إزالة عضو دوره OWNER**.
+
+### ملخّص اللوحة للمالك — `GET /boards/:id/summary`
+`BoardsService.summary` (OWNER فقط عبر `assertMembership(..., "OWNER")`) يحسب أربعة
+أرقام دفعة واحدة، بديلًا عن قسم `/reports/*` المحكوم بصلاحية ADMIN
+(`design-prompt-group-3.md` §3b-5):
+- **منجز آخر 7 أيام:** عدد البطاقات المميّزة (dedup) التي دخلت قائمة `DONE`/`CLOSED`
+  خلال آخر أسبوع، بنفس منطق إزالة التكرار في `ReportsService.completed` (بطاقة نُقلت
+  أكثر من مرة تُحسب مرة واحدة).
+- **المتأخّرة:** نفس شرط `ReportsService.overdue` لكن مقصورًا على هذه اللوحة.
+- **توزيع الأعباء:** أعلى 3 أشخاص بعدد البطاقات المفتوحة المُسنَدة إليهم
+  (`workload`)، وعدد الباقين في `workloadRestCount` — لا قائمة كاملة.
+- **تكلفة الشهر:** مجموع `Card.costAmount` للبطاقات التي أُنشئت هذا الشهر التقويمي؛
+  `null` (وليس `"0"`) إن لم توجد أي بطاقة بتكلفة بعد، حتى لا يُعرض رقم صفري مضلِّل.
 
 ## القوائم (Lists)
 
@@ -75,9 +102,19 @@
 3. **النقل إلى قائمة أخرى** عبر `targetListId`:
    - يُتحقّق أن القائمة الهدف **تنتمي لنفس اللوحة**؛ يُرفض النقل بين لوحتين مختلفتين
      ("Cannot move a card to a list on a different board").
+   - **النقل إلى قائمة فئتها `CLOSED` («انتهى»)** مقصور على **مالك اللوحة** أو
+     **المسؤولين عن البطاقة نفسها** (`card.assignees`) — تعديل لقرار سابق كان متاحًا
+     لأي عضو، انظر `design-prompt-group-3.md` §3b-4. أي عضو آخر يحاول هذا النقل تحديدًا
+     يُرفض بـ 403؛ النقل لأي قائمة أخرى يبقى متاحًا لكل الأعضاء كما كان.
    - إن أُرسلت معرّفات الجيران يُتحقّق أنها تنتمي **للقائمة الهدف** وأنها ليست البطاقة
      نفسها.
    - إن نُقلت لقائمة أخرى **دون تحديد جيران**، تُوضع **في نهاية** القائمة الهدف.
+4. **الأولوية** (`priority: LOW | NORMAL | URGENT`، الافتراضي `NORMAL`) تُكتب فعليًا في
+   كلٍّ من الإنشاء والتعديل. «عاجل» فقط يظهر كمؤشر على وجه
+   البطاقة (شريط حافة) وفي ترتيب عرض الجوال — العمود يعرض العاجل أولًا ثم الباقي بترتيبه
+   اليدوي، و«مهامي» يعرض المتأخّر ثم العاجل؛ الترتيب الفعلي (`position`) لا يتغيّر، هذا
+   ترتيب عرض فقط يحسبه العميل (`sortByPriority` في `apps/mobile`). لا يُسجَّل تغيير
+   الأولوية في سجل البطاقة (`CardActivity`) — بلا نوع نشاط مخصّص له.
 
 كل حساب للموضع يجري **داخل معاملة Prisma واحدة**، بإعادة قراءة مواضع الجيران طازجةً ثم
 حساب المفتاح الجديد على الخادم. النتيجة: **موضع قديم أرسله العميل لا يمكن أبدًا أن يُفسد

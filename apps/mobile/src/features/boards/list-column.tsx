@@ -1,14 +1,22 @@
 import { Pressable, View } from "react-native";
-import type { List } from "@app/types";
+import type { Card, List } from "@app/types";
 import { AppText } from "@/components/text";
 import { CardItem } from "./card-item";
 import { MIN_TOUCH_TARGET, colors, radii, spacing, statusColors } from "@/theme/tokens";
+
+/** «العاجل أولاً، ثم الباقي بترتيبه اليدوي» (§3b-1) — a stable sort, so ties keep their server (position) order. */
+export function sortByPriority<T extends Pick<Card, "priority">>(cards: T[]): T[] {
+  return [...cards].sort((a, b) => (b.priority === "URGENT" ? 1 : 0) - (a.priority === "URGENT" ? 1 : 0));
+}
 
 export function ListColumn({
   list,
   width,
   resolveAssignees,
   hasNext,
+  nextListIsClosed,
+  canCloseCard,
+  readOnly,
   onMoveCardNext,
   onLongPressCard,
   onOpenCard,
@@ -20,6 +28,12 @@ export function ListColumn({
   width: number;
   resolveAssignees: (ids: string[]) => { id: string; displayName: string }[];
   hasNext: boolean;
+  /** True when the next column is the `CLOSED` («انتهى») list — §3b-4. */
+  nextListIsClosed: boolean;
+  /** Whether the current user may move a given card into «انتهى» (board owner or the card's own assignees). */
+  canCloseCard: (card: Card) => boolean;
+  /** The board is archived: no add/move/drag — §3b-3. */
+  readOnly: boolean;
   onMoveCardNext: (cardId: string) => void;
   onLongPressCard: (cardId: string) => void;
   onOpenCard: (cardId: string) => void;
@@ -61,17 +75,20 @@ export function ListColumn({
         </AppText>
       ) : (
         <View style={{ gap: spacing.sm }}>
-          {list.cards.map((card) => (
-            <CardItem
-              key={card.id}
-              card={card}
-              assignees={resolveAssignees(card.assigneeIds)}
-              hasNext={hasNext}
-              onMoveNext={() => onMoveCardNext(card.id)}
-              onLongPress={() => onLongPressCard(card.id)}
-              onOpen={() => onOpenCard(card.id)}
-            />
-          ))}
+          {sortByPriority(list.cards).map((card) => {
+            const blockedByClose = nextListIsClosed && !canCloseCard(card);
+            return (
+              <CardItem
+                key={card.id}
+                card={card}
+                assignees={resolveAssignees(card.assigneeIds)}
+                hasNext={!readOnly && hasNext && !blockedByClose}
+                onMoveNext={() => onMoveCardNext(card.id)}
+                onLongPress={() => (readOnly ? undefined : onLongPressCard(card.id))}
+                onOpen={() => onOpenCard(card.id)}
+              />
+            );
+          })}
         </View>
       )}
 
@@ -83,23 +100,25 @@ export function ListColumn({
         </Pressable>
       ) : null}
 
-      <Pressable
-        accessibilityRole="button"
-        onPress={onAddCard}
-        style={{
-          minHeight: MIN_TOUCH_TARGET,
-          justifyContent: "center",
-          paddingHorizontal: spacing.md,
-          borderRadius: radii.card,
-          borderWidth: 1,
-          borderStyle: "dashed",
-          borderColor: colors.line,
-        }}
-      >
-        <AppText size="small" color={colors.muted}>
-          + إضافة مهمة
-        </AppText>
-      </Pressable>
+      {readOnly ? null : (
+        <Pressable
+          accessibilityRole="button"
+          onPress={onAddCard}
+          style={{
+            minHeight: MIN_TOUCH_TARGET,
+            justifyContent: "center",
+            paddingHorizontal: spacing.md,
+            borderRadius: radii.card,
+            borderWidth: 1,
+            borderStyle: "dashed",
+            borderColor: colors.line,
+          }}
+        >
+          <AppText size="small" color={colors.muted}>
+            + إضافة مهمة
+          </AppText>
+        </Pressable>
+      )}
     </View>
   );
 }

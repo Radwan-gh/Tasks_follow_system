@@ -66,6 +66,7 @@ export class CommentsService {
   async create(userId: string, cardId: string, input: CreateCommentRequest): Promise<Comment> {
     const card = await this.loadCard(cardId);
     await this.boards.assertMembership(userId, card.boardId);
+    await this.boards.assertBoardMutable(card.boardId);
     const ownerId = await this.boardOwnerId(card.boardId);
     if (!canAccessCard(userId, ownerId, card)) throw new NotFoundException("Card not found");
 

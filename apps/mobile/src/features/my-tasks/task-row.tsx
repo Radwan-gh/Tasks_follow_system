@@ -17,6 +17,8 @@ export function TaskRow({ item, onPress }: { item: MyTaskItem; onPress: () => vo
         backgroundColor: colors.surface,
         borderWidth: 1,
         borderColor: colors.line,
+        borderRightWidth: item.priority === "URGENT" ? 3 : 1,
+        borderRightColor: item.priority === "URGENT" ? colors.urgent : colors.line,
         borderRadius: radii.card,
         padding: spacing.lg,
         gap: spacing.xs,

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Pressable, RefreshControl, ScrollView, View } from "react-native";
 import { useRouter } from "expo-router";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { BoardTemplate } from "@app/types";
 import { Screen } from "@/components/screen";
@@ -19,6 +20,7 @@ export default function BoardsScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const boards = useQuery({ queryKey: ["boards"], queryFn: () => api.boards.list() });
+  const archivedBoards = useQuery({ queryKey: ["boards", "archived"], queryFn: () => api.boards.listArchived() });
   const [creatingBoard, setCreatingBoard] = useState(false);
 
   const createBoard = useMutation({
@@ -100,6 +102,26 @@ export default function BoardsScreen() {
             />
           ))
         )}
+
+        {archivedBoards.data && archivedBoards.data.length > 0 ? (
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => router.push("/archived-boards")}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: spacing.xs,
+              minHeight: MIN_TOUCH_TARGET,
+              marginTop: spacing.sm,
+            }}
+          >
+            <AppText size="small" weight="semibold" color={colors.muted}>
+              اللوحات المؤرشفة ({archivedBoards.data.length})
+            </AppText>
+            <Ionicons name="chevron-back" size={14} color={colors.muted} />
+          </Pressable>
+        ) : null}
       </ScrollView>
 
       <NewBoardSheet

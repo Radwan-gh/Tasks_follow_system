@@ -21,8 +21,8 @@ export default function MyTasksScreen() {
   const router = useRouter();
   const myTasks = useQuery({ queryKey: ["my-tasks"], queryFn: () => api.myTasks.list() });
 
-  const overdue = myTasks.data?.items.filter((item) => item.dueDate && isOverdue(item.dueDate)) ?? [];
-  const remaining = myTasks.data?.items.filter((item) => !(item.dueDate && isOverdue(item.dueDate))) ?? [];
+  const overdue = sortByUrgency(myTasks.data?.items.filter((item) => item.dueDate && isOverdue(item.dueDate)) ?? []);
+  const remaining = sortByUrgency(myTasks.data?.items.filter((item) => !(item.dueDate && isOverdue(item.dueDate))) ?? []);
   const boardGroups = groupByBoard(remaining);
 
   return (
@@ -90,6 +90,11 @@ export default function MyTasksScreen() {
       </ScrollView>
     </Screen>
   );
+}
+
+/** «وفي «مهامي»: المتأخّر ثم العاجل» (§3b-1) — stable, so ties keep their server order. */
+function sortByUrgency(items: MyTaskItem[]): MyTaskItem[] {
+  return [...items].sort((a, b) => (b.priority === "URGENT" ? 1 : 0) - (a.priority === "URGENT" ? 1 : 0));
 }
 
 function groupByBoard(items: MyTaskItem[]): { boardId: string; boardName: string; items: MyTaskItem[] }[] {

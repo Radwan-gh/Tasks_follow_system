@@ -35,6 +35,7 @@ export class MyTasksService {
               boardId: true,
               createdById: true,
               isRestricted: true,
+              priority: true,
               list: { select: { name: true, board: { select: { name: true, ownerId: true } } } },
               members: { select: { userId: true } },
             },
@@ -63,6 +64,7 @@ export class MyTasksService {
                   boardId: true,
                   createdById: true,
                   isRestricted: true,
+                  priority: true,
                   list: { select: { name: true, board: { select: { name: true, ownerId: true } } } },
                   members: { select: { userId: true } },
                 },
@@ -87,6 +89,7 @@ export class MyTasksService {
         boardName: card.list.board.name,
         listName: card.list.name,
         dueDate: card.dueDate ? card.dueDate.toISOString() : null,
+        priority: card.priority,
       });
     }
 
@@ -103,6 +106,7 @@ export class MyTasksService {
         boardName: card.list.board.name,
         listName: card.list.name,
         dueDate: null,
+        priority: card.priority,
       });
     }
 

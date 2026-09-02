@@ -18,6 +18,7 @@ export function CardItem({
   onMoveNext,
   onLongPress,
   onOpen,
+  highlightQuery,
 }: {
   card: Card;
   assignees: { id: string; displayName: string }[];
@@ -25,6 +26,8 @@ export function CardItem({
   onMoveNext: () => void;
   onLongPress: () => void;
   onOpen: () => void;
+  /** In-board search (§3b-2): highlights the matched substring in the title. */
+  highlightQuery?: string;
 }) {
   const overdue = card.dueDate ? isOverdue(card.dueDate) : false;
 
@@ -37,6 +40,10 @@ export function CardItem({
         backgroundColor: colors.surface,
         borderWidth: 1,
         borderColor: colors.line,
+        // §3b-1: a 3px right-edge stripe is the *only* face indicator for
+        // priority, and only ever for «عاجل» — normal/low stay unmarked.
+        borderRightWidth: card.priority === "URGENT" ? 3 : 1,
+        borderRightColor: card.priority === "URGENT" ? colors.urgent : colors.line,
         borderRadius: radii.card,
         padding: spacing.lg,
         gap: spacing.md,
@@ -46,7 +53,7 @@ export function CardItem({
       <View style={{ flexDirection: "row", alignItems: "flex-start", gap: spacing.sm }}>
         {card.isRestricted ? <AppText size="small">🔒</AppText> : null}
         <AppText weight="semibold" style={{ flex: 1 }}>
-          {card.title}
+          <HighlightedTitle title={card.title} query={highlightQuery} />
         </AppText>
       </View>
 
@@ -89,6 +96,23 @@ export function CardItem({
         </View>
       </View>
     </Pressable>
+  );
+}
+
+/** Splits `title` around the first case-insensitive match of `query`, highlighting it with `accentSoft` (§3b-2). */
+function HighlightedTitle({ title, query }: { title: string; query?: string }) {
+  if (!query || !query.trim()) return <>{title}</>;
+  const index = title.toLowerCase().indexOf(query.trim().toLowerCase());
+  if (index === -1) return <>{title}</>;
+  const end = index + query.trim().length;
+  return (
+    <>
+      {title.slice(0, index)}
+      <AppText weight="bold" color={colors.accent} style={{ backgroundColor: colors.accentSoft }}>
+        {title.slice(index, end)}
+      </AppText>
+      {title.slice(end)}
+    </>
   );
 }
 

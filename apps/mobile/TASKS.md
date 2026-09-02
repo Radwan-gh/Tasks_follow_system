@@ -140,6 +140,34 @@ Full detail in `docs/14-notifications-comments-attachments.md`. Summary:
       (`features/admin/reset-password-result-sheet.tsx`) + the forced
       "عيّن كلمة مرور جديدة" screen (`app/change-password-required.tsx`)
 
+## Group 3b (priority, search/filter, board archive, restricted "move to done", owner summary, disabled user)
+
+Full detail in `docs/05-boards-lists-cards.md`, `docs/04-authorization.md`,
+`docs/11-reports.md`, and `docs/12-mobile-app.md`. Summary:
+
+- [x] Priority — `components/priority-control.tsx` (segmented control in
+      add-task, tap-to-cycle chip in card detail, saved immediately), right-edge
+      stripe on the card face (`card-item.tsx`) and on `TaskRow` (urgent only),
+      urgent-first display sort in `list-column.tsx`/`my-tasks.tsx`
+- [x] In-board search + filter — `⌕` in the board header switches to a
+      status-grouped vertical list (`board/[id].tsx`), title highlighting
+      (`card-item.tsx`'s `HighlightedTitle`), filter sheet
+      (`features/boards/board-filter-sheet.tsx`: my-tasks-only, by member, by
+      priority) — entirely client-side over the already-fetched board detail,
+      no new endpoint
+- [x] Board archive — `/archived-boards` list screen, archived banner +
+      restore button on the board screen, restore button in board settings,
+      read-only gating (`ListColumn`'s `readOnly`: no add/move/long-press)
+- [x] Restricted "move to انتهى" — arrow button and the `MoveCardSheet` row
+      hidden/disabled for non-owner non-assignees, with the real enforcement
+      server-side (`CardsService.update`)
+- [x] Owner board summary — board header's ⋯ opens a small menu (owner only:
+      "ملخّص اللوحة" / "إعدادات اللوحة"), summary sheet
+      (`features/boards/board-summary-sheet.tsx`)
+- [x] Disabled user — faded avatar + "معطَّل" badge on card-detail assignee
+      chips and board-settings member rows; workload report (web) shows the
+      same badge
+
 ## Verification notes
 
 - `pnpm --filter @app/mobile bundle:check` proves the app still bundles
@@ -199,3 +227,10 @@ Full detail in `docs/14-notifications-comments-attachments.md`. Summary:
   temp password → copying it → logging in as the target user with it → the
   forced "عيّن كلمة مرور جديدة" screen appearing automatically (no re-entry of
   the temp password needed) → saving → landing on the boards list normally.
+- Group 3b (2026-09-02): no Android emulator/device was available in this
+  session's environment, so this round is verified by `typecheck` and
+  `bundle:check` only (both clean across `@app/types`, `@app/api`, `@app/web`,
+  and `@app/mobile`) plus the API's own type-level guarantees (Zod request/
+  response schemas). RTL layout, the tap-to-cycle priority chip, the
+  search/filter grouped view, and the archived-board banner still need an
+  actual on-device pass before being called done the way earlier phases were.

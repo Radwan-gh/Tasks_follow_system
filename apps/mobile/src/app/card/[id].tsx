@@ -6,10 +6,11 @@ import { Screen } from "@/components/screen";
 import { AppText } from "@/components/text";
 import { Skeleton } from "@/components/skeleton";
 import { ErrorState } from "@/components/state-views";
-import type { RecurrenceRule } from "@app/types";
+import type { CardPriority, RecurrenceRule } from "@app/types";
 import { AssigneePickerSheet } from "@/features/cards/assignee-picker-sheet";
 import { AttachmentsSection } from "@/features/cards/attachments-section";
 import { DueDateSheet } from "@/components/due-date-sheet";
+import { nextPriority, priorityLabel } from "@/components/priority-control";
 import { RecurrenceSheet, summarizeRecurrence } from "@/components/recurrence-sheet";
 import { SubtasksSection } from "@/features/cards/subtasks-section";
 import { HistorySection } from "@/features/cards/history-section";
@@ -91,6 +92,11 @@ export default function CardDetailScreen() {
     },
   });
 
+  const updatePriority = useMutation({
+    mutationFn: (priority: CardPriority) => api.cards.update(id, { priority }),
+    onSuccess: invalidateCard,
+  });
+
   if (card.isPending || (card.isSuccess && board.isPending)) {
     return (
       <Screen edges={{ top: true, bottom: true }} style={{ backgroundColor: colors.surface, padding: spacing.xl, gap: spacing.md }}>
@@ -162,6 +168,26 @@ export default function CardDetailScreen() {
             </AppText>
           </View>
         ) : null}
+
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="الأولوية — اضغط للتبديل"
+          onPress={() => updatePriority.mutate(nextPriority(card.data.priority))}
+          disabled={updatePriority.isPending}
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            gap: spacing.xs,
+            backgroundColor: card.data.priority === "URGENT" ? colors.urgentSoft : colors.canvas,
+            borderRadius: 999,
+            paddingHorizontal: spacing.md,
+            paddingVertical: 5,
+          }}
+        >
+          <AppText size="caption" weight="semibold" color={card.data.priority === "URGENT" ? colors.urgent : colors.muted}>
+            {priorityLabel(card.data.priority)}
+          </AppText>
+        </Pressable>
 
         <Pressable
           accessibilityRole="button"
@@ -280,6 +306,7 @@ export default function CardDetailScreen() {
                     borderRadius: 999,
                     paddingVertical: 6,
                     paddingHorizontal: spacing.md,
+                    opacity: member.user.isActive ? 1 : 0.5,
                   }}
                 >
                   <View
@@ -297,6 +324,13 @@ export default function CardDetailScreen() {
                     </AppText>
                   </View>
                   <AppText size="small">{member.user.displayName}</AppText>
+                  {!member.user.isActive ? (
+                    <View style={{ borderRadius: radii.chip, backgroundColor: colors.line, paddingHorizontal: spacing.sm, paddingVertical: 2 }}>
+                      <AppText size="caption" weight="semibold" color={colors.muted}>
+                        معطَّل
+                      </AppText>
+                    </View>
+                  ) : null}
                 </View>
               );
             })}

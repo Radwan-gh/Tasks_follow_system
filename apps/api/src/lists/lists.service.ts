@@ -19,6 +19,7 @@ export class ListsService {
 
   async create(userId: string, boardId: string, input: CreateListRequest) {
     await this.boards.assertMembership(userId, boardId);
+    await this.boards.assertBoardMutable(boardId);
 
     const position = await this.boards.nextListPosition(boardId);
     const list = await this.prisma.list.create({
@@ -30,6 +31,7 @@ export class ListsService {
   async update(userId: string, listId: string, input: UpdateListRequest) {
     const list = await this.loadList(listId);
     await this.boards.assertMembership(userId, list.boardId);
+    await this.boards.assertBoardMutable(list.boardId);
 
     if (input.move) {
       const { beforeId, afterId } = input.move;

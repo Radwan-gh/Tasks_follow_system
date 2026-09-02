@@ -80,6 +80,12 @@ export class AttachmentsService {
       await this.deleteFile(file.filename);
       throw new NotFoundException("Card not found");
     }
+    try {
+      await this.boards.assertBoardMutable(card.boardId);
+    } catch (err) {
+      await this.deleteFile(file.filename);
+      throw err;
+    }
 
     const count = await this.prisma.attachment.count({ where: { cardId } });
     if (count >= MAX_ATTACHMENTS_PER_CARD) {

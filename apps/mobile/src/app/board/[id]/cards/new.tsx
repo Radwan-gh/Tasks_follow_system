@@ -2,13 +2,14 @@ import { useRef, useState } from "react";
 import { Pressable, ScrollView, TextInput, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import type { RecurrenceRule } from "@app/types";
+import type { CardPriority, RecurrenceRule } from "@app/types";
 import { Screen } from "@/components/screen";
 import { AppText } from "@/components/text";
 import { ErrorState } from "@/components/state-views";
 import { Skeleton } from "@/components/skeleton";
 import { AssigneePickerSheet } from "@/features/cards/assignee-picker-sheet";
 import { DueDateSheet } from "@/components/due-date-sheet";
+import { PrioritySegmented } from "@/components/priority-control";
 import { RecurrenceSheet, summarizeRecurrence } from "@/components/recurrence-sheet";
 import { avatarColorFor } from "@/lib/avatar";
 import { initials } from "@/lib/initials";
@@ -35,6 +36,7 @@ export default function NewCardScreen() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [dueDate, setDueDate] = useState<string | null>(null);
+  const [priority, setPriority] = useState<CardPriority>("NORMAL");
   const [recurrence, setRecurrence] = useState<RecurrenceRule | null>(null);
   const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
   const [restricted, setRestricted] = useState(false);
@@ -64,6 +66,7 @@ export default function NewCardScreen() {
           title: title.trim(),
           description: description.trim() || undefined,
           dueDate,
+          priority,
           recurrence,
         });
         cardIdRef.current = card.id;
@@ -222,6 +225,13 @@ export default function NewCardScreen() {
           value={recurrence ? summarizeRecurrence(recurrence)! : "بدون"}
           onPress={() => setPickingRecurrence(true)}
         />
+
+        <View style={{ gap: spacing.sm }}>
+          <AppText size="caption" weight="semibold" color={colors.muted}>
+            الأولوية
+          </AppText>
+          <PrioritySegmented value={priority} onChange={setPriority} />
+        </View>
 
         <View style={{ gap: spacing.sm }}>
           <AppText size="caption" weight="semibold" color={colors.muted}>

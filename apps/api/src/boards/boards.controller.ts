@@ -40,6 +40,13 @@ export class BoardsController {
     return this.boards.create(user.id, body);
   }
 
+  @Get("archived")
+  @ApiOperation({ summary: "List archived boards the current user is a member of" })
+  @ApiResponse({ status: 200, schema: zodArrayRef("BoardSummary") })
+  listArchived(@CurrentUser() user: AuthUser) {
+    return this.boards.listArchivedForUser(user.id);
+  }
+
   @Get(":id")
   @ApiOperation({ summary: "Get a board with its lists, cards, and members" })
   @ApiParam({ name: "id", description: "Board ID" })
@@ -53,6 +60,15 @@ export class BoardsController {
   @ApiResponse({ status: 404, description: "Board not found" })
   getDetail(@CurrentUser() user: AuthUser, @Param("id") id: string, @Query("closedSince") closedSince?: string) {
     return this.boards.getDetail(user.id, id, closedSince ? new Date(closedSince) : undefined);
+  }
+
+  @Get(":id/summary")
+  @ApiOperation({ summary: "Owner-only board summary: completed/overdue/workload/cost" })
+  @ApiParam({ name: "id", description: "Board ID" })
+  @ApiResponse({ status: 200, schema: zodRef("BoardOwnerSummary") })
+  @ApiResponse({ status: 403, description: "Requires OWNER role" })
+  getSummary(@CurrentUser() user: AuthUser, @Param("id") id: string) {
+    return this.boards.summary(user.id, id);
   }
 
   @Patch(":id")

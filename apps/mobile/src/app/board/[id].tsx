@@ -3,6 +3,7 @@ import {
   FlatList,
   Pressable,
   ScrollView,
+  TextInput,
   View,
   useWindowDimensions,
   type ViewToken,
@@ -10,16 +11,22 @@ import {
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import type { List } from "@app/types";
+import type { Card, List } from "@app/types";
 import { Screen } from "@/components/screen";
 import { AppText } from "@/components/text";
 import { ErrorState } from "@/components/state-views";
 import { Skeleton } from "@/components/skeleton";
 import { ConfirmSheet } from "@/components/confirm-sheet";
-import { ListColumn } from "@/features/boards/list-column";
+import { BottomSheet } from "@/components/bottom-sheet";
+import { ListColumn, sortByPriority } from "@/features/boards/list-column";
+import { CardItem } from "@/features/boards/card-item";
 import { MoveCardSheet } from "@/features/boards/move-card-sheet";
+import { BoardSummarySheet } from "@/features/boards/board-summary-sheet";
+import { BoardFilterSheet, EMPTY_BOARD_FILTER, isFilterActive, type BoardFilter } from "@/features/boards/board-filter-sheet";
+import { useAuth } from "@/features/auth/auth-context";
+import { EmptyState } from "@/components/state-views";
 import { api } from "@/lib/api";
-import { MIN_TOUCH_TARGET, colors, radii, spacing } from "@/theme/tokens";
+import { MIN_TOUCH_TARGET, colors, fonts, fontSizes, radii, spacing } from "@/theme/tokens";
 
 const COLUMN_WIDTH = 300;
 const COLUMN_GAP = spacing.lg;
@@ -33,6 +40,7 @@ const COLUMN_GAP = spacing.lg;
 export default function BoardScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const { user } = useAuth();
   const queryClient = useQueryClient();
   const { width } = useWindowDimensions();
   const columnWidth = Math.min(COLUMN_WIDTH, width - spacing.xl * 2 - 24);
@@ -51,6 +59,12 @@ export default function BoardScreen() {
   const [activeIndex, setActiveIndex] = useState(0);
   const [movingCardId, setMovingCardId] = useState<string | null>(null);
   const [deletingCardId, setDeletingCardId] = useState<string | null>(null);
+  const [menuVisible, setMenuVisible] = useState(false);
+  const [summaryVisible, setSummaryVisible] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchText, setSearchText] = useState("");
+  const [filterVisible, setFilterVisible] = useState(false);
+  const [filter, setFilter] = useState<BoardFilter>(EMPTY_BOARD_FILTER);
   const listRef = useRef<FlatList<List>>(null);
 
   const move = useMutation({
@@ -69,6 +83,38 @@ export default function BoardScreen() {
       void queryClient.invalidateQueries({ queryKey: ["board", id] });
     },
   });
+
+  const restore = useMutation({
+    mutationFn: () => api.boards.update(id, { isArchived: false }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["board", id] });
+      void queryClient.invalidateQueries({ queryKey: ["boards"] });
+    },
+  });
+
+  const trimmedSearch = searchText.trim();
+  // §3b-2: search + filter renders a flat list grouped by status, not columns.
+  const searchResults = useMemo(() => {
+    if (!board.data) return [];
+    return board.data.lists
+      .map((list) => ({
+        list,
+        cards: sortByPriority(list.cards).filter((card) => {
+          if (trimmedSearch && !card.title.toLowerCase().includes(trimmedSearch.toLowerCase())) return false;
+          if (filter.myTasksOnly && !(user && card.assigneeIds.includes(user.id))) return false;
+          if (filter.memberIds.length > 0 && !card.assigneeIds.some((uid) => filter.memberIds.includes(uid))) return false;
+          if (filter.priorities.length > 0 && !filter.priorities.includes(card.priority)) return false;
+          return true;
+        }),
+      }))
+      .filter((group) => group.cards.length > 0);
+  }, [board.data, trimmedSearch, filter, user]);
+
+  const isOwner = !!user && board.data?.ownerId === user.id;
+  /** Board owner or this card's own assignees may move it into «انتهى» — §3b-4. */
+  function canCloseCard(card: Card): boolean {
+    return !!user && (board.data?.ownerId === user.id || card.assigneeIds.includes(user.id));
+  }
 
   const resolveAssignees = useMemo(() => {
     const byId = new Map(board.data?.members.map((m) => [m.userId, m.user] as const) ?? []);
@@ -144,13 +190,47 @@ export default function BoardScreen() {
         </View>
         <Pressable
           accessibilityRole="button"
+          accessibilityLabel="بحث"
+          onPress={() => setSearchOpen((v) => !v)}
+          style={{ minWidth: MIN_TOUCH_TARGET, minHeight: MIN_TOUCH_TARGET, alignItems: "center", justifyContent: "center" }}
+        >
+          <Ionicons name={searchOpen ? "close" : "search"} size={20} color={colors.muted} />
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
           accessibilityLabel="إعدادات اللوحة"
-          onPress={() => router.push(`/board/${id}/settings`)}
+          onPress={() => (isOwner ? setMenuVisible(true) : router.push(`/board/${id}/settings`))}
           style={{ minWidth: MIN_TOUCH_TARGET, minHeight: MIN_TOUCH_TARGET, alignItems: "flex-end", justifyContent: "center" }}
         >
           <Ionicons name="ellipsis-horizontal" size={22} color={colors.muted} />
         </Pressable>
       </View>
+
+      {board.data?.isArchived ? (
+        <View
+          style={{
+            marginHorizontal: spacing.xl,
+            marginBottom: spacing.md,
+            backgroundColor: colors.canvas,
+            borderRadius: radii.field,
+            padding: spacing.md,
+            flexDirection: "row",
+            alignItems: "center",
+            gap: spacing.sm,
+          }}
+        >
+          <AppText size="small" color={colors.muted} style={{ flex: 1 }}>
+            هذه اللوحة مؤرشفة — للقراءة فقط
+          </AppText>
+          {isOwner ? (
+            <Pressable accessibilityRole="button" onPress={() => restore.mutate()} disabled={restore.isPending}>
+              <AppText size="small" weight="semibold" color={colors.accent}>
+                {restore.isPending ? "جارٍ الاستعادة..." : "استعادة"}
+              </AppText>
+            </Pressable>
+          ) : null}
+        </View>
+      ) : null}
 
       {board.isPending ? (
         <View style={{ paddingHorizontal: spacing.xl, gap: spacing.md }}>
@@ -159,6 +239,109 @@ export default function BoardScreen() {
         </View>
       ) : board.isError ? (
         <ErrorState onRetry={() => void board.refetch()} />
+      ) : searchOpen ? (
+        <>
+          <View style={{ paddingHorizontal: spacing.xl, paddingBottom: spacing.md, flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
+            <View
+              style={{
+                flex: 1,
+                flexDirection: "row",
+                alignItems: "center",
+                backgroundColor: colors.canvas,
+                borderRadius: radii.field,
+                paddingHorizontal: spacing.md,
+                minHeight: MIN_TOUCH_TARGET,
+              }}
+            >
+              <TextInput
+                value={searchText}
+                onChangeText={setSearchText}
+                placeholder="ابحث في اللوحة"
+                placeholderTextColor={colors.muted}
+                autoFocus
+                style={{
+                  flex: 1,
+                  fontFamily: fonts.regular,
+                  fontSize: fontSizes.body,
+                  color: colors.ink,
+                  textAlign: "right",
+                  writingDirection: "rtl",
+                }}
+              />
+            </View>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="ترشيح"
+              onPress={() => setFilterVisible(true)}
+              style={{
+                width: MIN_TOUCH_TARGET,
+                height: MIN_TOUCH_TARGET,
+                borderRadius: radii.field,
+                borderWidth: 1,
+                borderColor: isFilterActive(filter) ? colors.accent : colors.line,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Ionicons name="options-outline" size={18} color={isFilterActive(filter) ? colors.accent : colors.muted} />
+            </Pressable>
+          </View>
+
+          {isFilterActive(filter) ? (
+            <View style={{ paddingHorizontal: spacing.xl, paddingBottom: spacing.md }}>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => setFilter(EMPTY_BOARD_FILTER)}
+                style={{
+                  alignSelf: "flex-start",
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: spacing.xs,
+                  backgroundColor: colors.accentSoft,
+                  borderRadius: 999,
+                  paddingHorizontal: spacing.md,
+                  paddingVertical: 6,
+                }}
+              >
+                <AppText size="small" weight="semibold" color={colors.accent}>
+                  مرشَّح ✕
+                </AppText>
+              </Pressable>
+            </View>
+          ) : null}
+
+          <ScrollView contentContainerStyle={{ paddingHorizontal: spacing.xl, paddingBottom: spacing.xxl, gap: spacing.lg }}>
+            {searchResults.length === 0 ? (
+              <EmptyState
+                icon="search-outline"
+                title={trimmedSearch ? `لا نتائج لـ "${trimmedSearch}"` : "لا نتائج"}
+                message="جرّب كلمة أخرى أو امسح الترشيح."
+              />
+            ) : (
+              searchResults.map(({ list, cards }) => (
+                <View key={list.id} style={{ gap: spacing.sm }}>
+                  <AppText size="small" weight="bold" color={colors.muted}>
+                    {list.name} · {cards.length}
+                  </AppText>
+                  <View style={{ gap: spacing.sm }}>
+                    {cards.map((card) => (
+                      <CardItem
+                        key={card.id}
+                        card={card}
+                        assignees={resolveAssignees(card.assigneeIds)}
+                        hasNext={false}
+                        onMoveNext={() => {}}
+                        onLongPress={() => setMovingCardId(card.id)}
+                        onOpen={() => router.push(`/card/${card.id}`)}
+                        highlightQuery={trimmedSearch}
+                      />
+                    ))}
+                  </View>
+                </View>
+              ))
+            )}
+          </ScrollView>
+        </>
       ) : (
         <>
           <ScrollView
@@ -219,6 +402,9 @@ export default function BoardScreen() {
                   width={columnWidth}
                   resolveAssignees={resolveAssignees}
                   hasNext={index < board.data!.lists.length - 1}
+                  nextListIsClosed={board.data!.lists[index + 1]?.statusCategory === "CLOSED"}
+                  canCloseCard={canCloseCard}
+                  readOnly={!!board.data!.isArchived}
                   onMoveCardNext={(cardId) => {
                     const nextList = board.data!.lists[index + 1];
                     if (nextList) move.mutate({ cardId, targetListId: nextList.id });
@@ -233,7 +419,7 @@ export default function BoardScreen() {
             />
           )}
 
-          {board.data.lists[activeIndex] ? (
+          {board.data.lists[activeIndex] && !board.data.isArchived ? (
             <View style={{ paddingHorizontal: spacing.xl, paddingTop: spacing.md }}>
               <Pressable
                 accessibilityRole="button"
@@ -261,6 +447,7 @@ export default function BoardScreen() {
         card={activeCardInfo?.card ?? null}
         lists={board.data?.lists ?? []}
         nextListId={activeCardInfo?.nextListId ?? null}
+        canCloseCard={activeCardInfo ? canCloseCard(activeCardInfo.card) : false}
         onMove={(targetListId) => {
           if (activeCardInfo) move.mutate({ cardId: activeCardInfo.card.id, targetListId });
         }}
@@ -286,6 +473,41 @@ export default function BoardScreen() {
         onConfirm={() => {
           if (deletingCardId) remove.mutate(deletingCardId);
         }}
+      />
+
+      <BottomSheet visible={menuVisible} onClose={() => setMenuVisible(false)}>
+        <View style={{ paddingHorizontal: spacing.xl, gap: spacing.sm, paddingBottom: spacing.md }}>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => {
+              setMenuVisible(false);
+              setSummaryVisible(true);
+            }}
+            style={{ minHeight: MIN_TOUCH_TARGET, justifyContent: "center" }}
+          >
+            <AppText weight="semibold">ملخّص اللوحة</AppText>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => {
+              setMenuVisible(false);
+              router.push(`/board/${id}/settings`);
+            }}
+            style={{ minHeight: MIN_TOUCH_TARGET, justifyContent: "center" }}
+          >
+            <AppText weight="semibold">إعدادات اللوحة</AppText>
+          </Pressable>
+        </View>
+      </BottomSheet>
+
+      <BoardSummarySheet visible={summaryVisible} onClose={() => setSummaryVisible(false)} boardId={id} />
+
+      <BoardFilterSheet
+        visible={filterVisible}
+        onClose={() => setFilterVisible(false)}
+        value={filter}
+        onChange={setFilter}
+        members={board.data?.members ?? []}
       />
     </Screen>
   );

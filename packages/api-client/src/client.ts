@@ -10,6 +10,7 @@ import type {
   CreateUserRequest,
   BoardDetail,
   BoardMember,
+  BoardOwnerSummary,
   BoardSummary,
   Card,
   CardActivity,
@@ -171,10 +172,12 @@ export function createApiClient({ baseUrl, storage, onUnauthorized }: ApiClientO
     },
     boards: {
       list: () => request<BoardSummary[]>("/boards"),
+      listArchived: () => request<BoardSummary[]>("/boards/archived"),
       create: (body: CreateBoardRequest) =>
         request<BoardSummary>("/boards", { method: "POST", body: JSON.stringify(body) }),
       get: (id: string, closedSince?: string) =>
         request<BoardDetail>(`/boards/${id}${closedSince ? `?closedSince=${encodeURIComponent(closedSince)}` : ""}`),
+      getSummary: (id: string) => request<BoardOwnerSummary>(`/boards/${id}/summary`),
       update: (id: string, body: UpdateBoardRequest) =>
         request<BoardSummary>(`/boards/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
       addMember: (id: string, email: string) =>

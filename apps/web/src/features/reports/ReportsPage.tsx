@@ -157,10 +157,20 @@ function WorkloadReport() {
       ) : (
         <ul className="space-y-2">
           {data.assignees.map((a) => (
-            <li key={a.userId} className="flex items-center justify-between border-b border-slate-100 pb-2 text-sm">
+            <li
+              key={a.userId}
+              className={`flex items-center justify-between rounded border-b border-slate-100 px-2 pb-2 pt-1 text-sm ${
+                a.isActive ? "" : "bg-red-50"
+              }`}
+            >
               <div>
                 <span className="text-slate-800">{a.displayName}</span>
                 <span className="text-slate-400"> {a.email}</span>
+                {!a.isActive && (
+                  <span className="ms-2 rounded bg-red-100 px-1.5 py-0.5 text-xs text-red-700">
+                    يحتاج إعادة إسناد — معطَّل
+                  </span>
+                )}
               </div>
               <span className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-700">{a.openCards} مهمة مفتوحة</span>
             </li>

@@ -122,7 +122,12 @@ export class ReportsService {
       where: {
         isArchived: false,
         dueDate: { lt: now },
-        NOT: { list: { statusCategory: { in: COMPLETED_CATEGORIES } } },
+        // `Card` has no direct `board` relation (only the `boardId` scalar) —
+        // the archived-board exclusion has to go through `list.board`.
+        AND: [
+          { NOT: { list: { statusCategory: { in: COMPLETED_CATEGORIES } } } },
+          { list: { board: { isArchived: false } } },
+        ],
       },
       orderBy: { dueDate: "asc" },
       include: {
@@ -160,16 +165,28 @@ export class ReportsService {
   async workload(): Promise<WorkloadReport> {
     const assignments = await this.prisma.cardAssignee.findMany({
       where: {
-        card: { isArchived: false, NOT: { list: { statusCategory: { in: COMPLETED_CATEGORIES } } } },
+        card: {
+          isArchived: false,
+          AND: [
+            { NOT: { list: { statusCategory: { in: COMPLETED_CATEGORIES } } } },
+            { list: { board: { isArchived: false } } },
+          ],
+        },
       },
-      select: { userId: true, user: { select: { displayName: true, email: true } } },
+      select: { userId: true, user: { select: { displayName: true, email: true, isActive: true } } },
     });
 
-    const byUser = new Map<string, { displayName: string; email: string; openCards: number }>();
+    const byUser = new Map<string, { displayName: string; email: string; isActive: boolean; openCards: number }>();
     for (const a of assignments) {
       const current = byUser.get(a.userId);
       if (current) current.openCards += 1;
-      else byUser.set(a.userId, { displayName: a.user.displayName, email: a.user.email, openCards: 1 });
+      else
+        byUser.set(a.userId, {
+          displayName: a.user.displayName,
+          email: a.user.email,
+          isActive: a.user.isActive,
+          openCards: 1,
+        });
     }
 
     const assignees = [...byUser.entries()]

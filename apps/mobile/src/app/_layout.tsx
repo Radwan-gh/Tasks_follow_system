@@ -60,6 +60,7 @@ function RootNavigator() {
         <Stack.Screen name="card/[id]" options={{ presentation: "modal" }} />
         <Stack.Screen name="admin/users" options={{ presentation: "modal" }} />
         <Stack.Screen name="notifications" />
+        <Stack.Screen name="archived-boards" />
       </Stack.Protected>
       <Stack.Protected guard={!user}>
         <Stack.Screen name="login" />

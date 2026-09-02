@@ -53,6 +53,28 @@ export class BoardsService {
     return boards.map((b) => serializeBoard(b, aggregates.get(b.id) ?? EMPTY_AGGREGATE));
   }
 
+  /** The collapsed "اللوحات المؤرشفة" link on the boards list — `design-prompt-group-3.md` §3b-3. */
+  async listArchivedForUser(userId: string) {
+    const boards = await this.prisma.board.findMany({
+      where: { members: { some: { userId } }, isArchived: true },
+      orderBy: { updatedAt: "desc" },
+    });
+    const aggregates = await this.boardAggregates(boards.map((b) => b.id));
+    return boards.map((b) => serializeBoard(b, aggregates.get(b.id) ?? EMPTY_AGGREGATE));
+  }
+
+  /**
+   * Guards every list/card/subtask/comment/attachment *mutation* against an
+   * archived board — `design-prompt-group-3.md` §3b-3: "تصبح [اللوحة]
+   * للقراءة فقط". Never called from a read path (`getDetail`, `list*`, etc.),
+   * which must keep working on an archived board.
+   */
+  async assertBoardMutable(boardId: string) {
+    const board = await this.prisma.board.findUnique({ where: { id: boardId }, select: { isArchived: true } });
+    if (!board) throw new NotFoundException("Board not found");
+    if (board.isArchived) throw new ForbiddenException("This board is archived and read-only");
+  }
+
   async create(userId: string, input: CreateBoardRequest) {
     // Seed the five status lists when the task-workflow template is chosen;
     // otherwise the board starts empty (historical default). Positions are
@@ -196,7 +218,7 @@ export class BoardsService {
         userId: m.userId,
         boardId: m.boardId,
         role: m.role,
-        user: { id: m.user.id, email: m.user.email, displayName: m.user.displayName },
+        user: { id: m.user.id, email: m.user.email, displayName: m.user.displayName, isActive: m.user.isActive },
       })),
       lists: board.lists.map((list) => ({
         id: list.id,
@@ -274,7 +296,12 @@ export class BoardsService {
       userId: member.userId,
       boardId: member.boardId,
       role: member.role,
-      user: { id: member.user.id, email: member.user.email, displayName: member.user.displayName },
+      user: {
+        id: member.user.id,
+        email: member.user.email,
+        displayName: member.user.displayName,
+        isActive: member.user.isActive,
+      },
     };
   }
 
@@ -292,6 +319,85 @@ export class BoardsService {
       this.prisma.cardMember.deleteMany({ where: { userId: targetUserId, card: { boardId } } }),
       this.prisma.boardMember.delete({ where: { boardId_userId: { boardId, userId: targetUserId } } }),
     ]);
+  }
+
+  /**
+   * Report 3b-5 — a single-board summary for its owner, sparing them a trip
+   * to the admin-only reports section (`design-prompt-group-3.md` §3b-5):
+   * completed-last-7-days, overdue count, a top-3-plus-rest workload split,
+   * and this month's total cost (only when at least one card has a cost).
+   */
+  async summary(userId: string, boardId: string) {
+    await this.assertMembership(userId, boardId, "OWNER");
+
+    const now = new Date();
+    const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const completedListNames = new Set(await this.completedListNames(boardId));
+    const moves = await this.prisma.cardActivity.findMany({
+      where: { boardId, type: "MOVED", createdAt: { gte: weekAgo }, card: { isArchived: false } },
+      orderBy: { createdAt: "desc" },
+      select: { cardId: true, toValue: true },
+    });
+    // Dedupe by card: a card moved into/out of a done list more than once in
+    // the window must still count once (same as `ReportsService.completed`).
+    const completedCardIds = new Set<string>();
+    for (const move of moves) {
+      if (move.toValue && completedListNames.has(move.toValue)) completedCardIds.add(move.cardId);
+    }
+    const completedLast7Days = completedCardIds.size;
+
+    const overdueCount = await this.prisma.card.count({
+      where: {
+        boardId,
+        isArchived: false,
+        dueDate: { lt: now },
+        NOT: { list: { statusCategory: { in: COMPLETED_CATEGORIES } } },
+      },
+    });
+
+    const assignments = await this.prisma.cardAssignee.findMany({
+      where: {
+        card: { boardId, isArchived: false, NOT: { list: { statusCategory: { in: COMPLETED_CATEGORIES } } } },
+      },
+      select: { userId: true, user: { select: { displayName: true } } },
+    });
+    const byUser = new Map<string, { displayName: string; openCards: number }>();
+    for (const a of assignments) {
+      const current = byUser.get(a.userId);
+      if (current) current.openCards += 1;
+      else byUser.set(a.userId, { displayName: a.user.displayName, openCards: 1 });
+    }
+    const workload = [...byUser.entries()]
+      .map(([userId, v]) => ({ userId, ...v }))
+      .sort((x, y) => y.openCards - x.openCards);
+
+    const costRows = await this.prisma.card.findMany({
+      where: { boardId, isArchived: false, costAmount: { not: null }, createdAt: { gte: monthStart } },
+      select: { costAmount: true },
+    });
+    const costThisMonth =
+      costRows.length === 0
+        ? null
+        : costRows.reduce((sum, c) => sum + Number(c.costAmount), 0).toFixed(2);
+
+    return {
+      completedLast7Days,
+      overdueCount,
+      workload: workload.slice(0, 3),
+      workloadRestCount: Math.max(0, workload.length - 3),
+      costThisMonth,
+    };
+  }
+
+  /** List names on `boardId` whose category counts as "done" — see `COMPLETED_CATEGORIES`. */
+  private async completedListNames(boardId: string): Promise<string[]> {
+    const lists = await this.prisma.list.findMany({
+      where: { boardId, statusCategory: { in: COMPLETED_CATEGORIES } },
+      select: { name: true },
+    });
+    return lists.map((l) => l.name);
   }
 
   /** Fresh-read helper for list ordering — used by ListsService when creating/moving lists. */

@@ -54,7 +54,8 @@ export class SubtasksService {
   }
 
   async create(userId: string, cardId: string, input: CreateSubtaskRequest) {
-    await this.assertCardAccess(userId, cardId);
+    const card = await this.assertCardAccess(userId, cardId);
+    await this.boards.assertBoardMutable(card.boardId);
     const last = await this.prisma.subtask.findFirst({
       where: { cardId },
       orderBy: { position: "desc" },
@@ -70,7 +71,8 @@ export class SubtasksService {
 
   async update(userId: string, subtaskId: string, input: UpdateSubtaskRequest) {
     const subtask = await this.loadSubtask(subtaskId);
-    await this.assertCardAccess(userId, subtask.cardId);
+    const card = await this.assertCardAccess(userId, subtask.cardId);
+    await this.boards.assertBoardMutable(card.boardId);
 
     if (input.move) {
       await this.validateNeighborsBelongToCard(
@@ -108,6 +110,7 @@ export class SubtasksService {
   async updateAssignees(userId: string, subtaskId: string, input: UpdateAssigneesRequest) {
     const subtask = await this.loadSubtask(subtaskId);
     const card = await this.assertCardAccess(userId, subtask.cardId);
+    await this.boards.assertBoardMutable(card.boardId);
 
     const userIds = [...new Set(input.userIds)];
     if (userIds.length > 0) {
