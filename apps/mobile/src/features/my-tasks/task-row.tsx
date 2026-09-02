@@ -17,8 +17,11 @@ export function TaskRow({ item, onPress }: { item: MyTaskItem; onPress: () => vo
         backgroundColor: colors.surface,
         borderWidth: 1,
         borderColor: colors.line,
-        borderRightWidth: item.priority === "URGENT" ? 3 : 1,
-        borderRightColor: item.priority === "URGENT" ? colors.urgent : colors.line,
+        // borderLeft* (not borderRight*): RN's default RTL behavior mirrors
+        // physical left/right border props under forceRTL, so this renders
+        // on the physical right edge — see card-item.tsx for the same fix.
+        borderLeftWidth: item.priority === "URGENT" ? 3 : 1,
+        borderLeftColor: item.priority === "URGENT" ? colors.urgent : colors.line,
         borderRadius: radii.card,
         padding: spacing.lg,
         gap: spacing.xs,

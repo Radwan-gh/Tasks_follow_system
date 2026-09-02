@@ -42,8 +42,12 @@ export function CardItem({
         borderColor: colors.line,
         // §3b-1: a 3px right-edge stripe is the *only* face indicator for
         // priority, and only ever for «عاجل» — normal/low stay unmarked.
-        borderRightWidth: card.priority === "URGENT" ? 3 : 1,
-        borderRightColor: card.priority === "URGENT" ? colors.urgent : colors.line,
+        // Written as borderLeft* because RN's default RTL behavior
+        // (I18nManager.doLeftAndRightSwapInRTL, on by default) mirrors
+        // physical left/right border props under forceRTL — this renders
+        // on the physical *right* edge, matching the design.
+        borderLeftWidth: card.priority === "URGENT" ? 3 : 1,
+        borderLeftColor: card.priority === "URGENT" ? colors.urgent : colors.line,
         borderRadius: radii.card,
         padding: spacing.lg,
         gap: spacing.md,

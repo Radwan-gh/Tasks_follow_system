@@ -227,10 +227,28 @@ Full detail in `docs/05-boards-lists-cards.md`, `docs/04-authorization.md`,
   temp password → copying it → logging in as the target user with it → the
   forced "عيّن كلمة مرور جديدة" screen appearing automatically (no re-entry of
   the temp password needed) → saving → landing on the boards list normally.
-- Group 3b (2026-09-02): no Android emulator/device was available in this
-  session's environment, so this round is verified by `typecheck` and
-  `bundle:check` only (both clean across `@app/types`, `@app/api`, `@app/web`,
-  and `@app/mobile`) plus the API's own type-level guarantees (Zod request/
-  response schemas). RTL layout, the tap-to-cycle priority chip, the
-  search/filter grouped view, and the archived-board banner still need an
-  actual on-device pass before being called done the way earlier phases were.
+- Group 3b, confirmed on an Android emulator (2026-09-02): priority
+  (segmented control on add-task, urgent-first sort in both the board column
+  and a bonus check of the priority filter), in-board search (title
+  highlighting, live filtering) and the filter sheet (my-tasks-only, by
+  member, by priority — all combinations produced correct result sets
+  including the correct empty state), board archive (archive → board
+  disappears from the active list and gains a read-only banner with no
+  add/move affordances → appears under `/archived-boards` → restore brings
+  it back), restricted "move to انتهى" (verified both directions with real
+  logins as different users: a plain board member sees the row disabled
+  with the explanatory "ينقلها إلى «انتهى» مالك اللوحة أو المسؤول عنها" note
+  and the server also rejects it; the card's actual assignee can pick it and
+  the move succeeds), owner board summary (sheet renders correct overdue/
+  done-last-7-days/workload numbers matching the seeded data), and the
+  disabled-user badge (deactivating a card's assignee via `PATCH
+  /admin/users/:id/status` immediately produces a faded "معطَّل" badge next
+  to their name in card detail's assignee chips). One real bug found and
+  fixed: the priority stripe on `card-item.tsx` and `task-row.tsx` used
+  `borderRightWidth`/`borderRightColor`, but RN's default RTL behavior
+  (`I18nManager.doLeftAndRightSwapInRTL`, on by default) mirrors physical
+  left/right border properties under this app's `forceRTL(true)` — so the
+  stripe rendered on the physical *left* edge instead of the intended right
+  edge. Fixed by writing it as `borderLeftWidth`/`borderLeftColor` instead
+  (RN's mirroring then flips it back to the physical right edge, matching
+  the design) — confirmed visually before/after the fix on the emulator.
