@@ -44,6 +44,15 @@ export const statusColors = {
   UNCATEGORIZED: "#A9AEC0",
 } as const;
 
+/** Rotating per-member avatar colours — the design's five member-chip swatches. */
+export const avatarPalette = [
+  { bg: "#EAEFFB", fg: "#4A6FD4" },
+  { bg: "#F3ECFB", fg: "#8B5FC7" },
+  { bg: "#FBEFE6", fg: "#B9743A" },
+  { bg: "#E6F4EE", fg: "#1F7A5C" },
+  { bg: "#EDEFF3", fg: "#5B6273" },
+] as const;
+
 export const radii = {
   card: 22,
   chip: 999,

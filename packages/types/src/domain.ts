@@ -1,6 +1,7 @@
 import { z } from "zod";
 
-export const BoardRole = z.enum(["OWNER", "MEMBER"]);
+/** `VIEWER` is read-only: no move/create/comment/assign anywhere on the board. */
+export const BoardRole = z.enum(["OWNER", "MEMBER", "VIEWER"]);
 export type BoardRole = z.infer<typeof BoardRole>;
 
 export const UserRole = z.enum(["USER", "ADMIN"]);
@@ -10,11 +11,46 @@ export type UserRole = z.infer<typeof UserRole>;
  * Semantic status category of a list, set when a board is seeded from a
  * built-in template. A card's *status* is the list it lives in; this optional
  * category lets features (notably the reports section) reason about a list's
- * meaning — especially the terminal `DONE` — without relying on the list's
- * (renameable, localized) name. Manually created lists carry `null`.
+ * meaning — especially the terminal `DONE`/`CLOSED` — without relying on the
+ * list's (renameable, localized) name. Manually created lists carry `null`.
+ *
+ * `CLOSED` is a newer terminal status *after* `DONE` ("انتهى" — delivered and
+ * confirmed). Anything that used to check `statusCategory === "DONE"` alone
+ * must use `isCompleted()` (`apps/api/src/common/util/completed.util.ts`)
+ * instead, which treats `DONE | CLOSED` as done. `REVIEW` is retired from the
+ * current board template (see `board-templates.ts`) but stays valid for lists
+ * created before this change — never remove it from this enum.
  */
-export const ListStatusCategory = z.enum(["NEW", "READY", "IN_PROGRESS", "REVIEW", "DONE"]);
+export const ListStatusCategory = z.enum(["NEW", "READY", "IN_PROGRESS", "REVIEW", "DONE", "CLOSED"]);
 export type ListStatusCategory = z.infer<typeof ListStatusCategory>;
+
+/**
+ * "عاجل" (urgent) is the only priority ever shown on the card face (as an
+ * edge stripe); `NORMAL` (default) and `LOW` carry no face indicator — see
+ * `design-prompt-group-3.md` §3b-1.
+ */
+export const CardPriority = z.enum(["LOW", "NORMAL", "URGENT"]);
+export type CardPriority = z.infer<typeof CardPriority>;
+
+/**
+ * A card's repeat rule. On move into a `CLOSED` list, the server spawns the
+ * next instance into the board's `NEW` list with `dueDate` advanced by one
+ * interval — see `design-prompt-group-3.md` §3a-3/§9 ("لا تتراكم نسخ متعددة").
+ */
+export const RecurrenceRuleSchema = z.discriminatedUnion("freq", [
+  z.object({ freq: z.literal("DAILY") }),
+  z.object({ freq: z.literal("WEEKLY"), weekdays: z.array(z.number().int().min(0).max(6)).min(1) }),
+  z.object({ freq: z.literal("MONTHLY"), dayOfMonth: z.number().int().min(1).max(31) }),
+]);
+export type RecurrenceRule = z.infer<typeof RecurrenceRuleSchema>;
+
+/** Three notification-category toggles, all default `true` — `account.tsx`'s "الإشعارات" section. */
+export const NotificationPrefsSchema = z.object({
+  assignmentsAndComments: z.boolean().default(true),
+  dueDatesAndOverdue: z.boolean().default(true),
+  myCardsMoved: z.boolean().default(true),
+});
+export type NotificationPrefs = z.infer<typeof NotificationPrefsSchema>;
 
 export const UserSchema = z.object({
   id: z.string(),
@@ -22,6 +58,9 @@ export const UserSchema = z.object({
   displayName: z.string().min(1).max(100),
   role: UserRole,
   isActive: z.boolean(),
+  // Set by an admin's `POST /admin/users/:id/reset-password`; the client uses
+  // this to route straight to "عيّن كلمة مرور جديدة" instead of the tabs.
+  mustChangePassword: z.boolean(),
   createdAt: z.string().datetime(),
 });
 export type User = z.infer<typeof UserSchema>;
@@ -56,10 +95,23 @@ export const BoardSummarySchema = z.object({
   id: z.string(),
   name: z.string().min(1).max(200),
   description: z.string().max(2000).nullable(),
+  // Optional target completion date for the whole board. Never rendered when
+  // null — no placeholder text, no empty chip (`v2-new-style.md` §1).
+  dueDate: z.string().datetime().nullable(),
   isArchived: z.boolean(),
   ownerId: z.string(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
+  // Aggregates for the boards-list card's progress bar + "n مهمة · m مكتملة"
+  // counter (`v2-new-style.md` §3) — computed server-side via one `groupBy`
+  // per field across all the user's boards, not per-board queries.
+  memberCount: z.number().int(),
+  cardCount: z.number().int(),
+  doneCount: z.number().int(),
+  // First few members, for the boards-list card's overlapping avatars. Not
+  // the full membership (that's `BoardDetail.members`) — just enough to draw
+  // 2-3 avatar circles.
+  memberPreviews: z.array(UserSchema.pick({ id: true, displayName: true })),
 });
 export type BoardSummary = z.infer<typeof BoardSummarySchema>;
 
@@ -80,6 +132,13 @@ export const CardSchema = z.object({
   // People this task is assigned to (a card can be assigned to several board
   // members). Distinct from `memberIds`, which is an access allow-list.
   assigneeIds: z.array(z.string()),
+  priority: CardPriority,
+  // Amount + optional free-text note (invoice #, vendor). Never shown on the
+  // card face — details-screen-only chip. `costAmount` is a decimal string
+  // (Prisma `Decimal` serializes as string) so precision survives JSON.
+  costAmount: z.string().nullable(),
+  costNote: z.string().max(500).nullable(),
+  recurrence: RecurrenceRuleSchema.nullable(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 });
@@ -157,3 +216,72 @@ export const BoardDetailSchema = BoardSummarySchema.extend({
   members: z.array(BoardMemberSchema),
 });
 export type BoardDetail = z.infer<typeof BoardDetailSchema>;
+
+/**
+ * A text comment on a card. Rendered merged with `CardActivity` into one
+ * timeline client-side (`GET /cards/:id/comments` alongside
+ * `GET /cards/:id/history`) rather than folded into `CardActivitySchema`'s
+ * shape — comments and system events have different fields and a forced
+ * union would be worse than a light client-side merge by timestamp.
+ */
+export const CommentSchema = z.object({
+  id: z.string(),
+  cardId: z.string(),
+  body: z.string().min(1).max(2000),
+  createdAt: z.string().datetime(),
+  author: UserSchema.pick({ id: true, email: true, displayName: true }),
+});
+export type Comment = z.infer<typeof CommentSchema>;
+
+/** An image attached to a card. `url` is a path the client resolves against the API base URL. */
+export const AttachmentSchema = z.object({
+  id: z.string(),
+  cardId: z.string(),
+  url: z.string(),
+  mimeType: z.string(),
+  sizeBytes: z.number().int(),
+  createdAt: z.string().datetime(),
+  uploader: UserSchema.pick({ id: true, email: true, displayName: true }),
+});
+export type Attachment = z.infer<typeof AttachmentSchema>;
+
+/**
+ * In-app notification types. No OS push — see `apps/mobile/TASKS.md` (push
+ * notifications are a separate, unscoped item). `payload` carries the bits
+ * needed to render the two-line row and route on tap without a second fetch.
+ */
+export const NotificationType = z.enum([
+  "ASSIGNED",
+  "DUE_SOON",
+  "OVERDUE",
+  "COMMENT",
+  "CARD_CLOSED",
+]);
+export type NotificationType = z.infer<typeof NotificationType>;
+
+export const NotificationSchema = z.object({
+  id: z.string(),
+  type: NotificationType,
+  cardId: z.string().nullable(),
+  boardId: z.string().nullable(),
+  payload: z.record(z.string(), z.unknown()).nullable(),
+  readAt: z.string().datetime().nullable(),
+  createdAt: z.string().datetime(),
+});
+export type Notification = z.infer<typeof NotificationSchema>;
+
+/**
+ * A board-owner-managed task template: picking it prefills title/description/
+ * subtasks on the add-task screen. Distinct from `board-templates.ts`'s
+ * `TASK_WORKFLOW_TEMPLATE`, which seeds a *board's lists*, not a card.
+ */
+export const TemplateSchema = z.object({
+  id: z.string(),
+  boardId: z.string(),
+  name: z.string().min(1).max(100),
+  titlePattern: z.string().min(1).max(300),
+  description: z.string().max(10_000).nullable(),
+  subtaskTitles: z.array(z.string().min(1).max(300)),
+  createdAt: z.string().datetime(),
+});
+export type Template = z.infer<typeof TemplateSchema>;

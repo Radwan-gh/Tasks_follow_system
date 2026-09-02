@@ -8,15 +8,16 @@ describe("TASK_WORKFLOW_TEMPLATE", () => {
       "NEW",
       "READY",
       "IN_PROGRESS",
-      "REVIEW",
       "DONE",
+      "CLOSED",
     ]);
   });
 
-  it("has exactly one terminal DONE status, as the last list", () => {
-    const done = TASK_WORKFLOW_TEMPLATE.filter((l) => l.statusCategory === "DONE");
-    expect(done).toHaveLength(1);
-    expect(TASK_WORKFLOW_TEMPLATE.at(-1)?.statusCategory).toBe("DONE");
+  it("has exactly one terminal CLOSED status, as the last list, after DONE", () => {
+    const closed = TASK_WORKFLOW_TEMPLATE.filter((l) => l.statusCategory === "CLOSED");
+    expect(closed).toHaveLength(1);
+    expect(TASK_WORKFLOW_TEMPLATE.at(-1)?.statusCategory).toBe("CLOSED");
+    expect(TASK_WORKFLOW_TEMPLATE.at(-2)?.statusCategory).toBe("DONE");
   });
 
   it("seeds positions that sort in template order and are unique", () => {

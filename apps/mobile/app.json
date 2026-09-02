@@ -39,10 +39,25 @@
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 76
         }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "يحتاج التطبيق الوصول إلى معرض الصور لإرفاق صورة بالمهمة.",
+          "cameraPermission": "يحتاج التطبيق الوصول إلى الكاميرا لالتقاط صورة وإرفاقها بالمهمة."
+        }
       ]
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "enabled": true,
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 0
     }
   }
 }

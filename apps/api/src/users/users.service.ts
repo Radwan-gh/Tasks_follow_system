@@ -2,7 +2,7 @@ import { ConflictException, ForbiddenException, Injectable, NotFoundException } 
 import type { AdminUser, AdminUserList, CreateUserRequest, ListUsersQuery, UserRole } from "@app/types";
 import type { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
-import { hashPassword } from "../common/util/password.util";
+import { generateTemporaryPassword, hashPassword } from "../common/util/password.util";
 
 type UserWithBoardCount = Prisma.UserGetPayload<{ include: { _count: { select: { boardMemberships: true } } } }>;
 
@@ -13,6 +13,7 @@ function serialize(user: UserWithBoardCount): AdminUser {
     displayName: user.displayName,
     role: user.role,
     isActive: user.isActive,
+    mustChangePassword: user.mustChangePassword,
     createdAt: user.createdAt.toISOString(),
     boardCount: user._count.boardMemberships,
   };
@@ -82,11 +83,33 @@ export class UsersService {
       const passwordHash = await hashPassword(password);
       const updated = await tx.user.update({
         where: { id: targetId },
-        data: { passwordHash },
+        data: { passwordHash, mustChangePassword: false },
         include: BOARD_COUNT_INCLUDE,
       });
       await this.revokeRefreshTokens(tx, targetId);
       return serialize(updated);
+    });
+  }
+
+  /**
+   * Admin-generated one-time temporary password (`design-prompt-group-3.md`
+   * §3a-7). Unlike `setPassword`, the admin never sees/chooses the value —
+   * it's returned once here and the target is forced to replace it via
+   * `mustChangePassword` before doing anything else.
+   */
+  async resetPassword(targetId: string): Promise<string> {
+    return this.prisma.$transaction(async (tx) => {
+      const target = await tx.user.findUnique({ where: { id: targetId } });
+      if (!target) throw new NotFoundException("User not found");
+
+      const temporaryPassword = generateTemporaryPassword();
+      const passwordHash = await hashPassword(temporaryPassword);
+      await tx.user.update({
+        where: { id: targetId },
+        data: { passwordHash, mustChangePassword: true },
+      });
+      await this.revokeRefreshTokens(tx, targetId);
+      return temporaryPassword;
     });
   }
 

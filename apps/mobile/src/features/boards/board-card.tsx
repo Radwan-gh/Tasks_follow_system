@@ -1,15 +1,18 @@
 import { Pressable, View } from "react-native";
 import type { BoardSummary } from "@app/types";
 import { AppText } from "@/components/text";
-import { colors, radii, spacing } from "@/theme/tokens";
+import { avatarColorFor } from "@/lib/avatar";
+import { initials } from "@/lib/initials";
+import { formatDueDate, isOverdue } from "@/lib/date";
+import { colors, radii, spacing, statusColors } from "@/theme/tokens";
 
 /**
- * One row in the boards list.
- *
- * The design's card also carries a segmented progress bar, member avatars and
- * an «n مهمة · m مكتملة» counter. Those need `memberCount`/`cardCount`/
- * `doneCount` on `GET /boards`, which the API does not return yet — they arrive
- * with Feature 6 rather than being faked here.
+ * One row in the boards list: name/role badge, optional description, an
+ * optional due-date chip, a two-segment progress bar (done vs. remaining —
+ * the design's three-segment done/in-progress/remaining bar isn't
+ * reproducible from `GET /boards`, which only returns a done/total split,
+ * not a per-status breakdown), overlapping member avatars, and the
+ * "n مهمة · m مكتملة" counter.
  */
 export function BoardCard({
   board,
@@ -20,6 +23,9 @@ export function BoardCard({
   isOwner: boolean;
   onPress: () => void;
 }) {
+  const overdue = board.dueDate ? isOverdue(board.dueDate) : false;
+  const doneRatio = board.cardCount > 0 ? board.doneCount / board.cardCount : 0;
+
   return (
     <Pressable
       accessibilityRole="button"
@@ -30,14 +36,40 @@ export function BoardCard({
         borderWidth: 1,
         borderColor: colors.line,
         padding: spacing.xl,
-        gap: spacing.sm,
+        gap: spacing.md,
         opacity: pressed ? 0.9 : 1,
       })}
     >
-      <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
-        <AppText size="title" weight="semibold" style={{ flex: 1 }} numberOfLines={1}>
-          {board.name}
-        </AppText>
+      <View style={{ flexDirection: "row", alignItems: "flex-start", gap: spacing.sm }}>
+        <View style={{ flex: 1, gap: spacing.xs }}>
+          <AppText size="title" weight="semibold" numberOfLines={1}>
+            {board.name}
+          </AppText>
+          {board.description ? (
+            <AppText size="small" color={colors.muted} numberOfLines={2}>
+              {board.description}
+            </AppText>
+          ) : null}
+          {board.dueDate ? (
+            <View
+              style={{
+                alignSelf: "flex-start",
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 5,
+                backgroundColor: overdue ? colors.alertSoft : colors.canvas,
+                borderRadius: radii.chip,
+                paddingHorizontal: spacing.md,
+                paddingVertical: 5,
+                marginTop: spacing.xs,
+              }}
+            >
+              <AppText size="caption" weight="semibold" color={overdue ? colors.alert : colors.muted}>
+                ◷ التسليم {formatDueDate(board.dueDate)}
+              </AppText>
+            </View>
+          ) : null}
+        </View>
         <View
           style={{
             borderRadius: radii.chip,
@@ -52,11 +84,42 @@ export function BoardCard({
         </View>
       </View>
 
-      {board.description ? (
-        <AppText size="small" color={colors.muted} numberOfLines={2}>
-          {board.description}
-        </AppText>
+      {board.cardCount > 0 ? (
+        <View style={{ height: 8, borderRadius: 999, backgroundColor: colors.canvas, overflow: "hidden" }}>
+          <View style={{ height: "100%", width: `${doneRatio * 100}%`, backgroundColor: statusColors.DONE }} />
+        </View>
       ) : null}
+
+      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+        <View style={{ flexDirection: "row" }}>
+          {board.memberPreviews.map((member, index) => {
+            const palette = avatarColorFor(member.id);
+            return (
+              <View
+                key={member.id}
+                style={{
+                  width: 28,
+                  height: 28,
+                  borderRadius: 999,
+                  backgroundColor: palette.bg,
+                  borderWidth: 2,
+                  borderColor: colors.surface,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  marginInlineStart: index === 0 ? 0 : -12,
+                }}
+              >
+                <AppText size="caption" weight="bold" color={palette.fg} style={{ fontSize: 11 }}>
+                  {initials(member.displayName)}
+                </AppText>
+              </View>
+            );
+          })}
+        </View>
+        <AppText size="small" color={colors.muted}>
+          {board.cardCount} مهمة · {board.doneCount} مكتملة
+        </AppText>
+      </View>
     </Pressable>
   );
 }

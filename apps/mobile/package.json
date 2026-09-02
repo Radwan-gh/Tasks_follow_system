@@ -6,10 +6,11 @@
   "scripts": {
     "dev": "expo start",
     "start": "expo start",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
     "typecheck": "tsc --noEmit",
-    "bundle:check": "expo export --platform android --output-dir .expo/export-check"
+    "bundle:check": "expo export --platform android --output-dir .expo/export-check",
+    "publish-update": "node scripts/publish-update.mjs"
   },
   "dependencies": {
     "@app/api-client": "workspace:*",
@@ -18,8 +19,10 @@
     "@expo/vector-icons": "^15.1.1",
     "@tanstack/react-query": "^5.62.7",
     "expo": "~57.0.16",
+    "expo-clipboard": "~57.0.1",
     "expo-constants": "~57.0.14",
     "expo-font": "~57.0.1",
+    "expo-image-picker": "~57.0.15",
     "expo-linking": "~57.0.7",
     "expo-localization": "~57.0.1",
     "expo-router": "~57.0.16",
@@ -27,6 +30,7 @@
     "expo-splash-screen": "~57.0.8",
     "expo-status-bar": "~57.0.1",
     "expo-system-ui": "~57.0.2",
+    "expo-updates": "~57.0.19",
     "react": "19.2.3",
     "react-native": "0.86.2",
     "react-native-gesture-handler": "~2.32.0",

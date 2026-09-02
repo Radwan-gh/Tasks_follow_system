@@ -1,13 +1,16 @@
 import { useState } from "react";
 import { Pressable, ScrollView, View } from "react-native";
+import { useRouter } from "expo-router";
 import { Screen } from "@/components/screen";
 import { AppText } from "@/components/text";
+import { NotificationPrefsSection } from "@/features/account/notification-prefs-section";
 import { useAuth } from "@/features/auth/auth-context";
 import { initials } from "@/lib/initials";
 import { MIN_TOUCH_TARGET, colors, radii, spacing } from "@/theme/tokens";
 
 export default function AccountScreen() {
   const { user, logout } = useAuth();
+  const router = useRouter();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   async function onLogout() {
@@ -77,6 +80,27 @@ export default function AccountScreen() {
             </View>
           ) : null}
         </View>
+
+        <NotificationPrefsSection />
+
+        {user?.role === "ADMIN" ? (
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => router.push("/admin/users")}
+            style={{
+              minHeight: MIN_TOUCH_TARGET,
+              borderRadius: radii.field,
+              borderWidth: 1,
+              borderColor: colors.line,
+              backgroundColor: colors.surface,
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <AppText weight="semibold">المستخدمون والصلاحيات</AppText>
+          </Pressable>
+        ) : null}
 
         <Pressable
           accessibilityRole="button"

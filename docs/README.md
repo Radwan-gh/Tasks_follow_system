@@ -27,6 +27,8 @@
 | [`10-subtasks-and-assignment.md`](./10-subtasks-and-assignment.md) | المهام الفرعية وإسناد المهام لعدة أشخاص |
 | [`11-reports.md`](./11-reports.md) | قسم التقارير (محكوم بصلاحية ADMIN) |
 | [`12-mobile-app.md`](./12-mobile-app.md) | تطبيق الجوال (Expo/React Native) وعميل الـ API المشترك |
+| [`13-redesign-completion-plan.md`](./13-redesign-completion-plan.md) | **متابعة التقدّم** في إتمام تصميم الجوال الكامل (v2)، مرحلة بمرحلة |
+| [`14-notifications-comments-attachments.md`](./14-notifications-comments-attachments.md) | الإشعارات، التعليقات، المرفقات، توليد المهمة المتكررة، وإعادة تعيين كلمة المرور |
 
 ## كيف تُحدَّث هذه الوثائق؟
 

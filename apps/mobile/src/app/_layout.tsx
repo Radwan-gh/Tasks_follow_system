@@ -17,6 +17,7 @@ import {
 import { AuthProvider, useAuth } from "@/features/auth/auth-context";
 import { setUnauthorizedHandler } from "@/lib/api";
 import { queryClient } from "@/lib/query-client";
+import { useAutoUpdate } from "@/lib/updates";
 import { colors } from "@/theme/tokens";
 
 // The whole product is Arabic, so RTL is not a per-user setting — it is the
@@ -42,10 +43,23 @@ function RootNavigator() {
 
   if (isLoading) return null;
 
+  // A user mid-forced-reset gets *only* this screen — no tabs, no back way
+  // out — until `completePasswordReset` clears `mustChangePassword` server-side.
+  const needsPasswordReset = !!user?.mustChangePassword;
+
   return (
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.canvas } }}>
-      <Stack.Protected guard={!!user}>
+      <Stack.Protected guard={!!user && needsPasswordReset}>
+        <Stack.Screen name="change-password-required" />
+      </Stack.Protected>
+      <Stack.Protected guard={!!user && !needsPasswordReset}>
         <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="board/[id]" />
+        <Stack.Screen name="board/[id]/cards/new" options={{ presentation: "modal" }} />
+        <Stack.Screen name="board/[id]/settings" options={{ presentation: "modal" }} />
+        <Stack.Screen name="card/[id]" options={{ presentation: "modal" }} />
+        <Stack.Screen name="admin/users" options={{ presentation: "modal" }} />
+        <Stack.Screen name="notifications" />
       </Stack.Protected>
       <Stack.Protected guard={!user}>
         <Stack.Screen name="login" />
@@ -55,6 +69,8 @@ function RootNavigator() {
 }
 
 export default function RootLayout() {
+  useAutoUpdate();
+
   const [fontsLoaded, fontError] = useFonts({
     Cairo_400Regular,
     Cairo_500Medium,

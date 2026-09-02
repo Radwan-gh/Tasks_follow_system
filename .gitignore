@@ -9,4 +9,6 @@ build/
 coverage/
 *.tsbuildinfo
 apps/api/generated/
+apps/api/update-bundles/
+apps/api/uploads/
 apps/mobile/.expo/

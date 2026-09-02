@@ -37,6 +37,7 @@
 | `subtasks/*` أو الإسناد (`CardAssignee`/`SubtaskAssignee`, `updateAssignees`) | [`10-subtasks-and-assignment.md`](./10-subtasks-and-assignment.md) |
 | `reports/*` أو `packages/types/src/reports.ts` | [`11-reports.md`](./11-reports.md) |
 | `apps/mobile/*` أو `packages/api-client/*` | [`12-mobile-app.md`](./12-mobile-app.md) |
+| `notifications/*`، `cards/comments.service.ts`، `cards/attachments.service.ts`، منطق التكرار، أو `users.service.ts`'s `resetPassword` | [`14-notifications-comments-attachments.md`](./14-notifications-comments-attachments.md) |
 | مسار جديد، مكوّن معماري جديد، أو مصطلح جديد | [`01-overview.md`](./01-overview.md) + الملف المتخصّص |
 
 إن أضفت **موردًا جديدًا كليًا** (مثل التعليقات أو التسميات)، أنشئ ملفًا جديدًا

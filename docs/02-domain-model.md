@@ -1,142 +1,167 @@
-<!-- dir: rtl -->
-<div dir="rtl">
+# 2. Domain Model
 
-# 2. نموذج المجال (Domain Model)
+The authoritative source for this model is the database schema in
+`apps/api/prisma/schema.prisma`; its shapes are mirrored in the zod schemas
+under `packages/types/src/domain.ts`.
 
-المصدر الرسمي لهذا النموذج هو مخطّط قاعدة البيانات في
-`apps/api/prisma/schema.prisma`، وتنعكس أشكاله في مخطّطات zod ضمن
-`packages/types/src/domain.ts`.
-
-## الكيانات والعلاقات
+## Entities and relations
 
 ```
-User (مستخدم)
- ├── ownedBoards      : يملك لوحات        (Board.ownerId)
- ├── boardMemberships : عضويات في لوحات    (BoardMember)
- ├── createdCards     : بطاقات أنشأها      (Card.createdById)
- └── refreshTokens    : رموز تحديث         (RefreshToken)
+User
+ ├── ownedBoards      : boards owned          (Board.ownerId)
+ ├── boardMemberships : board memberships     (BoardMember)
+ ├── createdCards     : cards created         (Card.createdById)
+ ├── refreshTokens    : refresh tokens        (RefreshToken)
+ ├── comments         : comments written      (Comment)
+ ├── attachments      : attachments uploaded  (Attachment)
+ └── notifications    : notifications         (Notification)
 
-Board (لوحة)
- ├── owner   : المالك (User)
- ├── members : أعضاء (BoardMember[])
- └── lists   : قوائم (List[])
+Board
+ ├── owner     : the owner (User)
+ ├── members   : members (BoardMember[])
+ ├── lists     : lists (List[])
+ └── templates : board-scoped task templates (Template[])
 
-List (قائمة)
- ├── board : تنتمي للوحة
- └── cards : بطاقات (Card[])
+List
+ ├── board : belongs to a board
+ └── cards : cards (Card[])
 
-Card (بطاقة)
- ├── list      : تنتمي لقائمة
- ├── board     : تحمل boardId مباشرةً (لتسريع الاستعلامات والتحقّق)
- ├── createdBy : من أنشأها (User)
- ├── assignees : مُسنَدون إليها (CardAssignee[] — عدة أشخاص)
- └── subtasks  : مهام فرعية (Subtask[])
+Card
+ ├── list        : belongs to a list
+ ├── board       : carries boardId directly (speeds up queries/authorization)
+ ├── createdBy   : who created it (User)
+ ├── assignees   : assigned to (CardAssignee[] — several people)
+ ├── subtasks    : subtasks (Subtask[])
+ ├── comments    : comments (Comment[])
+ └── attachments : attached images (Attachment[])
 
-Subtask (مهمة فرعية)
- ├── card      : تنتمي لبطاقة
- └── assignees : مُسنَدون إليها (SubtaskAssignee[])
+Subtask
+ ├── card      : belongs to a card
+ └── assignees : assigned to (SubtaskAssignee[])
+
+Comment ─ card, author
+Attachment ─ card, uploader
+Notification ─ user
+Template ─ board
 ```
 
-## الكيانات بالتفصيل
+## Entities in detail
 
-### User (المستخدم)
+### User
 
-| الحقل | النوع | ملاحظات منطق العمل |
+| Field | Type | Business-logic notes |
 |---|---|---|
-| `id` | معرّف (cuid) | المفتاح الأساسي |
-| `email` | نص فريد | يُستخدم لتسجيل الدخول ولإضافة عضو للوحة |
-| `passwordHash` | نص | تجزئة bcrypt — **لا تُخزَّن كلمة المرور الأصلية أبدًا** |
-| `displayName` | نص | الاسم المعروض |
-| `role` | `USER` \| `ADMIN` | الدور على مستوى **النظام كله** (افتراضيًا USER) |
-| `isActive` | منطقي | إذا كان `false` يُمنع الدخول وتُبطَل الجلسات (افتراضيًا true) |
-| `createdAt` | تاريخ | وقت الإنشاء |
+| `id` | id (cuid) | Primary key |
+| `email` | unique string | Used for login and for adding a member to a board |
+| `passwordHash` | string | bcrypt hash — **the raw password is never stored** |
+| `displayName` | string | Display name |
+| `role` | `USER` \| `ADMIN` | Role at the **whole-system** level (default `USER`) |
+| `isActive` | boolean | If `false`, login is blocked and sessions are revoked (default `true`) |
+| `notificationPrefs` | optional JSON | Three notification-preference toggles (assignment/comments · due-dates/overdue · my cards moved), all `true` by default — see `NotificationPrefsSchema` |
+| `mustChangePassword` | boolean | Set by `POST /admin/users/:id/reset-password` (default `false`), cleared automatically by `POST /auth/change-password` — see [`14-notifications-comments-attachments.md`](./14-notifications-comments-attachments.md#password-reset) |
+| `createdAt` | date | Creation time |
 
-### RefreshToken (رمز التحديث)
+### RefreshToken
 
-يُخزَّن **تجزئة SHA-256** للرمز فقط (`tokenHash`)، لا الرمز الخام. مفصّل في
-[`03-authentication.md`](./03-authentication.md).
+Only a **SHA-256 hash** of the token is stored (`tokenHash`), never the raw
+token. Detailed in [`03-authentication.md`](./03-authentication.md).
 
-| الحقل | ملاحظات |
+| Field | Notes |
 |---|---|
-| `id` | يساوي معرّف `jti` الموجود داخل الرمز |
-| `userId` | صاحب الرمز |
-| `tokenHash` | تجزئة SHA-256 للرمز الخام |
-| `expiresAt` | وقت الانتهاء |
-| `revokedAt` | وقت الإبطال (فارغ = ما زال صالحًا) |
+| `id` | Equal to the `jti` claim inside the token |
+| `userId` | Owner of the token |
+| `tokenHash` | SHA-256 hash of the raw token |
+| `expiresAt` | Expiry time |
+| `revokedAt` | Revocation time (null = still valid) |
 
-### Board (اللوحة)
+### Board
 
-| الحقل | ملاحظات منطق العمل |
+| Field | Business-logic notes |
 |---|---|
-| `id` | المفتاح الأساسي |
-| `name` | الاسم (1 إلى 200 حرفًا) |
-| `description` | وصف اختياري (حتى 2000 حرف) |
-| `ownerId` | مالك اللوحة (يُضاف تلقائيًا كعضو بدور OWNER عند الإنشاء) |
-| `isArchived` | إذا `true` تختفي اللوحة من القوائم العادية؛ تتطلّب أرشفتها دور OWNER |
-| `updatedAt` | يُستخدم لترتيب قائمة اللوحات (الأحدث تحديثًا أولًا) |
+| `id` | Primary key |
+| `name` | Name (1 to 200 characters) |
+| `description` | Optional description (up to 2000 characters) |
+| `dueDate` | Optional board-level target completion date — never rendered when `null` (no placeholder text, no empty field) |
+| `ownerId` | The board's owner (auto-added as a member with role `OWNER` on creation) |
+| `isArchived` | If `true`, the board disappears from normal listings; archiving requires the `OWNER` role |
+| `updatedAt` | Used to sort the boards list (most recently updated first) |
 
-### BoardMember (عضوية اللوحة)
+### BoardMember
 
-جدول الربط بين المستخدم واللوحة، ويحمل **الدور داخل اللوحة**.
+The join table between a user and a board, carrying **the user's role within
+that board**.
 
-| الحقل | ملاحظات |
+| Field | Notes |
 |---|---|
-| `boardId` + `userId` | مفتاح مركّب **فريد** — لا يمكن أن يكون المستخدم عضوًا مرتين في نفس اللوحة |
-| `role` | `OWNER` \| `MEMBER` (افتراضيًا MEMBER) |
-| `joinedAt` | وقت الانضمام |
+| `boardId` + `userId` | **Unique** composite key — a user cannot be a member of the same board twice |
+| `role` | `OWNER` \| `MEMBER` \| `VIEWER` (default `MEMBER`). `VIEWER` is read-only; there's no API path to assign it yet, and its restrictions aren't actually enforced server-side yet — added in a later feature ("viewer" role) |
+| `joinedAt` | Time joined |
 
-### List (القائمة)
+### List
 
-| الحقل | ملاحظات منطق العمل |
+| Field | Business-logic notes |
 |---|---|
-| `boardId` | اللوحة التابعة لها |
-| `name` | الاسم (1 إلى 200 حرفًا) |
-| `position` | **سلسلة ترتيب معجمي** (وليست رقمًا) — انظر [`06-ordering.md`](./06-ordering.md) |
-| `isArchived` | القوائم المؤرشفة تُستبعَد من العرض والترتيب |
-| `statusCategory` | فئة الحالة الاختيارية (`NEW`/`READY`/`IN_PROGRESS`/`REVIEW`/`DONE`) — تُضبَط عند البذر من قالب؛ `null` للقوائم اليدوية. انظر [`09-list-status-templates.md`](./09-list-status-templates.md) |
+| `boardId` | The board it belongs to |
+| `name` | Name (1 to 200 characters) |
+| `position` | A **lexicographically-sortable string** (not a number) — see [`06-ordering.md`](./06-ordering.md) |
+| `isArchived` | Archived lists are excluded from display and ordering |
+| `statusCategory` | Optional status category (`NEW`/`READY`/`IN_PROGRESS`/`REVIEW`/`DONE`/`CLOSED`) — set when seeded from a template; `null` for manually created lists. `REVIEW` is retired from the current template but stays valid for older lists. See [`09-list-status-templates.md`](./09-list-status-templates.md) |
 
-### Card (البطاقة)
+### Card
 
-| الحقل | ملاحظات منطق العمل |
+| Field | Business-logic notes |
 |---|---|
-| `listId` | القائمة الحالية |
-| `boardId` | **مكرّر عمدًا** من القائمة لتسريع التحقّق من الصلاحية والاستعلامات دون ربط إضافي |
-| `title` | العنوان (1 إلى 300 حرفًا) |
-| `description` | وصف اختياري (حتى 10000 حرف) |
-| `position` | سلسلة ترتيب معجمي داخل القائمة |
-| `dueDate` | تاريخ استحقاق اختياري |
-| `createdById` | منشئ البطاقة |
-| `isArchived` | البطاقات المؤرشفة تُستبعَد من العرض |
-| `isRestricted` | إن `true` تُقيَّد رؤية البطاقة على `CardMember` + المالك + المنشئ |
-| `assignees` | المُسنَدون إليها عبر `CardAssignee` (عدة أشخاص) — انظر [`10-subtasks-and-assignment.md`](./10-subtasks-and-assignment.md) |
+| `listId` | Current list |
+| `boardId` | **Deliberately duplicated** from the list to speed up authorization checks and queries without an extra join |
+| `title` | Title (1 to 300 characters) |
+| `description` | Optional description (up to 10,000 characters) |
+| `position` | Lexicographically-sortable string within the list |
+| `dueDate` | Optional due date |
+| `createdById` | Who created the card |
+| `isArchived` | Archived cards are excluded from display |
+| `isRestricted` | If `true`, visibility is limited to `CardMember` + the board owner + the creator |
+| `assignees` | Assigned to, via `CardAssignee` (several people) — see [`10-subtasks-and-assignment.md`](./10-subtasks-and-assignment.md) |
+| `priority` | `LOW` \| `NORMAL` (default) \| `URGENT`. Only "urgent" shows on the card face. The field exists in the schema and response; actually writing it via `PATCH /cards/:id` is added in a later feature |
+| `costAmount` / `costNote` | Optional cost (decimal amount + free-text note), never shown on the card face. Actually writing it is added in a later feature |
+| `recurrence` | Optional repeat rule (`RecurrenceRule` in `packages/types`: daily / weekly with weekdays / monthly with a day), actually written via `POST .../cards` and `PATCH /cards/:id`. Moving into "closed" spawns the next instance in "new" automatically — details in [`14-notifications-comments-attachments.md`](./14-notifications-comments-attachments.md#recurring-task-generation) |
 
-### Subtask (المهمة الفرعية)
+### Comment — Attachment — Notification — Template
 
-مهمة فرعية ضمن بطاقة. تفاصيل المنطق في [`10-subtasks-and-assignment.md`](./10-subtasks-and-assignment.md).
+| Entity | Purpose | Notes |
+|---|---|---|
+| `Comment` | A text comment on a card | `cardId`, `authorId`, `body`, `createdAt`. Merged with `CardActivity` into one timeline on the client, not one schema on the server. Live endpoints under `/cards/:cardId/comments` — see [`14-notifications-comments-attachments.md`](./14-notifications-comments-attachments.md) |
+| `Attachment` | An image attached to a card | `cardId`, `uploaderId`, `filename`, `mimeType`, `sizeBytes`. Files live on the API server's local disk (`apps/api/uploads/`), served via `/uploads/*` — not cloud storage. Live endpoints under `/cards/:cardId/attachments` |
+| `Notification` | An in-app notification (no OS push) | `userId`, `type`, `cardId?`, `boardId?`, `payload?`, `readAt?`. Live endpoints under `/notifications` and `/me/notification-prefs` |
+| `Template` | A board-scoped task template that prefills title/description/subtasks | `boardId`, `name`, `titlePattern`, `description?`, `subtaskTitles[]`. Distinct from `TASK_WORKFLOW_TEMPLATE` in `board-templates.ts`, which seeds a **board's lists**, not a card. **No API endpoints yet** (later feature) |
 
-| الحقل | ملاحظات منطق العمل |
+### Subtask
+
+A subtask belonging to a card. Logic detail in [`10-subtasks-and-assignment.md`](./10-subtasks-and-assignment.md).
+
+| Field | Business-logic notes |
 |---|---|
-| `cardId` | البطاقة الأمّ (حذف متسلسل) |
-| `title` | العنوان (1 إلى 300 حرفًا) |
-| `isDone` | منجَزة/غير منجَزة (افتراضيًا false) |
-| `position` | سلسلة ترتيب معجمي داخل البطاقة |
-| `createdById` | منشئ المهمة الفرعية |
+| `cardId` | The parent card (cascade delete) |
+| `title` | Title (1 to 300 characters) |
+| `isDone` | Done / not done (default `false`) |
+| `position` | Lexicographically-sortable string within the card |
+| `createdById` | Who created the subtask |
 
-### CardAssignee / SubtaskAssignee (جدولا الإسناد)
+### CardAssignee / SubtaskAssignee
 
-جدولا ربط للإسناد المتعدّد. `CardAssignee` يربط `(cardId, userId)` و
-`SubtaskAssignee` يربط `(subtaskId, userId)`، وكلاهما **فريد** على الزوج. مستقلّان
-عن `CardMember` (قائمة الوصول): هذان يمثّلان **المسؤولية عن العمل** لا الرؤية.
+Join tables for multi-person assignment. `CardAssignee` links `(cardId,
+userId)` and `SubtaskAssignee` links `(subtaskId, userId)`, both **unique** on
+the pair. Independent of `CardMember` (the access allow-list): these
+represent **responsibility for the work**, not visibility.
 
-## قواعد سلامة البيانات (Integrity Rules)
+## Data-integrity rules
 
-- **الحذف المتسلسل (Cascade):** حذف لوحة يحذف قوائمها وبطاقاتها وعضوياتها؛ حذف قائمة
-  يحذف بطاقاتها؛ حذف مستخدم يحذف رموز تحديثه وعضوياته. (معرَّف عبر
-  `onDelete: Cascade` في المخطّط.)
-- **الفهارس (Indexes):** توجد فهارس على `(boardId, position)` للقوائم و
-  `(listId, position)` للبطاقات لتسريع الجلب مرتّبًا، وعلى `(boardId, isArchived)`
-  للبطاقات.
-- **`boardId` على البطاقة** يجب أن يبقى مطابقًا لـ `list.boardId`؛ لذلك يُمنع نقل بطاقة
-  إلى قائمة في لوحة أخرى (انظر [`05-boards-lists-cards.md`](./05-boards-lists-cards.md)).
-
-</div>
+- **Cascade delete:** deleting a board deletes its lists, cards, and
+  memberships; deleting a list deletes its cards; deleting a user deletes
+  their refresh tokens and memberships. (Defined via `onDelete: Cascade` in
+  the schema.)
+- **Indexes:** indexes exist on `(boardId, position)` for lists and
+  `(listId, position)` for cards to speed up ordered fetches, and on
+  `(boardId, isArchived)` for cards.
+- **A card's `boardId`** must stay in sync with `list.boardId`; moving a card
+  into a list on a different board is therefore blocked (see
+  [`05-boards-lists-cards.md`](./05-boards-lists-cards.md)).

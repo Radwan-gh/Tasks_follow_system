@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { UserRole } from "./domain";
+import { CardPriority, NotificationPrefsSchema, RecurrenceRuleSchema, UserRole } from "./domain";
 
 export const LoginRequestSchema = z.object({
   email: z.string().email(),
@@ -31,8 +31,8 @@ export type AuthResponse = z.infer<typeof AuthResponseSchema>;
 /**
  * Which starter layout to seed a new board with. `EMPTY` (default) keeps the
  * historical behavior of a board with zero lists; `TASK_WORKFLOW` seeds the
- * five status lists (جديد ← جاهز للتنفيذ ← قيد التنفيذ ← بانتظار تقييم ← تم
- * التنفيذ) with their `statusCategory` set.
+ * five status lists (جديد ← جاهز للتنفيذ ← قيد التنفيذ ← تم التنفيذ ← انتهى)
+ * with their `statusCategory` set.
  */
 export const BoardTemplate = z.enum(["EMPTY", "TASK_WORKFLOW"]);
 export type BoardTemplate = z.infer<typeof BoardTemplate>;
@@ -40,6 +40,7 @@ export type BoardTemplate = z.infer<typeof BoardTemplate>;
 export const CreateBoardRequestSchema = z.object({
   name: z.string().min(1).max(200),
   description: z.string().max(2000).optional(),
+  dueDate: z.string().datetime().nullable().optional(),
   template: BoardTemplate.optional(),
 });
 export type CreateBoardRequest = z.infer<typeof CreateBoardRequestSchema>;
@@ -47,6 +48,7 @@ export type CreateBoardRequest = z.infer<typeof CreateBoardRequestSchema>;
 export const UpdateBoardRequestSchema = z.object({
   name: z.string().min(1).max(200).optional(),
   description: z.string().max(2000).nullable().optional(),
+  dueDate: z.string().datetime().nullable().optional(),
   isArchived: z.boolean().optional(),
 });
 export type UpdateBoardRequest = z.infer<typeof UpdateBoardRequestSchema>;
@@ -74,6 +76,15 @@ export const AdminSetPasswordRequestSchema = z.object({
   password: z.string().min(8).max(200),
 });
 export type AdminSetPasswordRequest = z.infer<typeof AdminSetPasswordRequestSchema>;
+
+/**
+ * Admin-generated one-time temporary password. Returned exactly once, from
+ * `POST /admin/users/:id/reset-password` — never persisted or re-fetchable.
+ */
+export const AdminResetPasswordResponseSchema = z.object({
+  temporaryPassword: z.string(),
+});
+export type AdminResetPasswordResponse = z.infer<typeof AdminResetPasswordResponseSchema>;
 
 export const ListUsersQuerySchema = z.object({
   search: z.string().max(200).optional(),
@@ -120,6 +131,8 @@ export const CreateCardRequestSchema = z.object({
   title: z.string().min(1).max(300),
   description: z.string().max(10_000).optional(),
   dueDate: z.string().datetime().nullable().optional(),
+  priority: CardPriority.optional(),
+  recurrence: RecurrenceRuleSchema.nullable().optional(),
 });
 export type CreateCardRequest = z.infer<typeof CreateCardRequestSchema>;
 
@@ -128,6 +141,12 @@ export const UpdateCardRequestSchema = z.object({
   description: z.string().max(10_000).nullable().optional(),
   dueDate: z.string().datetime().nullable().optional(),
   isArchived: z.boolean().optional(),
+  priority: CardPriority.optional(),
+  // Decimal amount as a string (matches `Card.costAmount`'s serialized form)
+  // so the client never has to worry about float precision.
+  costAmount: z.string().nullable().optional(),
+  costNote: z.string().max(500).nullable().optional(),
+  recurrence: RecurrenceRuleSchema.nullable().optional(),
   targetListId: z.string().optional(),
   move: MoveTargetSchema.optional(),
 });
@@ -164,3 +183,12 @@ export const UpdateAssigneesRequestSchema = z.object({
   userIds: z.array(z.string()),
 });
 export type UpdateAssigneesRequest = z.infer<typeof UpdateAssigneesRequestSchema>;
+
+export const CreateCommentRequestSchema = z.object({
+  body: z.string().min(1).max(2000),
+});
+export type CreateCommentRequest = z.infer<typeof CreateCommentRequestSchema>;
+
+/** `PATCH /me/notification-prefs` — a partial patch, not a full replace. */
+export const UpdateNotificationPrefsRequestSchema = NotificationPrefsSchema.partial();
+export type UpdateNotificationPrefsRequest = z.infer<typeof UpdateNotificationPrefsRequestSchema>;

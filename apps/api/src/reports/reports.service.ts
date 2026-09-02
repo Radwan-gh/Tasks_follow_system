@@ -6,6 +6,7 @@ import type {
   WorkloadReport,
 } from "@app/types";
 import { PrismaService } from "../prisma/prisma.service";
+import { COMPLETED_CATEGORIES } from "../common/util/completed.util";
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -110,8 +111,9 @@ export class ReportsService {
   }
 
   /**
-   * Report 3a — overdue tasks: past their due date, not archived, and not in a
-   * DONE list (null-category/manual lists count as not-done).
+   * Report 3a — overdue tasks: past their due date, not archived, and not in
+   * a completed (`DONE`/`CLOSED`) list (null-category/manual lists count as
+   * not-done).
    */
   async overdue(): Promise<OverdueTasksReport> {
     const now = new Date();
@@ -120,7 +122,7 @@ export class ReportsService {
       where: {
         isArchived: false,
         dueDate: { lt: now },
-        NOT: { list: { statusCategory: "DONE" } },
+        NOT: { list: { statusCategory: { in: COMPLETED_CATEGORIES } } },
       },
       orderBy: { dueDate: "asc" },
       include: {
@@ -151,12 +153,15 @@ export class ReportsService {
   }
 
   /**
-   * Report 3b — workload: for each user, how many open tasks (non-archived, not
-   * in a DONE list) are assigned to them. Sorted by load, heaviest first.
+   * Report 3b — workload: for each user, how many open tasks (non-archived,
+   * not in a completed `DONE`/`CLOSED` list) are assigned to them. Sorted by
+   * load, heaviest first.
    */
   async workload(): Promise<WorkloadReport> {
     const assignments = await this.prisma.cardAssignee.findMany({
-      where: { card: { isArchived: false, NOT: { list: { statusCategory: "DONE" } } } },
+      where: {
+        card: { isArchived: false, NOT: { list: { statusCategory: { in: COMPLETED_CATEGORIES } } } },
+      },
       select: { userId: true, user: { select: { displayName: true, email: true } } },
     });
 

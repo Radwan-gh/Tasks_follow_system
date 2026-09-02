@@ -4,12 +4,30 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import type { BoardRole, CreateBoardRequest, UpdateBoardRequest } from "@app/types";
+import type { Prisma } from "@prisma/client";
+import type { BoardRole, CardPriority, CreateBoardRequest, RecurrenceRule, UpdateBoardRequest } from "@app/types";
 import { generateKeyBetween, generateNKeysBetween } from "@app/ordering";
 import { PrismaService } from "../prisma/prisma.service";
+import { COMPLETED_CATEGORIES } from "../common/util/completed.util";
 import { TASK_WORKFLOW_TEMPLATE } from "./board-templates";
 
-const ROLE_RANK: Record<BoardRole, number> = { MEMBER: 0, OWNER: 1 };
+interface BoardAggregate {
+  memberCount: number;
+  cardCount: number;
+  doneCount: number;
+  memberPreviews: { id: string; displayName: string }[];
+}
+const EMPTY_AGGREGATE: BoardAggregate = { memberCount: 0, cardCount: 0, doneCount: 0, memberPreviews: [] };
+
+// `VIEWER` is a valid `BoardRole` value as of this schema change, but no
+// endpoint can assign it to a member yet (that PATCH lands with the rest of
+// viewer-mode wiring) and no call site passes `minRole: "VIEWER"`, so ranking
+// it alongside `MEMBER` here is inert today — it exists only so this
+// `Record<BoardRole, number>` stays exhaustive. When viewer-mode wiring adds
+// the role-assignment endpoint, this must drop to a rank *below* `MEMBER`
+// (viewers can read but not mutate) and read-only call sites like
+// `getDetail` must switch to `assertMembership(..., "VIEWER")` explicitly.
+const ROLE_RANK: Record<BoardRole, number> = { VIEWER: 0, MEMBER: 0, OWNER: 1 };
 
 @Injectable()
 export class BoardsService {
@@ -31,7 +49,8 @@ export class BoardsService {
       where: { members: { some: { userId } }, isArchived: false },
       orderBy: { updatedAt: "desc" },
     });
-    return boards.map(serializeBoard);
+    const aggregates = await this.boardAggregates(boards.map((b) => b.id));
+    return boards.map((b) => serializeBoard(b, aggregates.get(b.id) ?? EMPTY_AGGREGATE));
   }
 
   async create(userId: string, input: CreateBoardRequest) {
@@ -45,6 +64,7 @@ export class BoardsService {
       data: {
         name: input.name,
         description: input.description ?? null,
+        dueDate: input.dueDate ? new Date(input.dueDate) : null,
         ownerId: userId,
         members: { create: { userId, role: "OWNER" } },
         lists: templateLists.length
@@ -57,11 +77,80 @@ export class BoardsService {
             }
           : undefined,
       },
+      include: { owner: { select: { id: true, displayName: true } } },
     });
-    return serializeBoard(board);
+    // A brand-new board always has exactly one member (the owner) and zero
+    // cards — no need to round-trip through `boardAggregates` for this.
+    return serializeBoard(board, {
+      memberCount: 1,
+      cardCount: 0,
+      doneCount: 0,
+      memberPreviews: [board.owner],
+    });
   }
 
-  async getDetail(userId: string, boardId: string) {
+  /**
+   * Batch aggregates for the boards-list card: member count, card count,
+   * completed count, and a few members for the overlapping-avatars preview.
+   * One `groupBy` per count across every board at once — never a per-board
+   * query loop. Boards with zero matching rows (e.g. no cards yet) are
+   * simply absent from a `groupBy` result, so callers must default via
+   * `EMPTY_AGGREGATE` for any id missing from the returned map.
+   */
+  private async boardAggregates(boardIds: string[]): Promise<Map<string, BoardAggregate>> {
+    if (boardIds.length === 0) return new Map();
+
+    const [memberCounts, cardCounts, doneCounts, members] = await Promise.all([
+      this.prisma.boardMember.groupBy({ by: ["boardId"], where: { boardId: { in: boardIds } }, _count: { _all: true } }),
+      this.prisma.card.groupBy({
+        by: ["boardId"],
+        where: { boardId: { in: boardIds }, isArchived: false, list: { isArchived: false } },
+        _count: { _all: true },
+      }),
+      this.prisma.card.groupBy({
+        by: ["boardId"],
+        where: {
+          boardId: { in: boardIds },
+          isArchived: false,
+          list: { isArchived: false, statusCategory: { in: COMPLETED_CATEGORIES } },
+        },
+        _count: { _all: true },
+      }),
+      // No per-group LIMIT in Prisma's query builder — fetch every member and
+      // truncate to the first few per board in JS. Board membership is small
+      // (a handful of people), so this stays cheap.
+      this.prisma.boardMember.findMany({
+        where: { boardId: { in: boardIds } },
+        orderBy: { joinedAt: "asc" },
+        select: { boardId: true, user: { select: { id: true, displayName: true } } },
+      }),
+    ]);
+
+    const result = new Map<string, BoardAggregate>();
+    for (const id of boardIds) result.set(id, { ...EMPTY_AGGREGATE, memberPreviews: [] });
+    for (const row of memberCounts) result.get(row.boardId)!.memberCount = row._count._all;
+    for (const row of cardCounts) result.get(row.boardId)!.cardCount = row._count._all;
+    for (const row of doneCounts) result.get(row.boardId)!.doneCount = row._count._all;
+    for (const row of members) {
+      const previews = result.get(row.boardId)!.memberPreviews;
+      if (previews.length < 4) previews.push(row.user);
+    }
+    return result;
+  }
+
+  /**
+   * `closedSince` filters the `CLOSED`-category list to cards that entered it
+   * at or after that date — the design's "«انتهى» يعرض آخر 30 يومًا فقط" with
+   * a "عرض الأقدم" expansion (the mobile client re-calls with an earlier or
+   * omitted `closedSince` to load more; there's no separate "how many are
+   * hidden" count, so the button is shown whenever the list is `CLOSED`
+   * rather than computed exactly — a deliberate simplification). "Entered
+   * the list" is the most recent `MOVED` activity whose `toValue` is that
+   * list's name; a card with no such activity (e.g. created directly into an
+   * already-`CLOSED` list) falls back to `updatedAt`. Every other list is
+   * unaffected — this never filters `DONE`, `NEW`, etc.
+   */
+  async getDetail(userId: string, boardId: string, closedSince?: Date) {
     await this.assertMembership(userId, boardId);
 
     const board = await this.prisma.board.findUnique({
@@ -86,8 +175,23 @@ export class BoardsService {
     });
     if (!board) throw new NotFoundException("Board not found");
 
+    // Already have every non-archived list/card/member loaded above — no
+    // need for the separate `boardAggregates` queries `listForUser` uses.
+    const allCards = board.lists.flatMap((l) => l.cards);
+    const aggregate: BoardAggregate = {
+      memberCount: board.members.length,
+      cardCount: allCards.length,
+      doneCount: board.lists
+        .filter((l) => l.statusCategory && COMPLETED_CATEGORIES.includes(l.statusCategory))
+        .reduce((sum, l) => sum + l.cards.length, 0),
+      memberPreviews: board.members.slice(0, 4).map((m) => ({ id: m.user.id, displayName: m.user.displayName })),
+    };
+
+    const closedList = closedSince ? board.lists.find((l) => l.statusCategory === "CLOSED") : undefined;
+    const closedAtByCardId = closedList ? await this.closedAtByCardId(closedList) : null;
+
     return {
-      ...serializeBoard(board),
+      ...serializeBoard(board, aggregate),
       members: board.members.map((m) => ({
         userId: m.userId,
         boardId: m.boardId,
@@ -102,12 +206,31 @@ export class BoardsService {
         isArchived: list.isArchived,
         statusCategory: list.statusCategory,
         createdAt: list.createdAt.toISOString(),
-        // Restricted cards the requesting user can't access are hidden entirely.
         cards: list.cards
+          // Restricted cards the requesting user can't access are hidden entirely.
           .filter((card) => canAccessCard(userId, board.ownerId, card))
+          .filter((card) => {
+            if (list.id !== closedList?.id || !closedAtByCardId) return true;
+            const closedAt = closedAtByCardId.get(card.id) ?? card.updatedAt;
+            return closedAt >= closedSince!;
+          })
           .map(serializeCard),
       })),
     };
+  }
+
+  /** card id → when it most recently entered `closedList`, per its `CardActivity` MOVED trail. */
+  private async closedAtByCardId(closedList: { id: string; name: string; cards: { id: string }[] }) {
+    if (closedList.cards.length === 0) return new Map<string, Date>();
+    const moves = await this.prisma.cardActivity.findMany({
+      where: { cardId: { in: closedList.cards.map((c) => c.id) }, type: "MOVED", toValue: closedList.name },
+      orderBy: { createdAt: "desc" },
+      select: { cardId: true, createdAt: true },
+    });
+    const result = new Map<string, Date>();
+    // Ordered newest-first, so the first entry seen per card is its most recent move.
+    for (const move of moves) if (!result.has(move.cardId)) result.set(move.cardId, move.createdAt);
+    return result;
   }
 
   async update(userId: string, boardId: string, input: UpdateBoardRequest) {
@@ -119,10 +242,12 @@ export class BoardsService {
       data: {
         name: input.name,
         description: input.description,
+        dueDate: input.dueDate === undefined ? undefined : input.dueDate ? new Date(input.dueDate) : null,
         isArchived: input.isArchived,
       },
     });
-    return serializeBoard(board);
+    const aggregates = await this.boardAggregates([boardId]);
+    return serializeBoard(board, aggregates.get(boardId) ?? EMPTY_AGGREGATE);
   }
 
   async remove(userId: string, boardId: string) {
@@ -180,23 +305,32 @@ export class BoardsService {
   }
 }
 
-function serializeBoard(board: {
-  id: string;
-  name: string;
-  description: string | null;
-  ownerId: string;
-  isArchived: boolean;
-  createdAt: Date;
-  updatedAt: Date;
-}) {
+function serializeBoard(
+  board: {
+    id: string;
+    name: string;
+    description: string | null;
+    dueDate: Date | null;
+    ownerId: string;
+    isArchived: boolean;
+    createdAt: Date;
+    updatedAt: Date;
+  },
+  aggregate: BoardAggregate,
+) {
   return {
     id: board.id,
     name: board.name,
     description: board.description,
+    dueDate: board.dueDate ? board.dueDate.toISOString() : null,
     ownerId: board.ownerId,
     isArchived: board.isArchived,
     createdAt: board.createdAt.toISOString(),
     updatedAt: board.updatedAt.toISOString(),
+    memberCount: aggregate.memberCount,
+    cardCount: aggregate.cardCount,
+    doneCount: aggregate.doneCount,
+    memberPreviews: aggregate.memberPreviews,
   };
 }
 
@@ -211,6 +345,10 @@ interface CardWithMembers {
   createdById: string;
   isArchived: boolean;
   isRestricted: boolean;
+  priority: CardPriority;
+  costAmount: Prisma.Decimal | null;
+  costNote: string | null;
+  recurrence: Prisma.JsonValue | null;
   createdAt: Date;
   updatedAt: Date;
   members?: { userId: string }[];
@@ -231,6 +369,10 @@ function serializeCard(card: CardWithMembers) {
     isRestricted: card.isRestricted,
     memberIds: (card.members ?? []).map((m) => m.userId),
     assigneeIds: (card.assignees ?? []).map((a) => a.userId),
+    priority: card.priority,
+    costAmount: card.costAmount ? card.costAmount.toString() : null,
+    costNote: card.costNote,
+    recurrence: (card.recurrence as RecurrenceRule | null) ?? null,
     createdAt: card.createdAt.toISOString(),
     updatedAt: card.updatedAt.toISOString(),
   };

@@ -1,8 +1,12 @@
 import type {
+  AdminResetPasswordResponse,
   AdminUser,
   AdminUserList,
+  Attachment,
   AuthResponse,
   ChangePasswordRequest,
+  Comment,
+  CreateCommentRequest,
   CreateUserRequest,
   BoardDetail,
   BoardMember,
@@ -17,6 +21,9 @@ import type {
   CurrentUser,
   List,
   LoginRequest,
+  MyTasksResponse,
+  NotificationPrefs,
+  NotificationsResponse,
   OverdueTasksReport,
   ReportOverview,
   Subtask,
@@ -25,6 +32,7 @@ import type {
   UpdateCardAccessRequest,
   UpdateCardRequest,
   UpdateListRequest,
+  UpdateNotificationPrefsRequest,
   UpdateSubtaskRequest,
   UserRole,
   WorkloadReport,
@@ -97,7 +105,10 @@ export function createApiClient({ baseUrl, storage, onUnauthorized }: ApiClientO
   async function request<T>(path: string, options: RequestInit = {}, isRetry = false): Promise<T> {
     const accessToken = await storage.getAccessToken();
     const headers = new Headers(options.headers);
-    if (!headers.has("Content-Type")) headers.set("Content-Type", "application/json");
+    // A FormData body (attachment upload) must NOT get a manual Content-Type —
+    // fetch sets the multipart boundary itself only when it computes the header.
+    const isFormData = typeof FormData !== "undefined" && options.body instanceof FormData;
+    if (!headers.has("Content-Type") && !isFormData) headers.set("Content-Type", "application/json");
     if (accessToken) headers.set("Authorization", `Bearer ${accessToken}`);
 
     const res = await fetch(`${baseUrl}${path}`, { ...options, headers });
@@ -155,12 +166,15 @@ export function createApiClient({ baseUrl, storage, onUnauthorized }: ApiClientO
           method: "PATCH",
           body: JSON.stringify({ isActive }),
         }),
+      resetPassword: (id: string) =>
+        request<AdminResetPasswordResponse>(`/admin/users/${id}/reset-password`, { method: "POST" }),
     },
     boards: {
       list: () => request<BoardSummary[]>("/boards"),
       create: (body: CreateBoardRequest) =>
         request<BoardSummary>("/boards", { method: "POST", body: JSON.stringify(body) }),
-      get: (id: string) => request<BoardDetail>(`/boards/${id}`),
+      get: (id: string, closedSince?: string) =>
+        request<BoardDetail>(`/boards/${id}${closedSince ? `?closedSince=${encodeURIComponent(closedSince)}` : ""}`),
       update: (id: string, body: UpdateBoardRequest) =>
         request<BoardSummary>(`/boards/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
       addMember: (id: string, email: string) =>
@@ -178,6 +192,7 @@ export function createApiClient({ baseUrl, storage, onUnauthorized }: ApiClientO
     cards: {
       create: (listId: string, body: CreateCardRequest) =>
         request<Card>(`/lists/${listId}/cards`, { method: "POST", body: JSON.stringify(body) }),
+      get: (id: string) => request<Card>(`/cards/${id}`),
       update: (id: string, body: UpdateCardRequest) =>
         request<Card>(`/cards/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
       history: (id: string) => request<CardActivity[]>(`/cards/${id}/history`),
@@ -205,6 +220,37 @@ export function createApiClient({ baseUrl, storage, onUnauthorized }: ApiClientO
         ),
       overdue: () => request<OverdueTasksReport>("/reports/overdue"),
       workload: () => request<WorkloadReport>("/reports/workload"),
+    },
+    myTasks: {
+      list: () => request<MyTasksResponse>("/my-tasks"),
+    },
+    comments: {
+      list: (cardId: string) => request<Comment[]>(`/cards/${cardId}/comments`),
+      create: (cardId: string, body: CreateCommentRequest) =>
+        request<Comment>(`/cards/${cardId}/comments`, { method: "POST", body: JSON.stringify(body) }),
+      remove: (cardId: string, commentId: string) =>
+        request<void>(`/cards/${cardId}/comments/${commentId}`, { method: "DELETE" }),
+    },
+    attachments: {
+      list: (cardId: string) => request<Attachment[]>(`/cards/${cardId}/attachments`),
+      /** `file` is the RN `{ uri, name, type }` shape `expo-image-picker` returns. */
+      upload: (cardId: string, file: { uri: string; name: string; type: string }) => {
+        const formData = new FormData();
+        formData.append("file", file as unknown as Blob);
+        return request<Attachment>(`/cards/${cardId}/attachments`, { method: "POST", body: formData });
+      },
+      remove: (cardId: string, attachmentId: string) =>
+        request<void>(`/cards/${cardId}/attachments/${attachmentId}`, { method: "DELETE" }),
+    },
+    notifications: {
+      list: () => request<NotificationsResponse>("/notifications"),
+      markRead: (id: string) => request<void>(`/notifications/${id}/read`, { method: "PATCH" }),
+      markAllRead: () => request<void>("/notifications/read-all", { method: "POST" }),
+    },
+    me: {
+      getNotificationPrefs: () => request<NotificationPrefs>("/me/notification-prefs"),
+      updateNotificationPrefs: (patch: UpdateNotificationPrefsRequest) =>
+        request<NotificationPrefs>("/me/notification-prefs", { method: "PATCH", body: JSON.stringify(patch) }),
     },
   };
 }

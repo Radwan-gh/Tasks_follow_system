@@ -84,7 +84,9 @@ export class AuthService {
 
     const passwordHash = await hashPassword(newPassword);
     await this.prisma.$transaction([
-      this.prisma.user.update({ where: { id: userId }, data: { passwordHash } }),
+      // Also clears a pending admin-issued reset — this is the same endpoint
+      // the "عيّن كلمة مرور جديدة" screen calls to complete one.
+      this.prisma.user.update({ where: { id: userId }, data: { passwordHash, mustChangePassword: false } }),
       this.prisma.refreshToken.updateMany({
         where: { userId, revokedAt: null },
         data: { revokedAt: new Date() },

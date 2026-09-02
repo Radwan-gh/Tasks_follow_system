@@ -9,6 +9,7 @@ import "@fontsource/cairo/400.css";
 import "@fontsource/cairo/600.css";
 import "@fontsource/cairo/700.css";
 import { App } from "./App";
+import { UpdateBanner } from "./components/UpdateBanner";
 import { AuthProvider } from "./features/auth/AuthContext";
 import { queryClient } from "./lib/query-client";
 import "./index.css";
@@ -19,6 +20,7 @@ createRoot(document.getElementById("root")!).render(
       <BrowserRouter>
         <AuthProvider>
           <App />
+          <UpdateBanner />
         </AuthProvider>
       </BrowserRouter>
     </QueryClientProvider>

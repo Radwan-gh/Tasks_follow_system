@@ -1,16 +1,19 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
-import type {
-  CardActivityType,
-  CreateCardRequest,
-  UpdateAssigneesRequest,
-  UpdateCardAccessRequest,
-  UpdateCardRequest,
+import {
+  RecurrenceRuleSchema,
+  type CardActivityType,
+  type CreateCardRequest,
+  type UpdateAssigneesRequest,
+  type UpdateCardAccessRequest,
+  type UpdateCardRequest,
 } from "@app/types";
-import type { Prisma } from "@prisma/client";
+import { Prisma, type CardPriority } from "@prisma/client";
 import { generateKeyBetween } from "@app/ordering";
 import { computeMovePosition } from "../common/util/position.util";
+import { nextRecurrenceDate } from "../common/util/recurrence.util";
 import { PrismaService } from "../prisma/prisma.service";
 import { BoardsService, canAccessCard, canManageCard, serializeCard } from "../boards/boards.service";
+import { NotificationsService } from "../notifications/notifications.service";
 
 /** Prisma transaction client — the subset of PrismaService usable inside `$transaction`. */
 type Tx = Prisma.TransactionClient;
@@ -26,6 +29,7 @@ export class CardsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly boards: BoardsService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   private async loadCard(cardId: string) {
@@ -62,6 +66,68 @@ export class CardsService {
     return generateKeyBetween(last?.position ?? null, null);
   }
 
+  /**
+   * `design-prompt-group-3.md` §3 "توليد المهمة المتكررة": spawns the next
+   * instance of a repeating card into the board's «جديد» list when the
+   * current instance is moved into «انتهى». Carries forward title,
+   * description, priority, assignees, and the same recurrence rule (so the
+   * chain continues one-in-one-out — never more than one open instance).
+   */
+  private async spawnNextRecurrence(
+    tx: Tx,
+    card: {
+      boardId: string;
+      title: string;
+      description: string | null;
+      dueDate: Date | null;
+      priority: CardPriority;
+      recurrence: Prisma.JsonValue;
+      createdById: string;
+      assignees: { userId: string }[];
+    },
+  ): Promise<void> {
+    const rule = RecurrenceRuleSchema.safeParse(card.recurrence);
+    if (!rule.success) return;
+
+    const newList = await tx.list.findFirst({
+      where: { boardId: card.boardId, statusCategory: "NEW", isArchived: false },
+      orderBy: { position: "asc" },
+    });
+    if (!newList) return;
+
+    const nextDueDate = nextRecurrenceDate(rule.data, card.dueDate ?? new Date());
+
+    const last = await tx.card.findFirst({
+      where: { listId: newList.id, isArchived: false },
+      orderBy: { position: "desc" },
+      select: { position: true },
+    });
+    const position = generateKeyBetween(last?.position ?? null, null);
+
+    const created = await tx.card.create({
+      data: {
+        listId: newList.id,
+        boardId: card.boardId,
+        title: card.title,
+        description: card.description,
+        dueDate: nextDueDate,
+        priority: card.priority,
+        recurrence: card.recurrence as Prisma.InputJsonValue,
+        createdById: card.createdById,
+        position,
+      },
+    });
+    if (card.assignees.length > 0) {
+      await tx.cardAssignee.createMany({
+        data: card.assignees.map((a) => ({ cardId: created.id, userId: a.userId })),
+      });
+    }
+    await this.recordActivity(tx, created.id, card.boardId, card.createdById, {
+      type: "CREATED",
+      toValue: newList.name,
+    });
+  }
+
   async create(userId: string, listId: string, input: CreateCardRequest) {
     const list = await this.loadList(listId);
     await this.boards.assertMembership(userId, list.boardId);
@@ -75,6 +141,7 @@ export class CardsService {
           title: input.title,
           description: input.description ?? null,
           dueDate: input.dueDate ? new Date(input.dueDate) : null,
+          recurrence: input.recurrence ?? undefined,
           position,
           createdById: userId,
         },
@@ -105,8 +172,10 @@ export class CardsService {
     if (!canAccessCard(userId, ownerId, card)) throw new NotFoundException("Card not found");
 
     const targetListId = input.targetListId ?? card.listId;
-    if (targetListId !== card.listId) {
-      const targetList = await this.loadList(targetListId);
+    const isMovingLists = targetListId !== card.listId;
+    let targetList: Awaited<ReturnType<typeof this.loadList>> | null = null;
+    if (isMovingLists) {
+      targetList = await this.loadList(targetListId);
       if (targetList.boardId !== card.boardId) {
         throw new BadRequestException("Cannot move a card to a list on a different board");
       }
@@ -139,6 +208,7 @@ export class CardsService {
           description: input.description,
           dueDate: input.dueDate === undefined ? undefined : input.dueDate ? new Date(input.dueDate) : null,
           isArchived: input.isArchived,
+          recurrence: input.recurrence === undefined ? undefined : (input.recurrence ?? Prisma.JsonNull),
           listId: targetListId,
           position,
         },
@@ -150,6 +220,24 @@ export class CardsService {
 
       for (const activity of await this.diffActivities(tx, card, input, targetListId)) {
         await this.recordActivity(tx, cardId, card.boardId, userId, activity);
+      }
+
+      // Moving into «انتهى»: notify the creator (design-prompt-group-3.md's
+      // "نقل بطاقة أنشأتها إلى انتهى") and, if this card repeats, spawn the
+      // next instance in the board's «جديد» list — see §3 "توليد المهمة المتكررة".
+      if (isMovingLists && targetList?.statusCategory === "CLOSED") {
+        await this.notifications.notify(tx, {
+          userId: card.createdById,
+          actorId: userId,
+          type: "CARD_CLOSED",
+          cardId,
+          boardId: card.boardId,
+          payload: { cardTitle: result.title },
+        });
+
+        if (card.recurrence) {
+          await this.spawnNextRecurrence(tx, card);
+        }
       }
 
       return result;
@@ -238,6 +326,18 @@ export class CardsService {
             ? { type: "ASSIGNED", toValue: boardMembers.map((m) => m.user.displayName).join("، ") }
             : { type: "UNASSIGNED" },
         );
+        // Only the newly-added assignees, not everyone still on the card —
+        // being re-saved with the same assignee list shouldn't re-notify them.
+        for (const addedUserId of userIds.filter((id) => !before.has(id))) {
+          await this.notifications.notify(tx, {
+            userId: addedUserId,
+            actorId: userId,
+            type: "ASSIGNED",
+            cardId,
+            boardId: card.boardId,
+            payload: { cardTitle: card.title },
+          });
+        }
       }
       return tx.card.findUniqueOrThrow({
         where: { id: cardId },

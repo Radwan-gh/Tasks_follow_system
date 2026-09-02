@@ -9,7 +9,7 @@ import { tokenStorage } from "./token-storage";
  * `EXPO_PUBLIC_*` variables are inlined at bundle time, so this is a build-time
  * constant, not a secret store.
  */
-const API_BASE = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3000";
+export const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3000";
 
 /**
  * Set by the root layout once navigation exists. The client is created at
@@ -23,7 +23,7 @@ export function setUnauthorizedHandler(handler: (() => void) | null) {
 }
 
 export const api = createApiClient({
-  baseUrl: API_BASE,
+  baseUrl: API_BASE_URL,
   storage: tokenStorage,
   onUnauthorized: () => unauthorizedHandler?.(),
 });
