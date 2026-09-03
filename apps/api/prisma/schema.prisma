@@ -29,6 +29,7 @@ enum CardActivityType {
   UNARCHIVED
   ASSIGNED
   UNASSIGNED
+  COST_UPDATED
 }
 
 /// Semantic status of a list, set when a board is seeded from a built-in
@@ -159,6 +160,11 @@ model Card {
   description String?
   position    String
   dueDate     DateTime?
+  /// Whether `dueDate` carries a meaningful time-of-day (§3c-5 "وقت التسليم
+  /// الاختياري"). `dueDate` itself is always a full timestamp (Prisma
+  /// `DateTime`), so this flag is what tells the client whether to render/use
+  /// the time component or treat the value as date-only (midnight, ignored).
+  dueDateHasTime Boolean @default(false)
   isArchived  Boolean   @default(false)
   // When false the card inherits board access (all board members see it).
   // When true only rows in `members` (plus the board owner and creator) can
@@ -251,6 +257,16 @@ model Notification {
 /// description/subtasks on the add-task screen. Distinct from
 /// `board-templates.ts`'s `TASK_WORKFLOW_TEMPLATE`, which seeds a *board's
 /// lists*, not a card.
+/// Single-row global settings table (§3c-1 "إعدادات عامة"). There is exactly
+/// one row, id `"global"`, upserted by `SettingsService` — never a per-user or
+/// per-board table since the app deliberately supports one currency system-wide
+/// (`design-prompt-group-3.md` §8 "خارج النطاق: تعدد العملات").
+model AppSettings {
+  id             String   @id
+  currencySymbol String   @default("ل.س")
+  updatedAt      DateTime @updatedAt
+}
+
 model Template {
   id             String   @id @default(cuid())
   boardId        String

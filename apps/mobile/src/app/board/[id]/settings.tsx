@@ -3,12 +3,14 @@ import { Pressable, ScrollView, TextInput, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError } from "@app/api-client";
+import type { BoardRole } from "@app/types";
 import { Screen } from "@/components/screen";
 import { AppText } from "@/components/text";
 import { ConfirmSheet } from "@/components/confirm-sheet";
 import { DueDateSheet } from "@/components/due-date-sheet";
 import { ErrorState } from "@/components/state-views";
 import { Skeleton } from "@/components/skeleton";
+import { TemplatesSection } from "@/features/boards/templates-section";
 import { useAuth } from "@/features/auth/auth-context";
 import { avatarColorFor } from "@/lib/avatar";
 import { initials } from "@/lib/initials";
@@ -100,6 +102,14 @@ export default function BoardSettingsScreen() {
       setRemovingMember(null);
       invalidate();
     },
+    onError: reportError,
+  });
+
+  // §3c-4 "منتقي دور لكل عضو (عضو ▾ / مشاهد) يتاح للمالك".
+  const updateMemberRole = useMutation({
+    mutationFn: (input: { userId: string; role: Exclude<BoardRole, "OWNER"> }) =>
+      api.boards.updateMemberRole(id, input.userId, input.role),
+    onSuccess: invalidate,
     onError: reportError,
   });
 
@@ -309,18 +319,42 @@ export default function BoardSettingsScreen() {
                       </AppText>
                     </View>
                   ) : null}
-                  <View
-                    style={{
-                      borderRadius: radii.chip,
-                      backgroundColor: member.role === "OWNER" ? colors.ink : colors.line,
-                      paddingHorizontal: spacing.sm,
-                      paddingVertical: 3,
-                    }}
-                  >
-                    <AppText size="caption" weight="semibold" color={member.role === "OWNER" ? colors.surface : colors.muted}>
-                      {member.role === "OWNER" ? "مالك" : "عضو"}
-                    </AppText>
-                  </View>
+                  {member.role !== "OWNER" && canArchive ? (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="تبديل الدور: عضو / مشاهد"
+                      disabled={updateMemberRole.isPending}
+                      onPress={() =>
+                        updateMemberRole.mutate({
+                          userId: member.userId,
+                          role: member.role === "VIEWER" ? "MEMBER" : "VIEWER",
+                        })
+                      }
+                      style={{
+                        borderRadius: radii.chip,
+                        backgroundColor: colors.line,
+                        paddingHorizontal: spacing.sm,
+                        paddingVertical: 3,
+                      }}
+                    >
+                      <AppText size="caption" weight="semibold" color={colors.muted}>
+                        {member.role === "VIEWER" ? "مشاهد ▾" : "عضو ▾"}
+                      </AppText>
+                    </Pressable>
+                  ) : (
+                    <View
+                      style={{
+                        borderRadius: radii.chip,
+                        backgroundColor: member.role === "OWNER" ? colors.ink : colors.line,
+                        paddingHorizontal: spacing.sm,
+                        paddingVertical: 3,
+                      }}
+                    >
+                      <AppText size="caption" weight="semibold" color={member.role === "OWNER" ? colors.surface : colors.muted}>
+                        {member.role === "OWNER" ? "مالك" : member.role === "VIEWER" ? "مشاهد" : "عضو"}
+                      </AppText>
+                    </View>
+                  )}
                   {member.role !== "OWNER" ? (
                     <Pressable
                       accessibilityRole="button"
@@ -337,6 +371,12 @@ export default function BoardSettingsScreen() {
             })}
           </View>
         </View>
+
+        {canArchive ? (
+          <View style={{ borderTopWidth: 1, borderTopColor: colors.line, paddingTop: spacing.lg }}>
+            <TemplatesSection boardId={id} />
+          </View>
+        ) : null}
 
         {canArchive ? (
           <View style={{ borderTopWidth: 1, borderTopColor: colors.line, paddingTop: spacing.lg }}>

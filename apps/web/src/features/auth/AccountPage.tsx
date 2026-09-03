@@ -1,7 +1,59 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "../../lib/api-client";
 import { useAuth } from "./AuthContext";
+
+/** §3c-1 "إعدادات عامة: حقل نصي واحد «رمز العملة»" — admin-only, mirrors the mobile account screen's section. */
+function CurrencySettingSection() {
+  const queryClient = useQueryClient();
+  const settings = useQuery({ queryKey: ["settings"], queryFn: api.settings.get });
+  const [symbol, setSymbol] = useState("");
+  const [seeded, setSeeded] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (settings.data && !seeded) {
+      setSymbol(settings.data.currencySymbol);
+      setSeeded(true);
+    }
+  }, [settings.data, seeded]);
+
+  async function save() {
+    setSaving(true);
+    try {
+      await api.settings.update({ currencySymbol: symbol.trim() });
+      void queryClient.invalidateQueries({ queryKey: ["settings"] });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const dirty = symbol.trim().length > 0 && symbol.trim() !== settings.data?.currencySymbol;
+
+  return (
+    <div className="space-y-3 rounded-lg bg-white p-6 shadow-sm">
+      <h2 className="text-base font-semibold text-slate-900">رمز العملة</h2>
+      <p className="text-sm text-slate-500">يظهر بجانب كل مبالغ التكلفة في التطبيق.</p>
+      <div className="flex gap-2">
+        <input
+          value={symbol}
+          onChange={(e) => setSymbol(e.target.value)}
+          maxLength={10}
+          className="flex-1 rounded border border-slate-300 px-3 py-2 text-sm"
+        />
+        <button
+          type="button"
+          disabled={!dirty || saving}
+          onClick={save}
+          className="rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+        >
+          {saving ? "..." : "حفظ"}
+        </button>
+      </div>
+    </div>
+  );
+}
 
 export function AccountPage() {
   const { user, logout } = useAuth();
@@ -90,6 +142,12 @@ export function AccountPage() {
             {submitting ? "جارٍ الحفظ..." : "تغيير كلمة المرور"}
           </button>
         </form>
+
+        {user?.role === "ADMIN" ? (
+          <div className="mt-6">
+            <CurrencySettingSection />
+          </div>
+        ) : null}
       </main>
     </div>
   );

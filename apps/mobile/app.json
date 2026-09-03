@@ -7,7 +7,10 @@
     "icon": "./assets/images/icon.png",
     "scheme": "tasksfollow",
     "userInterfaceStyle": "light",
-    "platforms": ["ios", "android"],
+    "platforms": [
+      "ios",
+      "android"
+    ],
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.tasksfollow.app"
@@ -46,7 +49,9 @@
           "photosPermission": "يحتاج التطبيق الوصول إلى معرض الصور لإرفاق صورة بالمهمة.",
           "cameraPermission": "يحتاج التطبيق الوصول إلى الكاميرا لالتقاط صورة وإرفاقها بالمهمة."
         }
-      ]
+      ],
+      "expo-font",
+      "expo-sharing"
     ],
     "experiments": {
       "typedRoutes": true

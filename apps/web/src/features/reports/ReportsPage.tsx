@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
+import type { ExportableReport } from "@app/api-client";
 import { api } from "../../lib/api-client";
 
-type Tab = "overview" | "completed" | "overdue" | "workload";
+type Tab = ExportableReport;
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "overview", label: "نظرة عامة على اللوحات" },
@@ -11,6 +12,43 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "overdue", label: "المهام المتأخّرة" },
   { id: "workload", label: "عبء العمل حسب الشخص" },
 ];
+
+/** §3c-6 "تصدير التقارير — GET /reports/export": triggers a browser download of the current tab's PDF. */
+async function downloadReportPdf(report: Tab) {
+  const blob = await api.reports.exportPdf(report);
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `report-${report}.pdf`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function ExportButton({ report }: { report: Tab }) {
+  const [state, setState] = useState<"idle" | "generating" | "error">("idle");
+
+  async function onClick() {
+    setState("generating");
+    try {
+      await downloadReportPdf(report);
+      setState("idle");
+    } catch {
+      setState("error");
+    }
+  }
+
+  return (
+    <button
+      onClick={onClick}
+      disabled={state === "generating"}
+      className="rounded border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+    >
+      {state === "generating" ? "جارٍ التوليد..." : state === "error" ? "تعذّر التوليد — إعادة المحاولة" : "تصدير PDF"}
+    </button>
+  );
+}
 
 export function ReportsPage() {
   const [tab, setTab] = useState<Tab>("overview");
@@ -25,20 +63,23 @@ export function ReportsPage() {
       </header>
 
       <main className="mx-auto max-w-4xl p-6">
-        <nav className="mb-6 flex flex-wrap gap-2">
-          {TABS.map((t) => (
-            <button
-              key={t.id}
-              onClick={() => setTab(t.id)}
-              className={`rounded px-3 py-1.5 text-sm ${
-                tab === t.id
-                  ? "bg-slate-900 font-medium text-white"
-                  : "border border-slate-300 text-slate-700 hover:bg-slate-50"
-              }`}
-            >
-              {t.label}
-            </button>
-          ))}
+        <nav className="mb-6 flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap gap-2">
+            {TABS.map((t) => (
+              <button
+                key={t.id}
+                onClick={() => setTab(t.id)}
+                className={`rounded px-3 py-1.5 text-sm ${
+                  tab === t.id
+                    ? "bg-slate-900 font-medium text-white"
+                    : "border border-slate-300 text-slate-700 hover:bg-slate-50"
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+          <ExportButton report={tab} />
         </nav>
 
         {tab === "overview" && <OverviewReport />}
@@ -58,11 +99,35 @@ function ReportState({ loading, empty, emptyText }: { loading: boolean; empty: b
 
 function OverviewReport() {
   const { data, isLoading } = useQuery({ queryKey: ["report", "overview"], queryFn: api.reports.overview });
+  const settings = useQuery({ queryKey: ["settings"], queryFn: api.settings.get });
   if (isLoading || !data) return <ReportState loading empty={false} emptyText="" />;
   if (data.boards.length === 0) return <ReportState loading={false} empty emptyText="لا توجد لوحات." />;
 
+  const currencySymbol = settings.data?.currencySymbol ?? "";
+
   return (
     <div className="space-y-4">
+      {/* §3c-1 "بطاقة جديدة «التكاليف حسب اللوحة»" */}
+      <div className="rounded-lg bg-white p-4 shadow-sm">
+        <h2 className="mb-2 font-semibold text-slate-900">التكاليف حسب اللوحة (هذا الشهر)</h2>
+        {data.boards.every((b) => !b.costThisMonth) ? (
+          <p className="text-sm text-slate-400">لا تكاليف مسجَّلة هذا الشهر.</p>
+        ) : (
+          <ul className="space-y-1">
+            {data.boards
+              .filter((b) => b.costThisMonth)
+              .map((b) => (
+                <li key={b.boardId} className="flex items-center justify-between text-sm text-slate-700">
+                  <span>{b.boardName}</span>
+                  <span className="text-slate-500">
+                    {b.costThisMonth} {currencySymbol}
+                  </span>
+                </li>
+              ))}
+          </ul>
+        )}
+      </div>
+
       {data.boards.map((board) => (
         <div key={board.boardId} className="rounded-lg bg-white p-4 shadow-sm">
           <div className="mb-2 flex items-baseline justify-between">

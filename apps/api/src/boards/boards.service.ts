@@ -19,15 +19,11 @@ interface BoardAggregate {
 }
 const EMPTY_AGGREGATE: BoardAggregate = { memberCount: 0, cardCount: 0, doneCount: 0, memberPreviews: [] };
 
-// `VIEWER` is a valid `BoardRole` value as of this schema change, but no
-// endpoint can assign it to a member yet (that PATCH lands with the rest of
-// viewer-mode wiring) and no call site passes `minRole: "VIEWER"`, so ranking
-// it alongside `MEMBER` here is inert today — it exists only so this
-// `Record<BoardRole, number>` stays exhaustive. When viewer-mode wiring adds
-// the role-assignment endpoint, this must drop to a rank *below* `MEMBER`
-// (viewers can read but not mutate) and read-only call sites like
-// `getDetail` must switch to `assertMembership(..., "VIEWER")` explicitly.
-const ROLE_RANK: Record<BoardRole, number> = { VIEWER: 0, MEMBER: 0, OWNER: 1 };
+// §3c-4 "دور «مشاهد»": a viewer can read a board but not mutate anything on
+// it. Every *read* call site below passes `minRole: "VIEWER"` explicitly;
+// every *write* call site keeps the default `"MEMBER"` (or `"OWNER"` where
+// already required) so `ROLE_RANK[VIEWER] < ROLE_RANK[MEMBER]` blocks it.
+const ROLE_RANK: Record<BoardRole, number> = { VIEWER: 0, MEMBER: 1, OWNER: 2 };
 
 @Injectable()
 export class BoardsService {
@@ -173,7 +169,7 @@ export class BoardsService {
    * unaffected — this never filters `DONE`, `NEW`, etc.
    */
   async getDetail(userId: string, boardId: string, closedSince?: Date) {
-    await this.assertMembership(userId, boardId);
+    await this.assertMembership(userId, boardId, "VIEWER");
 
     const board = await this.prisma.board.findUnique({
       where: { id: boardId },
@@ -277,7 +273,7 @@ export class BoardsService {
     await this.prisma.board.delete({ where: { id: boardId } });
   }
 
-  async addMember(userId: string, boardId: string, email: string) {
+  async addMember(userId: string, boardId: string, email: string, role: "MEMBER" | "VIEWER" = "MEMBER") {
     await this.assertMembership(userId, boardId, "OWNER");
 
     const target = await this.prisma.user.findUnique({ where: { email } });
@@ -289,7 +285,35 @@ export class BoardsService {
     if (existing) throw new BadRequestException("User is already a member of this board");
 
     const member = await this.prisma.boardMember.create({
-      data: { boardId, userId: target.id, role: "MEMBER" },
+      data: { boardId, userId: target.id, role },
+      include: { user: true },
+    });
+    return {
+      userId: member.userId,
+      boardId: member.boardId,
+      role: member.role,
+      user: {
+        id: member.user.id,
+        email: member.user.email,
+        displayName: member.user.displayName,
+        isActive: member.user.isActive,
+      },
+    };
+  }
+
+  /** §3c-4: owner-only switch between `MEMBER` and `VIEWER` for an existing member. Never touches the owner's own row. */
+  async updateMemberRole(userId: string, boardId: string, targetUserId: string, role: "MEMBER" | "VIEWER") {
+    await this.assertMembership(userId, boardId, "OWNER");
+
+    const target = await this.prisma.boardMember.findUnique({
+      where: { boardId_userId: { boardId, userId: targetUserId } },
+    });
+    if (!target) throw new NotFoundException("Membership not found");
+    if (target.role === "OWNER") throw new BadRequestException("Cannot change the board owner's role");
+
+    const member = await this.prisma.boardMember.update({
+      where: { boardId_userId: { boardId, userId: targetUserId } },
+      data: { role },
       include: { user: true },
     });
     return {
@@ -448,6 +472,7 @@ interface CardWithMembers {
   description: string | null;
   position: string;
   dueDate: Date | null;
+  dueDateHasTime: boolean;
   createdById: string;
   isArchived: boolean;
   isRestricted: boolean;
@@ -470,6 +495,7 @@ function serializeCard(card: CardWithMembers) {
     description: card.description,
     position: card.position,
     dueDate: card.dueDate ? card.dueDate.toISOString() : null,
+    dueDateHasTime: card.dueDateHasTime,
     createdById: card.createdById,
     isArchived: card.isArchived,
     isRestricted: card.isRestricted,

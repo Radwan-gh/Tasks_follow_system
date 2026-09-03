@@ -111,6 +111,10 @@ export default function BoardScreen() {
   }, [board.data, trimmedSearch, filter, user]);
 
   const isOwner = !!user && board.data?.ownerId === user.id;
+  // §3c-4 "اللوحة بعين المشاهد ... بلا أسهم نقل ولا «+ إضافة مهمة» ولا سحب".
+  const myRole = board.data?.members.find((m) => m.userId === user?.id)?.role;
+  const isViewer = myRole === "VIEWER";
+  const boardReadOnly = !!board.data?.isArchived || isViewer;
   /** Board owner or this card's own assignees may move it into «انتهى» — §3b-4. */
   function canCloseCard(card: Card): boolean {
     return !!user && (board.data?.ownerId === user.id || card.assigneeIds.includes(user.id));
@@ -230,6 +234,20 @@ export default function BoardScreen() {
             </Pressable>
           ) : null}
         </View>
+      ) : isViewer ? (
+        <View
+          style={{
+            marginHorizontal: spacing.xl,
+            marginBottom: spacing.md,
+            backgroundColor: colors.canvas,
+            borderRadius: radii.field,
+            padding: spacing.md,
+          }}
+        >
+          <AppText size="small" color={colors.muted}>
+            للعرض فقط — أنت مشاهد في هذه اللوحة
+          </AppText>
+        </View>
       ) : null}
 
       {board.isPending ? (
@@ -331,7 +349,7 @@ export default function BoardScreen() {
                         assignees={resolveAssignees(card.assigneeIds)}
                         hasNext={false}
                         onMoveNext={() => {}}
-                        onLongPress={() => setMovingCardId(card.id)}
+                        onLongPress={() => !boardReadOnly && setMovingCardId(card.id)}
                         onOpen={() => router.push(`/card/${card.id}`)}
                         highlightQuery={trimmedSearch}
                       />
@@ -404,7 +422,7 @@ export default function BoardScreen() {
                   hasNext={index < board.data!.lists.length - 1}
                   nextListIsClosed={board.data!.lists[index + 1]?.statusCategory === "CLOSED"}
                   canCloseCard={canCloseCard}
-                  readOnly={!!board.data!.isArchived}
+                  readOnly={boardReadOnly}
                   onMoveCardNext={(cardId) => {
                     const nextList = board.data!.lists[index + 1];
                     if (nextList) move.mutate({ cardId, targetListId: nextList.id });
@@ -419,7 +437,7 @@ export default function BoardScreen() {
             />
           )}
 
-          {board.data.lists[activeIndex] && !board.data.isArchived ? (
+          {board.data.lists[activeIndex] && !boardReadOnly ? (
             <View style={{ paddingHorizontal: spacing.xl, paddingTop: spacing.md }}>
               <Pressable
                 accessibilityRole="button"

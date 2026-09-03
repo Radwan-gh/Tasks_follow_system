@@ -2,11 +2,14 @@ import type {
   AdminResetPasswordResponse,
   AdminUser,
   AdminUserList,
+  AppSettings,
   Attachment,
   AuthResponse,
+  BoardRole,
   ChangePasswordRequest,
   Comment,
   CreateCommentRequest,
+  CreateTemplateRequest,
   CreateUserRequest,
   BoardDetail,
   BoardMember,
@@ -27,7 +30,10 @@ import type {
   NotificationsResponse,
   OverdueTasksReport,
   ReportOverview,
+  SaveCardAsTemplateRequest,
   Subtask,
+  Template,
+  UpdateAppSettingsRequest,
   UpdateAssigneesRequest,
   UpdateBoardRequest,
   UpdateCardAccessRequest,
@@ -35,9 +41,13 @@ import type {
   UpdateListRequest,
   UpdateNotificationPrefsRequest,
   UpdateSubtaskRequest,
+  UpdateTemplateRequest,
   UserRole,
   WorkloadReport,
 } from "@app/types";
+
+/** Which admin report `GET /reports/export` renders as a PDF — see `report-pdf.builder.ts`. */
+export type ExportableReport = "overview" | "completed" | "overdue" | "workload";
 import { ApiError } from "./error.js";
 
 /**
@@ -132,6 +142,30 @@ export function createApiClient({ baseUrl, storage, onUnauthorized }: ApiClientO
     return res.json();
   }
 
+  /** Same auth/refresh dance as `request`, but for a binary response (PDF export) instead of JSON. */
+  async function requestBlob(path: string, isRetry = false): Promise<Blob> {
+    const accessToken = await storage.getAccessToken();
+    const headers = new Headers();
+    if (accessToken) headers.set("Authorization", `Bearer ${accessToken}`);
+
+    const res = await fetch(`${baseUrl}${path}`, { headers });
+
+    if (res.status === 401 && !isRetry) {
+      const refreshed = await refreshAccessToken();
+      if (refreshed) return requestBlob(path, true);
+      await storage.clear();
+      onUnauthorized?.();
+      throw new ApiError(401, "Session expired");
+    }
+
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({ message: res.statusText }));
+      throw new ApiError(res.status, body.message ?? "Request failed");
+    }
+
+    return res.blob();
+  }
+
   return {
     /** Escape hatch for endpoints not yet wrapped below (and for tests). */
     request,
@@ -180,8 +214,13 @@ export function createApiClient({ baseUrl, storage, onUnauthorized }: ApiClientO
       getSummary: (id: string) => request<BoardOwnerSummary>(`/boards/${id}/summary`),
       update: (id: string, body: UpdateBoardRequest) =>
         request<BoardSummary>(`/boards/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
-      addMember: (id: string, email: string) =>
-        request<BoardMember>(`/boards/${id}/members`, { method: "POST", body: JSON.stringify({ email }) }),
+      addMember: (id: string, email: string, role?: Exclude<BoardRole, "OWNER">) =>
+        request<BoardMember>(`/boards/${id}/members`, { method: "POST", body: JSON.stringify({ email, role }) }),
+      updateMemberRole: (id: string, userId: string, role: Exclude<BoardRole, "OWNER">) =>
+        request<BoardMember>(`/boards/${id}/members/${userId}/role`, {
+          method: "PATCH",
+          body: JSON.stringify({ role }),
+        }),
       removeMember: (id: string, userId: string) =>
         request<void>(`/boards/${id}/members/${userId}`, { method: "DELETE" }),
     },
@@ -204,6 +243,20 @@ export function createApiClient({ baseUrl, storage, onUnauthorized }: ApiClientO
       updateAssignees: (id: string, body: UpdateAssigneesRequest) =>
         request<Card>(`/cards/${id}/assignees`, { method: "PATCH", body: JSON.stringify(body) }),
       remove: (id: string) => request<void>(`/cards/${id}`, { method: "DELETE" }),
+      saveAsTemplate: (id: string, body: SaveCardAsTemplateRequest) =>
+        request<Template>(`/cards/${id}/save-as-template`, { method: "POST", body: JSON.stringify(body) }),
+    },
+    templates: {
+      list: (boardId: string) => request<Template[]>(`/boards/${boardId}/templates`),
+      create: (boardId: string, body: CreateTemplateRequest) =>
+        request<Template>(`/boards/${boardId}/templates`, { method: "POST", body: JSON.stringify(body) }),
+      update: (boardId: string, templateId: string, body: UpdateTemplateRequest) =>
+        request<Template>(`/boards/${boardId}/templates/${templateId}`, {
+          method: "PATCH",
+          body: JSON.stringify(body),
+        }),
+      remove: (boardId: string, templateId: string) =>
+        request<void>(`/boards/${boardId}/templates/${templateId}`, { method: "DELETE" }),
     },
     subtasks: {
       list: (cardId: string) => request<Subtask[]>(`/cards/${cardId}/subtasks`),
@@ -223,6 +276,10 @@ export function createApiClient({ baseUrl, storage, onUnauthorized }: ApiClientO
         ),
       overdue: () => request<OverdueTasksReport>("/reports/overdue"),
       workload: () => request<WorkloadReport>("/reports/workload"),
+      exportPdf: (report: ExportableReport, since?: string) =>
+        requestBlob(
+          `/reports/export?report=${report}${since ? `&since=${encodeURIComponent(since)}` : ""}`,
+        ),
     },
     myTasks: {
       list: () => request<MyTasksResponse>("/my-tasks"),
@@ -254,6 +311,13 @@ export function createApiClient({ baseUrl, storage, onUnauthorized }: ApiClientO
       getNotificationPrefs: () => request<NotificationPrefs>("/me/notification-prefs"),
       updateNotificationPrefs: (patch: UpdateNotificationPrefsRequest) =>
         request<NotificationPrefs>("/me/notification-prefs", { method: "PATCH", body: JSON.stringify(patch) }),
+    },
+    settings: {
+      /** Any authenticated user — the currency symbol renders next to every cost amount app-wide. */
+      get: () => request<AppSettings>("/settings"),
+      /** Admin-only. */
+      update: (body: UpdateAppSettingsRequest) =>
+        request<AppSettings>("/admin/settings", { method: "PATCH", body: JSON.stringify(body) }),
     },
   };
 }

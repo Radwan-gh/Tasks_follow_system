@@ -53,10 +53,18 @@ export const UpdateBoardRequestSchema = z.object({
 });
 export type UpdateBoardRequest = z.infer<typeof UpdateBoardRequestSchema>;
 
+/** `role` defaults to `MEMBER` server-side when omitted; `OWNER` is never a valid value here (ownership doesn't transfer via this endpoint). */
 export const AddBoardMemberRequestSchema = z.object({
   email: z.string().email(),
+  role: z.enum(["MEMBER", "VIEWER"]).optional(),
 });
 export type AddBoardMemberRequest = z.infer<typeof AddBoardMemberRequestSchema>;
+
+/** `PATCH /boards/:id/members/:userId` — owner-only switch between `MEMBER` and `VIEWER`. Never `OWNER` (no ownership transfer via this route). */
+export const UpdateBoardMemberRoleRequestSchema = z.object({
+  role: z.enum(["MEMBER", "VIEWER"]),
+});
+export type UpdateBoardMemberRoleRequest = z.infer<typeof UpdateBoardMemberRoleRequestSchema>;
 
 /**
  * Admin-only creation of a user account. Public self-registration was removed —
@@ -131,7 +139,13 @@ export const CreateCardRequestSchema = z.object({
   title: z.string().min(1).max(300),
   description: z.string().max(10_000).optional(),
   dueDate: z.string().datetime().nullable().optional(),
+  // Whether `dueDate` carries a meaningful time-of-day — see `Card.dueDateHasTime`.
+  dueDateHasTime: z.boolean().optional(),
   priority: CardPriority.optional(),
+  // Decimal amount as a string (matches `Card.costAmount`'s serialized form)
+  // so the client never has to worry about float precision.
+  costAmount: z.string().nullable().optional(),
+  costNote: z.string().max(500).nullable().optional(),
   recurrence: RecurrenceRuleSchema.nullable().optional(),
 });
 export type CreateCardRequest = z.infer<typeof CreateCardRequestSchema>;
@@ -140,10 +154,9 @@ export const UpdateCardRequestSchema = z.object({
   title: z.string().min(1).max(300).optional(),
   description: z.string().max(10_000).nullable().optional(),
   dueDate: z.string().datetime().nullable().optional(),
+  dueDateHasTime: z.boolean().optional(),
   isArchived: z.boolean().optional(),
   priority: CardPriority.optional(),
-  // Decimal amount as a string (matches `Card.costAmount`'s serialized form)
-  // so the client never has to worry about float precision.
   costAmount: z.string().nullable().optional(),
   costNote: z.string().max(500).nullable().optional(),
   recurrence: RecurrenceRuleSchema.nullable().optional(),
@@ -192,3 +205,28 @@ export type CreateCommentRequest = z.infer<typeof CreateCommentRequestSchema>;
 /** `PATCH /me/notification-prefs` — a partial patch, not a full replace. */
 export const UpdateNotificationPrefsRequestSchema = NotificationPrefsSchema.partial();
 export type UpdateNotificationPrefsRequest = z.infer<typeof UpdateNotificationPrefsRequestSchema>;
+
+export const CreateTemplateRequestSchema = z.object({
+  name: z.string().min(1).max(100),
+  titlePattern: z.string().min(1).max(300),
+  description: z.string().max(10_000).nullable().optional(),
+  subtaskTitles: z.array(z.string().min(1).max(300)).max(50).optional(),
+});
+export type CreateTemplateRequest = z.infer<typeof CreateTemplateRequestSchema>;
+
+export const UpdateTemplateRequestSchema = z.object({
+  name: z.string().min(1).max(100),
+});
+export type UpdateTemplateRequest = z.infer<typeof UpdateTemplateRequestSchema>;
+
+/** `POST /cards/:id/save-as-template` — the server reads the card's current title/description/subtasks; the client only names it. */
+export const SaveCardAsTemplateRequestSchema = z.object({
+  name: z.string().min(1).max(100),
+});
+export type SaveCardAsTemplateRequest = z.infer<typeof SaveCardAsTemplateRequestSchema>;
+
+/** `PATCH /admin/settings` — admin-only; read via `GET /settings` (any authenticated user, since the currency symbol renders next to every cost amount app-wide). */
+export const UpdateAppSettingsRequestSchema = z.object({
+  currencySymbol: z.string().min(1).max(10),
+});
+export type UpdateAppSettingsRequest = z.infer<typeof UpdateAppSettingsRequestSchema>;

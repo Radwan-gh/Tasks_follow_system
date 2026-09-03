@@ -55,7 +55,7 @@ export class AttachmentsService {
 
   async list(userId: string, cardId: string): Promise<Attachment[]> {
     const card = await this.loadCard(cardId);
-    await this.boards.assertMembership(userId, card.boardId);
+    await this.boards.assertMembership(userId, card.boardId, "VIEWER");
     const ownerId = await this.boardOwnerId(card.boardId);
     if (!canAccessCard(userId, ownerId, card)) throw new NotFoundException("Card not found");
 

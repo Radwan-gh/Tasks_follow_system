@@ -1,13 +1,15 @@
 import { Pressable, View } from "react-native";
 import { BottomSheet } from "@/components/bottom-sheet";
 import { AppText } from "@/components/text";
+import { formatHijri } from "@/lib/hijri";
 import { MIN_TOUCH_TARGET, colors, radii, spacing } from "@/theme/tokens";
 
 /**
  * Quick-pick due date sheet, shared by card detail, add-task, and the
- * new-board sheet. A full calendar + Hijri secondary line (per the design's
- * "ورقة التاريخ") is a later, group-3c feature — this covers the common
- * cases without a new native date-picker dependency.
+ * new-board sheet. A full calendar (per the design's "ورقة التاريخ") is a
+ * later feature — this covers the common cases without a new native
+ * date-picker dependency; each option does show the §3c-2 Hijri secondary
+ * line under its Gregorian date.
  */
 export function DueDateSheet({
   visible,
@@ -31,26 +33,33 @@ export function DueDateSheet({
         <AppText weight="bold" size="title" style={{ marginBottom: spacing.xs }}>
           موعد التسليم
         </AppText>
-        {options.map((option) => (
-          <Pressable
-            key={option.label}
-            accessibilityRole="button"
-            onPress={() => {
-              onChange(option.value());
-              onClose();
-            }}
-            style={{
-              minHeight: MIN_TOUCH_TARGET,
-              justifyContent: "center",
-              paddingHorizontal: spacing.lg,
-              borderRadius: radii.field,
-              borderWidth: 1,
-              borderColor: colors.line,
-            }}
-          >
-            <AppText>{option.label}</AppText>
-          </Pressable>
-        ))}
+        {options.map((option) => {
+          const iso = option.value();
+          return (
+            <Pressable
+              key={option.label}
+              accessibilityRole="button"
+              onPress={() => {
+                onChange(iso);
+                onClose();
+              }}
+              style={{
+                minHeight: MIN_TOUCH_TARGET,
+                justifyContent: "center",
+                paddingHorizontal: spacing.lg,
+                paddingVertical: 6,
+                borderRadius: radii.field,
+                borderWidth: 1,
+                borderColor: colors.line,
+              }}
+            >
+              <AppText>{option.label}</AppText>
+              <AppText size="caption" color={colors.muted}>
+                الموافق {formatHijri(new Date(iso!))}
+              </AppText>
+            </Pressable>
+          );
+        })}
         <Pressable
           accessibilityRole="button"
           onPress={() => {

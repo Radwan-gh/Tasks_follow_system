@@ -39,6 +39,15 @@ export class ReportsService {
     });
     const countByList = new Map(grouped.map((g) => [g.listId, g._count._all]));
 
+    // §3c-1 "التكاليف حسب اللوحة": this calendar month's cost total per board.
+    const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    const costRows = await this.prisma.card.groupBy({
+      by: ["boardId"],
+      where: { isArchived: false, costAmount: { not: null }, createdAt: { gte: monthStart } },
+      _sum: { costAmount: true },
+    });
+    const costByBoard = new Map(costRows.map((r) => [r.boardId, r._sum.costAmount]));
+
     return {
       generatedAt: new Date().toISOString(),
       boards: boards.map((board) => {
@@ -48,11 +57,13 @@ export class ReportsService {
           statusCategory: list.statusCategory,
           count: countByList.get(list.id) ?? 0,
         }));
+        const cost = costByBoard.get(board.id);
         return {
           boardId: board.id,
           boardName: board.name,
           totalCards: lists.reduce((sum, l) => sum + l.count, 0),
           lists,
+          costThisMonth: cost ? cost.toString() : null,
         };
       }),
     };

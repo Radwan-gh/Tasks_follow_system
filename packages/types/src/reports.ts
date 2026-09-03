@@ -23,6 +23,10 @@ export const ReportBoardOverviewSchema = z.object({
   boardName: z.string(),
   totalCards: z.number().int(),
   lists: z.array(ReportListCountSchema),
+  // §3c-1 "التكاليف حسب اللوحة": sum of this calendar month's card costs on
+  // this board. `null` when no card on the board carries a cost this month
+  // (never rendered as "0" — same convention as `BoardOwnerSummary.costThisMonth`).
+  costThisMonth: z.string().nullable(),
 });
 export type ReportBoardOverview = z.infer<typeof ReportBoardOverviewSchema>;
 

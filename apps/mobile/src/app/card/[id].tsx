@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Pressable, ScrollView, TextInput, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { Screen } from "@/components/screen";
 import { AppText } from "@/components/text";
 import { Skeleton } from "@/components/skeleton";
@@ -9,15 +10,20 @@ import { ErrorState } from "@/components/state-views";
 import type { CardPriority, RecurrenceRule } from "@app/types";
 import { AssigneePickerSheet } from "@/features/cards/assignee-picker-sheet";
 import { AttachmentsSection } from "@/features/cards/attachments-section";
+import { BottomSheet } from "@/components/bottom-sheet";
+import { CostSheet, formatCostChip } from "@/components/cost-sheet";
 import { DueDateSheet } from "@/components/due-date-sheet";
 import { nextPriority, priorityLabel } from "@/components/priority-control";
 import { RecurrenceSheet, summarizeRecurrence } from "@/components/recurrence-sheet";
+import { SaveAsTemplateSheet } from "@/features/boards/save-as-template-sheet";
 import { SubtasksSection } from "@/features/cards/subtasks-section";
 import { HistorySection } from "@/features/cards/history-section";
 import { useAuth } from "@/features/auth/auth-context";
 import { avatarColorFor } from "@/lib/avatar";
 import { initials } from "@/lib/initials";
+import { useCurrencySymbol } from "@/lib/currency";
 import { formatDueDate, isOverdue } from "@/lib/date";
+import { formatHijri } from "@/lib/hijri";
 import { api } from "@/lib/api";
 import { MIN_TOUCH_TARGET, colors, fonts, fontSizes, radii, spacing, statusColors } from "@/theme/tokens";
 
@@ -41,6 +47,8 @@ export default function CardDetailScreen() {
     enabled: !!card.data,
   });
 
+  const currencySymbol = useCurrencySymbol();
+
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [dueDate, setDueDate] = useState<string | null>(null);
@@ -51,6 +59,9 @@ export default function CardDetailScreen() {
   const [pickingAssignees, setPickingAssignees] = useState(false);
   const [pickingRestrictedMembers, setPickingRestrictedMembers] = useState(false);
   const [restricted, setRestricted] = useState(false);
+  const [pickingCost, setPickingCost] = useState(false);
+  const [menuVisible, setMenuVisible] = useState(false);
+  const [savingAsTemplate, setSavingAsTemplate] = useState(false);
 
   useEffect(() => {
     if (card.data && !seeded) {
@@ -97,6 +108,19 @@ export default function CardDetailScreen() {
     onSuccess: invalidateCard,
   });
 
+  const updateCost = useMutation({
+    mutationFn: (input: { costAmount: string | null; costNote: string | null }) => api.cards.update(id, input),
+    onSuccess: () => {
+      setPickingCost(false);
+      invalidateCard();
+    },
+  });
+
+  const saveAsTemplate = useMutation({
+    mutationFn: (name: string) => api.cards.saveAsTemplate(id, { name }),
+    onSuccess: () => setSavingAsTemplate(false),
+  });
+
   if (card.isPending || (card.isSuccess && board.isPending)) {
     return (
       <Screen edges={{ top: true, bottom: true }} style={{ backgroundColor: colors.surface, padding: spacing.xl, gap: spacing.md }}>
@@ -123,8 +147,14 @@ export default function CardDetailScreen() {
   const nonImplicitMembers = board.data.members.filter(
     (m) => m.userId !== board.data!.ownerId && m.userId !== card.data.createdById,
   );
-  const canManageAccess = user?.id === board.data.ownerId || user?.id === card.data.createdById;
   const overdue = dueDate ? isOverdue(dueDate) : false;
+  const isOwner = user?.id === board.data.ownerId;
+  // §3c-4 "اللوحة بعين المشاهد ... تفاصيل البطاقة قراءة كاملة بلا حقل تعليق".
+  const myRole = board.data.members.find((m) => m.userId === user?.id)?.role;
+  const isViewer = myRole === "VIEWER";
+  const canManageAccess = !isViewer && (user?.id === board.data.ownerId || user?.id === card.data.createdById);
+  // §3c-4 "منتقي المسؤولين لا يعرض المشاهدين".
+  const assignableMembers = board.data.members.filter((m) => m.role !== "VIEWER");
 
   return (
     <Screen edges={{ top: true, bottom: true }} style={{ backgroundColor: colors.surface }}>
@@ -173,7 +203,7 @@ export default function CardDetailScreen() {
           accessibilityRole="button"
           accessibilityLabel="الأولوية — اضغط للتبديل"
           onPress={() => updatePriority.mutate(nextPriority(card.data.priority))}
-          disabled={updatePriority.isPending}
+          disabled={updatePriority.isPending || isViewer}
           style={{
             flexDirection: "row",
             alignItems: "center",
@@ -189,17 +219,48 @@ export default function CardDetailScreen() {
           </AppText>
         </Pressable>
 
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => save.mutate()}
-          disabled={save.isPending || title.trim().length === 0}
-          hitSlop={8}
-        >
-          <AppText weight="bold" color={title.trim().length === 0 ? colors.muted : colors.accent}>
-            {save.isPending ? "جارٍ الحفظ..." : "حفظ"}
-          </AppText>
-        </Pressable>
+        {isOwner ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="خيارات إضافية"
+            onPress={() => setMenuVisible(true)}
+            hitSlop={8}
+            style={{ minWidth: MIN_TOUCH_TARGET - 20, alignItems: "center" }}
+          >
+            <Ionicons name="ellipsis-horizontal" size={20} color={colors.muted} />
+          </Pressable>
+        ) : null}
+
+        {!isViewer ? (
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => save.mutate()}
+            disabled={save.isPending || title.trim().length === 0}
+            hitSlop={8}
+          >
+            <AppText weight="bold" color={title.trim().length === 0 ? colors.muted : colors.accent}>
+              {save.isPending ? "جارٍ الحفظ..." : "حفظ"}
+            </AppText>
+          </Pressable>
+        ) : null}
       </View>
+
+      {isViewer ? (
+        <View
+          style={{
+            marginHorizontal: spacing.xl,
+            marginTop: spacing.sm,
+            backgroundColor: colors.canvas,
+            borderRadius: radii.field,
+            padding: spacing.sm,
+            alignItems: "center",
+          }}
+        >
+          <AppText size="small" color={colors.muted}>
+            للعرض فقط — أنت مشاهد في هذه اللوحة
+          </AppText>
+        </View>
+      ) : null}
 
       <ScrollView contentContainerStyle={{ padding: spacing.xl, gap: spacing.xl }} keyboardShouldPersistTaps="handled">
         <View style={{ gap: spacing.md }}>
@@ -207,6 +268,7 @@ export default function CardDetailScreen() {
             value={title}
             onChangeText={setTitle}
             multiline
+            editable={!isViewer}
             style={{
               fontFamily: fonts.bold,
               fontSize: fontSizes.heading,
@@ -219,6 +281,7 @@ export default function CardDetailScreen() {
           <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md, flexWrap: "wrap" }}>
             <Pressable
               accessibilityRole="button"
+              disabled={isViewer}
               onPress={() => setPickingDueDate(true)}
               style={{
                 flexDirection: "row",
@@ -236,6 +299,7 @@ export default function CardDetailScreen() {
             </Pressable>
             <Pressable
               accessibilityRole="button"
+              disabled={isViewer}
               onPress={() => setPickingRecurrence(true)}
               style={{
                 flexDirection: "row",
@@ -257,7 +321,28 @@ export default function CardDetailScreen() {
               </AppText>
             ) : null}
           </View>
+          {/* §3c-2 "التاريخ الهجري" — secondary muted line under the due-date chip. */}
+          {dueDate ? (
+            <AppText size="caption" color={colors.muted}>
+              الموافق {formatHijri(new Date(dueDate))}
+            </AppText>
+          ) : null}
         </View>
+
+        {/* §3c-1 "التكلفة" — collapsed row that opens the amount/note sheet; after saving, a details-only chip. */}
+        <Pressable
+          accessibilityRole="button"
+          disabled={isViewer}
+          onPress={() => setPickingCost(true)}
+          style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}
+        >
+          <AppText size="caption" weight="semibold" color={colors.muted}>
+            التكلفة
+          </AppText>
+          <AppText size="small" weight="semibold" color={card.data.costAmount ? colors.ink : colors.accent}>
+            {card.data.costAmount ? formatCostChip(card.data.costAmount, card.data.costNote, currencySymbol) : isViewer ? "—" : "إضافة ▾"}
+          </AppText>
+        </Pressable>
 
         <View style={{ gap: spacing.sm }}>
           <AppText size="caption" weight="semibold" color={colors.muted}>
@@ -267,6 +352,7 @@ export default function CardDetailScreen() {
             value={description}
             onChangeText={setDescription}
             multiline
+            editable={!isViewer}
             placeholder="أضف وصفًا للمهمة"
             placeholderTextColor={colors.muted}
             style={{
@@ -334,29 +420,31 @@ export default function CardDetailScreen() {
                 </View>
               );
             })}
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="إضافة مسؤول"
-              onPress={() => setPickingAssignees(true)}
-              style={{
-                width: MIN_TOUCH_TARGET - 6,
-                height: MIN_TOUCH_TARGET - 6,
-                borderRadius: 999,
-                borderWidth: 1,
-                borderStyle: "dashed",
-                borderColor: colors.line,
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <AppText color={colors.muted}>+</AppText>
-            </Pressable>
+            {!isViewer ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="إضافة مسؤول"
+                onPress={() => setPickingAssignees(true)}
+                style={{
+                  width: MIN_TOUCH_TARGET - 6,
+                  height: MIN_TOUCH_TARGET - 6,
+                  borderRadius: 999,
+                  borderWidth: 1,
+                  borderStyle: "dashed",
+                  borderColor: colors.line,
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <AppText color={colors.muted}>+</AppText>
+              </Pressable>
+            ) : null}
           </View>
         </View>
 
-        <SubtasksSection cardId={id} boardMembers={board.data.members} />
+        <SubtasksSection cardId={id} boardMembers={assignableMembers} readOnly={isViewer} />
 
-        <AttachmentsSection cardId={id} />
+        <AttachmentsSection cardId={id} readOnly={isViewer} />
 
         {canManageAccess ? (
           <View style={{ gap: spacing.md, borderTopWidth: 1, borderTopColor: colors.line, paddingTop: spacing.lg }}>
@@ -423,11 +511,42 @@ export default function CardDetailScreen() {
         ) : null}
 
         <View style={{ borderTopWidth: 1, borderTopColor: colors.line, paddingTop: spacing.lg }}>
-          <HistorySection cardId={id} />
+          <HistorySection cardId={id} readOnly={isViewer} />
         </View>
       </ScrollView>
 
       <DueDateSheet visible={pickingDueDate} onClose={() => setPickingDueDate(false)} onChange={setDueDate} />
+
+      <CostSheet
+        visible={pickingCost}
+        onClose={() => setPickingCost(false)}
+        amount={card.data.costAmount}
+        note={card.data.costNote}
+        saving={updateCost.isPending}
+        onSave={(costAmount, costNote) => updateCost.mutate({ costAmount, costNote })}
+      />
+
+      <BottomSheet visible={menuVisible} onClose={() => setMenuVisible(false)}>
+        <View style={{ paddingHorizontal: spacing.xl, gap: spacing.sm, paddingBottom: spacing.md }}>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => {
+              setMenuVisible(false);
+              setSavingAsTemplate(true);
+            }}
+            style={{ minHeight: MIN_TOUCH_TARGET, justifyContent: "center" }}
+          >
+            <AppText weight="semibold">حفظ كقالب</AppText>
+          </Pressable>
+        </View>
+      </BottomSheet>
+
+      <SaveAsTemplateSheet
+        visible={savingAsTemplate}
+        onClose={() => setSavingAsTemplate(false)}
+        saving={saveAsTemplate.isPending}
+        onSave={(name) => saveAsTemplate.mutate(name)}
+      />
 
       <RecurrenceSheet
         visible={pickingRecurrence}
@@ -441,7 +560,7 @@ export default function CardDetailScreen() {
         onClose={() => setPickingAssignees(false)}
         title="المسؤولون"
         subtitle={`${title} — يمكن اختيار أكثر من شخص، ويجب أن يكون عضوًا في اللوحة.`}
-        members={board.data.members}
+        members={assignableMembers}
         selectedIds={card.data.assigneeIds}
         onSave={(userIds) => updateAssignees.mutate(userIds)}
         saveLabel="حفظ المسؤولين"

@@ -3,9 +3,11 @@ import { ApiBearerAuth, ApiBody, ApiOperation, ApiParam, ApiQuery, ApiResponse, 
 import {
   AddBoardMemberRequestSchema,
   CreateBoardRequestSchema,
+  UpdateBoardMemberRoleRequestSchema,
   UpdateBoardRequestSchema,
   type AddBoardMemberRequest,
   type CreateBoardRequest,
+  type UpdateBoardMemberRoleRequest,
   type UpdateBoardRequest,
 } from "@app/types";
 import { CurrentUser, type AuthUser } from "../common/decorators/current-user.decorator";
@@ -106,7 +108,23 @@ export class BoardsController {
     @Param("id") id: string,
     @Body(new ZodValidationPipe(AddBoardMemberRequestSchema)) body: AddBoardMemberRequest,
   ) {
-    return this.boards.addMember(user.id, id, body.email);
+    return this.boards.addMember(user.id, id, body.email, body.role);
+  }
+
+  @Patch(":id/members/:userId/role")
+  @ApiOperation({ summary: "Change an existing member's role between MEMBER and VIEWER (owner-only)" })
+  @ApiParam({ name: "id", description: "Board ID" })
+  @ApiParam({ name: "userId", description: "Target user ID" })
+  @ApiBody({ schema: zodRef("UpdateBoardMemberRoleRequest") })
+  @ApiResponse({ status: 200, schema: zodRef("BoardMember") })
+  @ApiResponse({ status: 403, description: "Requires OWNER role" })
+  updateMemberRole(
+    @CurrentUser() user: AuthUser,
+    @Param("id") id: string,
+    @Param("userId") targetUserId: string,
+    @Body(new ZodValidationPipe(UpdateBoardMemberRoleRequestSchema)) body: UpdateBoardMemberRoleRequest,
+  ) {
+    return this.boards.updateMemberRole(user.id, id, targetUserId, body.role);
   }
 
   @Delete(":id/members/:userId")

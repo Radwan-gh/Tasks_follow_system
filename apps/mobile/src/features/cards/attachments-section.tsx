@@ -18,7 +18,7 @@ const GAP = spacing.sm;
  * "+" tile (camera/library choice), a full-screen viewer, and the
  * صور فقط · حتى 10 · 5MB caption. Deleting is long-press → `ConfirmSheet`.
  */
-export function AttachmentsSection({ cardId }: { cardId: string }) {
+export function AttachmentsSection({ cardId, readOnly = false }: { cardId: string; readOnly?: boolean }) {
   const queryClient = useQueryClient();
   const attachments = useQuery({
     queryKey: ["cardAttachments", cardId],
@@ -102,7 +102,7 @@ export function AttachmentsSection({ cardId }: { cardId: string }) {
               </Pressable>
             </View>
           ))}
-          {!atLimit ? (
+          {!atLimit && !readOnly ? (
             <View style={{ width: thumbSize, padding: GAP / 2 }}>
               <Pressable
                 accessibilityRole="button"

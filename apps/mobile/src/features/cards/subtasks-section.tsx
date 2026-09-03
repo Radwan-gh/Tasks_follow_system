@@ -9,7 +9,15 @@ import { api } from "@/lib/api";
 import { AssigneePickerSheet } from "./assignee-picker-sheet";
 import { MIN_TOUCH_TARGET, colors, fonts, fontSizes, radii, spacing, statusColors } from "@/theme/tokens";
 
-export function SubtasksSection({ cardId, boardMembers }: { cardId: string; boardMembers: BoardMember[] }) {
+export function SubtasksSection({
+  cardId,
+  boardMembers,
+  readOnly = false,
+}: {
+  cardId: string;
+  boardMembers: BoardMember[];
+  readOnly?: boolean;
+}) {
   const queryClient = useQueryClient();
   const [newTitle, setNewTitle] = useState("");
   const [assigningId, setAssigningId] = useState<string | null>(null);
@@ -98,6 +106,7 @@ export function SubtasksSection({ cardId, boardMembers }: { cardId: string; boar
               <Pressable
                 accessibilityRole="checkbox"
                 accessibilityState={{ checked: subtask.isDone }}
+                disabled={readOnly}
                 onPress={() => toggleDone.mutate(subtask)}
                 style={{
                   width: 22,
@@ -127,6 +136,7 @@ export function SubtasksSection({ cardId, boardMembers }: { cardId: string; boar
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="المسؤولون عن المهمة الفرعية"
+                disabled={readOnly}
                 onPress={() => setAssigningId(subtask.id)}
                 hitSlop={8}
               >
@@ -152,45 +162,49 @@ export function SubtasksSection({ cardId, boardMembers }: { cardId: string; boar
                 )}
               </Pressable>
 
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="حذف المهمة الفرعية"
-                onPress={() => remove.mutate(subtask.id)}
-                hitSlop={8}
-              >
-                <AppText color={colors.alert}>✕</AppText>
-              </Pressable>
+              {!readOnly ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="حذف المهمة الفرعية"
+                  onPress={() => remove.mutate(subtask.id)}
+                  hitSlop={8}
+                >
+                  <AppText color={colors.alert}>✕</AppText>
+                </Pressable>
+              ) : null}
             </View>
           );
         })}
       </View>
 
-      <View
-        style={{
-          borderWidth: 1,
-          borderStyle: "dashed",
-          borderColor: colors.line,
-          borderRadius: radii.field,
-          paddingHorizontal: spacing.md,
-        }}
-      >
-        <TextInput
-          value={newTitle}
-          onChangeText={setNewTitle}
-          placeholder="+ إضافة مهمة فرعية"
-          placeholderTextColor={colors.muted}
-          onSubmitEditing={() => newTitle.trim() && create.mutate(newTitle.trim())}
-          returnKeyType="done"
+      {!readOnly ? (
+        <View
           style={{
-            minHeight: MIN_TOUCH_TARGET,
-            fontFamily: fonts.regular,
-            fontSize: fontSizes.body,
-            color: colors.ink,
-            textAlign: "right",
-            writingDirection: "rtl",
+            borderWidth: 1,
+            borderStyle: "dashed",
+            borderColor: colors.line,
+            borderRadius: radii.field,
+            paddingHorizontal: spacing.md,
           }}
-        />
-      </View>
+        >
+          <TextInput
+            value={newTitle}
+            onChangeText={setNewTitle}
+            placeholder="+ إضافة مهمة فرعية"
+            placeholderTextColor={colors.muted}
+            onSubmitEditing={() => newTitle.trim() && create.mutate(newTitle.trim())}
+            returnKeyType="done"
+            style={{
+              minHeight: MIN_TOUCH_TARGET,
+              fontFamily: fonts.regular,
+              fontSize: fontSizes.body,
+              color: colors.ink,
+              textAlign: "right",
+              writingDirection: "rtl",
+            }}
+          />
+        </View>
+      ) : null}
 
       <AssigneePickerSheet
         visible={!!assigningSubtask}

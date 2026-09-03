@@ -21,7 +21,7 @@ type TimelineRow =
  * bubbles) merged into one timeline sorted by time, plus a composer and
  * long-press-to-delete on the viewer's own comments.
  */
-export function HistorySection({ cardId }: { cardId: string }) {
+export function HistorySection({ cardId, readOnly = false }: { cardId: string; readOnly?: boolean }) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const history = useQuery({ queryKey: ["cardHistory", cardId], queryFn: () => api.cards.history(cardId) });
@@ -133,6 +133,7 @@ export function HistorySection({ cardId }: { cardId: string }) {
         </Pressable>
       ) : null}
 
+      {!readOnly ? (
       <View style={{ flexDirection: "row", alignItems: "flex-end", gap: spacing.sm }}>
         <TextInput
           value={draft}
@@ -177,6 +178,7 @@ export function HistorySection({ cardId }: { cardId: string }) {
           </Pressable>
         ) : null}
       </View>
+      ) : null}
 
       <ConfirmSheet
         visible={!!deletingComment}
@@ -287,6 +289,8 @@ function describeActivity(activity: CardActivity): string {
       return activity.toValue ? `أسند المهمة إلى ${activity.toValue}` : "أسند المهمة";
     case "UNASSIGNED":
       return "أزال إسناد المهمة";
+    case "COST_UPDATED":
+      return activity.toValue ? `حدّث التكلفة إلى ${activity.toValue}` : "أزال التكلفة";
     default:
       return "حدّث البطاقة";
   }

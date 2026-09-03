@@ -11,6 +11,7 @@ import { AssigneePickerSheet } from "@/features/cards/assignee-picker-sheet";
 import { DueDateSheet } from "@/components/due-date-sheet";
 import { PrioritySegmented } from "@/components/priority-control";
 import { RecurrenceSheet, summarizeRecurrence } from "@/components/recurrence-sheet";
+import { TemplatePickerSheet } from "@/features/boards/template-picker-sheet";
 import { avatarColorFor } from "@/lib/avatar";
 import { initials } from "@/lib/initials";
 import { formatDueDate } from "@/lib/date";
@@ -32,6 +33,7 @@ export default function NewCardScreen() {
   const queryClient = useQueryClient();
 
   const board = useQuery({ queryKey: ["board", boardId], queryFn: () => api.boards.get(boardId) });
+  const templates = useQuery({ queryKey: ["templates", boardId], queryFn: () => api.templates.list(boardId) });
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -48,6 +50,7 @@ export default function NewCardScreen() {
   const [pickingRecurrence, setPickingRecurrence] = useState(false);
   const [pickingAssignees, setPickingAssignees] = useState(false);
   const [pickingRestrictedMembers, setPickingRestrictedMembers] = useState(false);
+  const [pickingTemplate, setPickingTemplate] = useState(false);
 
   const [submitting, setSubmitting] = useState(false);
   const [failedStep, setFailedStep] = useState<string | null>(null);
@@ -115,6 +118,8 @@ export default function NewCardScreen() {
 
   const list = board.data.lists.find((l) => l.id === listId);
   const nonImplicitMembers = board.data.members.filter((m) => m.userId !== board.data!.ownerId);
+  // §3c-4 "منتقي المسؤولين لا يعرض المشاهدين".
+  const assignableMembers = board.data.members.filter((m) => m.role !== "VIEWER");
   const assignees = assigneeIds
     .map((uid) => board.data!.members.find((m) => m.userId === uid))
     .filter((m): m is NonNullable<typeof m> => !!m);
@@ -146,6 +151,11 @@ export default function NewCardScreen() {
       </View>
 
       <ScrollView contentContainerStyle={{ padding: spacing.xl, gap: spacing.xl }} keyboardShouldPersistTaps="handled">
+        {/* §3c-3 "يظهر فقط إن كانت للوحة قوالب" */}
+        {templates.data && templates.data.length > 0 ? (
+          <Row label="استخدام قالب" value="اختيار ▾" onPress={() => setPickingTemplate(true)} />
+        ) : null}
+
         <TextInput
           value={title}
           onChangeText={setTitle}
@@ -411,7 +421,7 @@ export default function NewCardScreen() {
         onClose={() => setPickingAssignees(false)}
         title="المسؤولون"
         subtitle="يمكن اختيار أكثر من شخص، ويجب أن يكون عضوًا في اللوحة."
-        members={board.data.members}
+        members={assignableMembers}
         selectedIds={assigneeIds}
         onSave={(ids) => {
           setAssigneeIds(ids);
@@ -431,6 +441,17 @@ export default function NewCardScreen() {
           setPickingRestrictedMembers(false);
         }}
         saveLabel="حفظ"
+      />
+
+      <TemplatePickerSheet
+        visible={pickingTemplate}
+        onClose={() => setPickingTemplate(false)}
+        templates={templates.data ?? []}
+        onSelect={(template) => {
+          setTitle(template.titlePattern);
+          setDescription(template.description ?? "");
+          setSubtaskTitles(template.subtaskTitles);
+        }}
       />
     </Screen>
   );

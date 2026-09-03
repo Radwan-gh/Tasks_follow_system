@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
-import type { CreateSubtaskRequest, UpdateAssigneesRequest, UpdateSubtaskRequest } from "@app/types";
+import type { BoardRole, CreateSubtaskRequest, UpdateAssigneesRequest, UpdateSubtaskRequest } from "@app/types";
 import { generateKeyBetween } from "@app/ordering";
 import { computeMovePosition } from "../common/util/position.util";
 import { PrismaService } from "../prisma/prisma.service";
@@ -18,13 +18,13 @@ export class SubtasksService {
    * its subtasks — so authorization routes through `assertMembership` + the same
    * `canAccessCard` predicate used for the card itself, never a bespoke check.
    */
-  private async assertCardAccess(userId: string, cardId: string) {
+  private async assertCardAccess(userId: string, cardId: string, minRole: BoardRole = "MEMBER") {
     const card = await this.prisma.card.findUnique({
       where: { id: cardId },
       include: { members: { select: { userId: true } } },
     });
     if (!card) throw new NotFoundException("Card not found");
-    await this.boards.assertMembership(userId, card.boardId);
+    await this.boards.assertMembership(userId, card.boardId, minRole);
     const board = await this.prisma.board.findUnique({
       where: { id: card.boardId },
       select: { ownerId: true },
@@ -44,7 +44,7 @@ export class SubtasksService {
   }
 
   async list(userId: string, cardId: string) {
-    await this.assertCardAccess(userId, cardId);
+    await this.assertCardAccess(userId, cardId, "VIEWER");
     const subtasks = await this.prisma.subtask.findMany({
       where: { cardId },
       orderBy: { position: "asc" },
@@ -114,8 +114,9 @@ export class SubtasksService {
 
     const userIds = [...new Set(input.userIds)];
     if (userIds.length > 0) {
+      // §3c-4: viewers never appear in the assignee picker — see `CardsService.updateAssignees`.
       const members = await this.prisma.boardMember.findMany({
-        where: { boardId: card.boardId, userId: { in: userIds } },
+        where: { boardId: card.boardId, userId: { in: userIds }, role: { not: "VIEWER" } },
         select: { userId: true },
       });
       if (members.length !== userIds.length) {

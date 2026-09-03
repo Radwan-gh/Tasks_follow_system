@@ -25,8 +25,11 @@ status moves.
       report — see `docs/10-subtasks-and-assignment.md`): overdue-first
       section, then grouped by board; subtask rows show their parent
       card's title
-- [ ] **التقارير (Reports) tab** — placeholder; visible to `ADMIN` role
-      only via `href: null` (link stays valid, entry hidden from others)
+- [x] **التقارير (Reports) tab** — real screen (`app/(tabs)/reports.tsx`):
+      four report tabs (overview/completed/overdue/workload) as simple lists,
+      plus §3c-6 PDF export (`GET /reports/export`, `lib/pdf-export.ts` via
+      `expo-file-system` + `expo-sharing`). Visible to `ADMIN` role only via
+      `href: null` (link stays valid, entry hidden from others)
 - [x] Board card progress bar + "n task · m completed" counter — `GET /boards`
       now returns `memberCount`/`cardCount`/`doneCount`/`memberPreviews`
       (`BoardsService.boardAggregates`), rendered by `features/boards/board-card.tsx`
@@ -71,8 +74,7 @@ What's implemented and matches the design system as documented:
 - [x] RTL handling (`expo-localization` + `I18nManager.forceRTL`) and the
       Cairo-only text component (`components/text.tsx`)
 - [x] Reusable primitives: `Screen`, `Button`, `Skeleton`, state views
-      (empty/error), and a `ComingSoon` placeholder pattern used by the two
-      unbuilt tabs so a half-built tab reads as "not built" rather than "bug"
+      (empty/error)
 
 What's visually built (screens with real UI, not placeholders):
 
@@ -115,7 +117,9 @@ given for building native instead of a responsive web view):
       mobile still doesn't exist (see "List management on mobile" above)
 - [x] Board card's progress bar / task-count UI — done (see above)
 - [x] My Tasks screen's actual layout — done (see above)
-- [ ] Reports screen's actual layout (currently `ComingSoon`)
+- [x] Reports screen's actual layout — done (see Group 3c below); the
+      `ComingSoon` placeholder pattern is no longer used anywhere and was
+      deleted
 
 ## Group 3a (notifications, comments, attachments, recurrence, password reset)
 
@@ -167,6 +171,38 @@ Full detail in `docs/05-boards-lists-cards.md`, `docs/04-authorization.md`,
 - [x] Disabled user — faded avatar + "معطَّل" badge on card-detail assignee
       chips and board-settings member rows; workload report (web) shows the
       same badge
+
+## Group 3c (cost, Hijri date, task templates, viewer role, currency, PDF export)
+
+Full detail in `docs/05-boards-lists-cards.md`, `docs/04-authorization.md`,
+`docs/11-reports.md`, and `docs/12-mobile-app.md`. Summary:
+
+- [x] Cost — `components/cost-sheet.tsx` (amount + optional note sheet from a
+      collapsed row in card detail), details-only chip (`formatCostChip`)
+- [x] Hijri secondary line — `lib/hijri.ts` (pure arithmetic conversion, no
+      library), shown under each `DueDateSheet` option and the card detail
+      due-date chip
+- [x] Task templates — `features/boards/template-picker-sheet.tsx` (add-task,
+      shown only when the board has templates), `features/boards/
+      save-as-template-sheet.tsx` (card detail's ⋯ menu, owner-only),
+      `features/boards/templates-section.tsx` (board settings: rename/delete)
+- [x] Viewer role — read-only banners on the board screen and card detail,
+      `readOnly`/`isViewer` threaded through `ListColumn`, `SubtasksSection`,
+      `AttachmentsSection`, `HistorySection` to hide every mutating
+      affordance; `assignableMembers` (role !== VIEWER) filters every
+      assignee picker; owner-only role toggle chip in board settings member
+      rows (`api.boards.updateMemberRole`)
+- [x] Currency symbol — `features/account/currency-setting-section.tsx`
+      (admin-only field in «حسابي»), `lib/currency.ts`'s `useCurrencySymbol()`
+      (any user, used wherever a cost amount renders)
+- [x] Reports tab — `app/(tabs)/reports.tsx` built for the first time (was a
+      placeholder outside this plan's original scope): four report tabs +
+      §3c-6 PDF export via `lib/pdf-export.ts` (`expo-file-system`'s new
+      `File`/`Paths` API + `expo-sharing`)
+- [ ] Optional due time (§3c-5) — `Card.dueDateHasTime` exists end-to-end in
+      the schema/API/request types, but `DueDateSheet` has no time picker UI
+      yet — deferred, needs a lightweight time-input design that doesn't pull
+      in a new native picker dependency
 
 ## Verification notes
 
@@ -252,3 +288,17 @@ Full detail in `docs/05-boards-lists-cards.md`, `docs/04-authorization.md`,
   edge. Fixed by writing it as `borderLeftWidth`/`borderLeftColor` instead
   (RN's mirroring then flips it back to the physical right edge, matching
   the design) — confirmed visually before/after the fix on the emulator.
+- Group 3c (2026-09-03): **no Android emulator/device was available in this
+  round** (unlike every prior group above) — only `pnpm typecheck`/`build`/
+  `test`/`bundle:check` (all clean across every workspace package) verify the
+  mobile UI. Say so explicitly rather than claiming on-device confirmation.
+  The API side (cost read/write + `COST_UPDATED` activity, template
+  create/list/save-from-card/rename/delete, VIEWER role real enforcement —
+  read allowed, write 403'd, assignment 400'd, promotion back to MEMBER
+  restoring write access, `costThisMonth` on the overview report, and all
+  four PDF exports) *was* exercised end-to-end against the actual built API
+  and a real Postgres database via a throwaway Node script — that part has
+  real, not just typechecked, confidence. The PDF Arabic-text rendering
+  specifically went through several failed approaches before landing on the
+  one documented in `docs/11-reports.md`; each was visually inspected by
+  rendering a real PDF and reading it back, not assumed correct.

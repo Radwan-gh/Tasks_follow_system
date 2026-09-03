@@ -17,10 +17,16 @@ import {
   AttachmentSchema,
   NotificationSchema,
   TemplateSchema,
+  AppSettingsSchema,
   NotificationPrefsSchema,
   CreateBoardRequestSchema,
   UpdateBoardRequestSchema,
   AddBoardMemberRequestSchema,
+  UpdateBoardMemberRoleRequestSchema,
+  CreateTemplateRequestSchema,
+  UpdateTemplateRequestSchema,
+  SaveCardAsTemplateRequestSchema,
+  UpdateAppSettingsRequestSchema,
   CreateUserRequestSchema,
   AdminSetPasswordRequestSchema,
   AdminResetPasswordResponseSchema,
@@ -72,12 +78,18 @@ registry.register("Comment", CommentSchema);
 registry.register("Attachment", AttachmentSchema);
 registry.register("Notification", NotificationSchema);
 registry.register("Template", TemplateSchema);
+registry.register("AppSettings", AppSettingsSchema);
 registry.register("NotificationPrefs", NotificationPrefsSchema);
 
 // Request bodies / queries
 registry.register("CreateBoardRequest", CreateBoardRequestSchema);
 registry.register("UpdateBoardRequest", UpdateBoardRequestSchema);
 registry.register("AddBoardMemberRequest", AddBoardMemberRequestSchema);
+registry.register("UpdateBoardMemberRoleRequest", UpdateBoardMemberRoleRequestSchema);
+registry.register("CreateTemplateRequest", CreateTemplateRequestSchema);
+registry.register("UpdateTemplateRequest", UpdateTemplateRequestSchema);
+registry.register("SaveCardAsTemplateRequest", SaveCardAsTemplateRequestSchema);
+registry.register("UpdateAppSettingsRequest", UpdateAppSettingsRequestSchema);
 registry.register("CreateUserRequest", CreateUserRequestSchema);
 registry.register("AdminSetPasswordRequest", AdminSetPasswordRequestSchema);
 registry.register("AdminResetPasswordResponse", AdminResetPasswordResponseSchema);

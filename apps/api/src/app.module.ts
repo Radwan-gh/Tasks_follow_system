@@ -10,7 +10,9 @@ import { MyTasksModule } from "./my-tasks/my-tasks.module";
 import { NotificationsModule } from "./notifications/notifications.module";
 import { PrismaModule } from "./prisma/prisma.module";
 import { ReportsModule } from "./reports/reports.module";
+import { SettingsModule } from "./settings/settings.module";
 import { SubtasksModule } from "./subtasks/subtasks.module";
+import { TemplatesModule } from "./templates/templates.module";
 import { UpdatesModule } from "./updates/updates.module";
 import { UsersModule } from "./users/users.module";
 
@@ -31,6 +33,8 @@ import { UsersModule } from "./users/users.module";
     NotificationsModule,
     UsersModule,
     UpdatesModule,
+    TemplatesModule,
+    SettingsModule,
   ],
 })
 export class AppModule {}

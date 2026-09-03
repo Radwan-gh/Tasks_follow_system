@@ -2,10 +2,12 @@ import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, UseGuards 
 import { ApiBearerAuth, ApiBody, ApiOperation, ApiParam, ApiResponse, ApiTags } from "@nestjs/swagger";
 import {
   CreateCardRequestSchema,
+  SaveCardAsTemplateRequestSchema,
   UpdateAssigneesRequestSchema,
   UpdateCardAccessRequestSchema,
   UpdateCardRequestSchema,
   type CreateCardRequest,
+  type SaveCardAsTemplateRequest,
   type UpdateAssigneesRequest,
   type UpdateCardAccessRequest,
   type UpdateCardRequest,
@@ -14,6 +16,7 @@ import { CurrentUser, type AuthUser } from "../common/decorators/current-user.de
 import { JwtAuthGuard } from "../common/guards/jwt-auth.guard";
 import { ZodValidationPipe } from "../common/pipes/zod-validation.pipe";
 import { zodArrayRef, zodRef } from "../swagger/zod-ref";
+import { TemplatesService } from "../templates/templates.service";
 import { CardsService } from "./cards.service";
 
 @ApiTags("Cards")
@@ -21,7 +24,10 @@ import { CardsService } from "./cards.service";
 @UseGuards(JwtAuthGuard)
 @Controller()
 export class CardsController {
-  constructor(private readonly cards: CardsService) {}
+  constructor(
+    private readonly cards: CardsService,
+    private readonly templates: TemplatesService,
+  ) {}
 
   @Post("lists/:listId/cards")
   @ApiOperation({ summary: "Create a card in a list" })
@@ -91,6 +97,20 @@ export class CardsController {
     @Body(new ZodValidationPipe(UpdateAssigneesRequestSchema)) body: UpdateAssigneesRequest,
   ) {
     return this.cards.updateAssignees(user.id, id, body);
+  }
+
+  @Post("cards/:id/save-as-template")
+  @ApiOperation({ summary: "Save this card's title/description/subtasks as a reusable board template (owner-only)" })
+  @ApiParam({ name: "id", description: "Card ID" })
+  @ApiBody({ schema: zodRef("SaveCardAsTemplateRequest") })
+  @ApiResponse({ status: 201, schema: zodRef("Template") })
+  @ApiResponse({ status: 403, description: "Requires OWNER role" })
+  saveAsTemplate(
+    @CurrentUser() user: AuthUser,
+    @Param("id") id: string,
+    @Body(new ZodValidationPipe(SaveCardAsTemplateRequestSchema)) body: SaveCardAsTemplateRequest,
+  ) {
+    return this.templates.saveFromCard(user.id, id, body.name);
   }
 
   @Delete("cards/:id")

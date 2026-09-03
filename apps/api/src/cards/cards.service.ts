@@ -142,7 +142,10 @@ export class CardsService {
           title: input.title,
           description: input.description ?? null,
           dueDate: input.dueDate ? new Date(input.dueDate) : null,
+          dueDateHasTime: input.dueDateHasTime ?? false,
           priority: input.priority,
+          costAmount: input.costAmount ?? undefined,
+          costNote: input.costNote ?? null,
           recurrence: input.recurrence ?? undefined,
           position,
           createdById: userId,
@@ -160,7 +163,7 @@ export class CardsService {
 
   async getDetail(userId: string, cardId: string) {
     const card = await this.loadCard(cardId);
-    await this.boards.assertMembership(userId, card.boardId);
+    await this.boards.assertMembership(userId, card.boardId, "VIEWER");
     const ownerId = await this.boardOwnerId(card.boardId);
     // Hide existence of restricted cards from members without access.
     if (!canAccessCard(userId, ownerId, card)) throw new NotFoundException("Card not found");
@@ -221,8 +224,11 @@ export class CardsService {
           title: input.title,
           description: input.description,
           dueDate: input.dueDate === undefined ? undefined : input.dueDate ? new Date(input.dueDate) : null,
+          dueDateHasTime: input.dueDateHasTime,
           isArchived: input.isArchived,
           priority: input.priority,
+          costAmount: input.costAmount === undefined ? undefined : input.costAmount,
+          costNote: input.costNote,
           recurrence: input.recurrence === undefined ? undefined : (input.recurrence ?? Prisma.JsonNull),
           listId: targetListId,
           position,
@@ -315,9 +321,12 @@ export class CardsService {
     if (!canAccessCard(userId, ownerId, card)) throw new NotFoundException("Card not found");
 
     const userIds = [...new Set(input.userIds)];
+    // §3c-4 "منتقي المسؤولين لا يعرض المشاهدين": a VIEWER is a board member
+    // but never a valid assignee, so the `role: not VIEWER` filter here is
+    // what makes assigning one fail the same length check as a non-member.
     const boardMembers = userIds.length
       ? await this.prisma.boardMember.findMany({
-          where: { boardId: card.boardId, userId: { in: userIds } },
+          where: { boardId: card.boardId, userId: { in: userIds }, role: { not: "VIEWER" } },
           select: { userId: true, user: { select: { displayName: true } } },
         })
       : [];
@@ -377,7 +386,14 @@ export class CardsService {
    */
   private async diffActivities(
     tx: Tx,
-    card: { listId: string; title: string; description: string | null; dueDate: Date | null; isArchived: boolean },
+    card: {
+      listId: string;
+      title: string;
+      description: string | null;
+      dueDate: Date | null;
+      isArchived: boolean;
+      costAmount: Prisma.Decimal | null;
+    },
     input: UpdateCardRequest,
     targetListId: string,
   ): Promise<ActivityInput[]> {
@@ -412,6 +428,13 @@ export class CardsService {
       activities.push({ type: input.isArchived ? "ARCHIVED" : "UNARCHIVED" });
     }
 
+    if (input.costAmount !== undefined) {
+      const prevCost = card.costAmount ? card.costAmount.toString() : null;
+      if (input.costAmount !== prevCost) {
+        activities.push({ type: "COST_UPDATED", fromValue: prevCost, toValue: input.costAmount });
+      }
+    }
+
     return activities;
   }
 
@@ -436,7 +459,7 @@ export class CardsService {
 
   async getHistory(userId: string, cardId: string) {
     const card = await this.loadCard(cardId);
-    await this.boards.assertMembership(userId, card.boardId);
+    await this.boards.assertMembership(userId, card.boardId, "VIEWER");
     const ownerId = await this.boardOwnerId(card.boardId);
     if (!canAccessCard(userId, ownerId, card)) throw new NotFoundException("Card not found");
 

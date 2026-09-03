@@ -173,9 +173,15 @@ Phases not yet built, in planned order:
 2. **Mobile app** — Expo/React Native, reusing `packages/types` and the
    shared `packages/api-client`, with a simpler "move to list" affordance in
    place of full drag-and-drop and a foreground-only realtime connection.
-   **In progress** — the app shell, login and a read-only boards list are
-   built; see `docs/12-mobile-app.md` for what is done and what is not.
+   The full designed feature set (`docs/app_design/v2-new-style.md` +
+   `design-prompt-group-3.md`, groups 1a/2a/3a/3b/3c) is now built — see
+   `docs/12-mobile-app.md` and `docs/13-redesign-completion-plan.md` for
+   what shipped and what's still explicitly deferred (a Reports tab was
+   also added as part of this, ahead of its original placement below).
 3. **Automated backend e2e tests** (NestJS + supertest) covering auth,
    CRUD, and concurrent-move scenarios.
-4. **Further features**, all additive to the current schema: labels,
-   comments, attachments, activity feed, finer-grained roles.
+4. **Further features**, additive to the current schema: labels, an
+   activity/notification feed spanning boards (today's is per-card), a
+   real Unicode-bidi/shaping library for the PDF report exporter (see the
+   known limitation in `docs/11-reports.md`), and a due-time picker for
+   `Card.dueDateHasTime` (written end-to-end already, no UI yet).

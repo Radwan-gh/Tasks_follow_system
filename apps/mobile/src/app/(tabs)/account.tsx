@@ -3,6 +3,7 @@ import { Pressable, ScrollView, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Screen } from "@/components/screen";
 import { AppText } from "@/components/text";
+import { CurrencySettingSection } from "@/features/account/currency-setting-section";
 import { NotificationPrefsSection } from "@/features/account/notification-prefs-section";
 import { useAuth } from "@/features/auth/auth-context";
 import { initials } from "@/lib/initials";
@@ -82,6 +83,8 @@ export default function AccountScreen() {
         </View>
 
         <NotificationPrefsSection />
+
+        {user?.role === "ADMIN" ? <CurrencySettingSection /> : null}
 
         {user?.role === "ADMIN" ? (
           <Pressable

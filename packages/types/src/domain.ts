@@ -126,6 +126,9 @@ export const CardSchema = z.object({
   description: z.string().max(10_000).nullable(),
   position: z.string(),
   dueDate: z.string().datetime().nullable(),
+  // Whether `dueDate` carries a meaningful time-of-day (§3c-5). When false the
+  // client renders/treats `dueDate` as date-only, ignoring its time component.
+  dueDateHasTime: z.boolean(),
   createdById: z.string(),
   isArchived: z.boolean(),
   // Access control: when false the card inherits board membership. When true
@@ -182,6 +185,7 @@ export const CardActivityType = z.enum([
   // after the change (comma-separated), or null when cleared.
   "ASSIGNED",
   "UNASSIGNED",
+  "COST_UPDATED",
 ]);
 export type CardActivityType = z.infer<typeof CardActivityType>;
 
@@ -306,3 +310,9 @@ export const TemplateSchema = z.object({
   createdAt: z.string().datetime(),
 });
 export type Template = z.infer<typeof TemplateSchema>;
+
+/** Global app settings — a single row, currently just the currency symbol shown next to every cost amount (§3c-1). */
+export const AppSettingsSchema = z.object({
+  currencySymbol: z.string().min(1).max(10),
+});
+export type AppSettings = z.infer<typeof AppSettingsSchema>;
