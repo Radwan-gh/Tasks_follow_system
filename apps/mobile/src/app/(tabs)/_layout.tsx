@@ -1,7 +1,11 @@
 import { Tabs } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@/features/auth/auth-context";
 import { colors, fonts, fontSizes } from "@/theme/tokens";
+
+/** Icon + label + breathing room, *before* the device's bottom inset. */
+const TAB_BAR_CONTENT_HEIGHT = 62;
 
 /**
  * The bottom bar from the design: اللوحات · مهامي · التقارير · حسابي.
@@ -13,6 +17,7 @@ import { colors, fonts, fontSizes } from "@/theme/tokens";
 export default function TabsLayout() {
   const { user } = useAuth();
   const isAdmin = user?.role === "ADMIN";
+  const insets = useSafeAreaInsets();
 
   return (
     <Tabs
@@ -23,10 +28,23 @@ export default function TabsLayout() {
         tabBarStyle: {
           backgroundColor: colors.surface,
           borderTopColor: colors.line,
-          height: 64,
+          // Android draws edge-to-edge, so the gesture pill sits *over* the
+          // app and the bar has to reserve `insets.bottom` on top of its own
+          // content. React Navigation reads a `height` given here as the
+          // *total* height (inset included), so a bare `height: 64` squeezed
+          // the icons and labels into whatever the inset left over — which is
+          // what put the labels under the gesture bar.
+          height: TAB_BAR_CONTENT_HEIGHT + insets.bottom,
           paddingTop: 6,
+          paddingBottom: insets.bottom,
         },
-        tabBarLabelStyle: { fontFamily: fonts.medium, fontSize: fontSizes.caption },
+        tabBarLabelStyle: {
+          fontFamily: fonts.medium,
+          fontSize: fontSizes.caption,
+          // Cairo clips Arabic ascenders/descenders at RN's default line
+          // height — the same reason `components/text.tsx` sets one.
+          lineHeight: 18,
+        },
         sceneStyle: { backgroundColor: colors.canvas },
       }}
     >
