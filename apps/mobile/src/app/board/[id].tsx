@@ -31,6 +31,9 @@ import { MIN_TOUCH_TARGET, colors, fonts, fontSizes, radii, spacing } from "@/th
 const COLUMN_WIDTH = 300;
 const COLUMN_GAP = spacing.lg;
 
+/** One pager cell: a list plus the index it holds in `board.lists`. */
+type BoardColumn = { list: List; index: number };
+
 /**
  * `/boards/:id` — horizontal-scroll Kanban view (design's "اللوحة — تمرير أفقي
  * بين الحالات"). Tapping a card opens `/card/:id` (`app/card/[id].tsx`) for
@@ -65,7 +68,7 @@ export default function BoardScreen() {
   const [searchText, setSearchText] = useState("");
   const [filterVisible, setFilterVisible] = useState(false);
   const [filter, setFilter] = useState<BoardFilter>(EMPTY_BOARD_FILTER);
-  const listRef = useRef<FlatList<List>>(null);
+  const listRef = useRef<FlatList<BoardColumn>>(null);
 
   const move = useMutation({
     mutationFn: (input: { cardId: string; targetListId: string }) =>
@@ -144,25 +147,50 @@ export default function BoardScreen() {
     return null;
   }, [board.data, deletingCardId]);
 
-  // Under forced RTL, this FlatList's `getItemLayout`-based offset math is
-  // mirrored end-to-start relative to what's actually rendered — confirmed by
-  // hand on-device (tapping column 1 of 5 lands on column 3 = length-1-index).
-  // That mirroring affects both `scrollToIndex` and `onViewableItemsChanged`'s
-  // reported index, so both are corrected the same way, via a ref (not
-  // `board.data` directly — these callbacks are captured once by `useRef` so
-  // FlatList doesn't see a new identity, which `viewabilityConfig` requires).
+  // The columns pager, right-to-left.
+  //
+  // A horizontal `FlatList` lays its cells out left-to-right even under forced
+  // RTL — only the *scroll* start is mirrored to the right edge. Rendering the
+  // lists in order therefore put «جديد» on the far left and opened the board on
+  // the last status, while the chips above (which are laid out by flexbox, so
+  // genuinely RTL) read the other way round: the highlighted chip never matched
+  // the column on screen.
+  //
+  // So the pager is fed the lists **reversed**: cell `flatIndex` holds list
+  // `length - 1 - flatIndex`, which puts «جديد» on the right and every later
+  // status to its left, in reading order. `toFlatIndex` is that mapping and is
+  // its own inverse; it is the only place the reversal is expressed.
+  const columns = useMemo(() => {
+    const lists = board.data?.lists ?? [];
+    return lists.map((list, index) => ({ list, index })).reverse();
+  }, [board.data]);
+
+  // Read through a ref, not `board.data`: these callbacks are captured once by
+  // `useRef` so FlatList never sees a new identity, which `viewabilityConfig`
+  // requires.
   const listsLengthRef = useRef(0);
   listsLengthRef.current = board.data?.lists.length ?? 0;
 
+  function toFlatIndex(index: number) {
+    return listsLengthRef.current - 1 - index;
+  }
+
   const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 60 }).current;
   const onViewableItemsChanged = useRef(({ viewableItems }: { viewableItems: ViewToken[] }) => {
-    const first = viewableItems[0]?.index;
-    if (first != null) setActiveIndex(listsLengthRef.current - 1 - first);
+    // The snapped column is the *right-most* visible one, i.e. the highest
+    // cell index — the left-most cell is the neighbour peeking in.
+    const flatIndex = viewableItems[viewableItems.length - 1]?.index;
+    if (flatIndex != null) setActiveIndex(listsLengthRef.current - 1 - flatIndex);
   }).current;
 
-  function scrollToColumn(index: number) {
-    listRef.current?.scrollToIndex({ index: listsLengthRef.current - 1 - index, animated: true });
+  function scrollToColumn(index: number, animated = true) {
+    listRef.current?.scrollToIndex({ index: toFlatIndex(index), animated });
   }
+
+  // Android parks an RTL scroll view at its right edge on first layout, which
+  // is already the first status — but that is native behaviour we would rather
+  // not depend on, so the opening position is set explicitly, once.
+  const didInitialScroll = useRef(false);
 
   return (
     <Screen edges={{ top: true, bottom: true }}>
@@ -400,8 +428,8 @@ export default function BoardScreen() {
           ) : (
             <FlatList
               ref={listRef}
-              data={board.data.lists}
-              keyExtractor={(list) => list.id}
+              data={columns}
+              keyExtractor={(column) => column.list.id}
               horizontal
               showsHorizontalScrollIndicator={false}
               snapToInterval={columnWidth + COLUMN_GAP}
@@ -414,9 +442,14 @@ export default function BoardScreen() {
               })}
               viewabilityConfig={viewabilityConfig}
               onViewableItemsChanged={onViewableItemsChanged}
-              renderItem={({ item, index }) => (
+              onContentSizeChange={() => {
+                if (didInitialScroll.current) return;
+                didInitialScroll.current = true;
+                scrollToColumn(0, false);
+              }}
+              renderItem={({ item: { list, index } }) => (
                 <ListColumn
-                  list={item}
+                  list={list}
                   width={columnWidth}
                   resolveAssignees={resolveAssignees}
                   hasNext={index < board.data!.lists.length - 1}
@@ -429,8 +462,8 @@ export default function BoardScreen() {
                   }}
                   onLongPressCard={(cardId) => setMovingCardId(cardId)}
                   onOpenCard={(cardId) => router.push(`/card/${cardId}`)}
-                  onAddCard={() => router.push(`/board/${id}/cards/new?listId=${item.id}`)}
-                  showLoadOlder={item.statusCategory === "CLOSED" && !!closedSince}
+                  onAddCard={() => router.push(`/board/${id}/cards/new?listId=${list.id}`)}
+                  showLoadOlder={list.statusCategory === "CLOSED" && !!closedSince}
                   onLoadOlder={() => setClosedSince(undefined)}
                 />
               )}
