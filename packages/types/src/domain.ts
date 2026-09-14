@@ -271,9 +271,10 @@ export const AttachmentSchema = z.object({
 export type Attachment = z.infer<typeof AttachmentSchema>;
 
 /**
- * In-app notification types. No OS push — see `apps/mobile/TASKS.md` (push
- * notifications are a separate, unscoped item). `payload` carries the bits
- * needed to render the two-line row and route on tap without a second fetch.
+ * Notification types, delivered both in-app (bell/center) and as OS push on
+ * mobile. `payload` carries the bits needed to render the two-line row and
+ * route on tap without a second fetch — the push body reuses the same
+ * `cardTitle`, via `describeNotification` in `notification-content.ts`.
  */
 export const NotificationType = z.enum([
   "ASSIGNED",
@@ -294,6 +295,11 @@ export const NotificationSchema = z.object({
   createdAt: z.string().datetime(),
 });
 export type Notification = z.infer<typeof NotificationSchema>;
+
+/** Platforms that can receive OS push. Only ANDROID ships today — the app is
+ *  distributed as a sideloaded APK and there is no iOS build pipeline yet. */
+export const DevicePlatform = z.enum(["ANDROID", "IOS"]);
+export type DevicePlatform = z.infer<typeof DevicePlatform>;
 
 /**
  * A board-owner-managed task template: picking it prefills title/description/

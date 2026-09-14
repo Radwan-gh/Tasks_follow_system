@@ -29,6 +29,7 @@ import type {
   NotificationPrefs,
   NotificationsResponse,
   OverdueTasksReport,
+  RegisterPushDeviceRequest,
   ReportOverview,
   SaveCardAsTemplateRequest,
   Subtask,
@@ -306,6 +307,12 @@ export function createApiClient({ baseUrl, storage, onUnauthorized }: ApiClientO
       list: () => request<NotificationsResponse>("/notifications"),
       markRead: (id: string) => request<void>(`/notifications/${id}/read`, { method: "PATCH" }),
       markAllRead: () => request<void>("/notifications/read-all", { method: "POST" }),
+      /** Registers this device's native FCM token so the server can push to it. Idempotent. */
+      registerDevice: (body: RegisterPushDeviceRequest) =>
+        request<void>("/notifications/devices", { method: "POST", body: JSON.stringify(body) }),
+      /** Call on logout, *before* clearing tokens — this request still needs auth. */
+      unregisterDevice: (token: string) =>
+        request<void>(`/notifications/devices/${encodeURIComponent(token)}`, { method: "DELETE" }),
     },
     me: {
       getNotificationPrefs: () => request<NotificationPrefs>("/me/notification-prefs"),

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { CardPriority, NotificationPrefsSchema, RecurrenceRuleSchema, UserRole } from "./domain";
+import { CardPriority, DevicePlatform, NotificationPrefsSchema, RecurrenceRuleSchema, UserRole } from "./domain";
 
 export const LoginRequestSchema = z.object({
   email: z.string().email(),
@@ -230,3 +230,10 @@ export const UpdateAppSettingsRequestSchema = z.object({
   currencySymbol: z.string().min(1).max(10),
 });
 export type UpdateAppSettingsRequest = z.infer<typeof UpdateAppSettingsRequestSchema>;
+
+/** `POST /notifications/devices` — registers this device's native FCM token for the current user. Idempotent: re-sending the same token refreshes it rather than adding a row. */
+export const RegisterPushDeviceRequestSchema = z.object({
+  token: z.string().min(1).max(4096),
+  platform: DevicePlatform,
+});
+export type RegisterPushDeviceRequest = z.infer<typeof RegisterPushDeviceRequestSchema>;

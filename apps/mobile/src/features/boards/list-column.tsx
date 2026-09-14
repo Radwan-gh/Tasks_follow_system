@@ -2,6 +2,7 @@ import { Pressable, View } from "react-native";
 import type { Card, List } from "@app/types";
 import { AppText } from "@/components/text";
 import { CardItem } from "./card-item";
+import { QuickAddCard } from "./quick-add-card";
 import { MIN_TOUCH_TARGET, colors, radii, spacing, statusColors } from "@/theme/tokens";
 
 /** «العاجل أولاً، ثم الباقي بترتيبه اليدوي» (§3b-1) — a stable sort, so ties keep their server (position) order. */
@@ -21,6 +22,7 @@ export function ListColumn({
   onLongPressCard,
   onOpenCard,
   onAddCard,
+  onOpenAddDetails,
   showLoadOlder,
   onLoadOlder,
 }: {
@@ -37,7 +39,9 @@ export function ListColumn({
   onMoveCardNext: (cardId: string) => void;
   onLongPressCard: (cardId: string) => void;
   onOpenCard: (cardId: string) => void;
-  onAddCard: () => void;
+  onAddCard: (title: string) => Promise<unknown>;
+  /** Opens the full «إضافة مهمة» screen, carrying whatever was typed inline. */
+  onOpenAddDetails: (draftTitle: string) => void;
   /** True only for the `CLOSED` list while it's windowed to the last 30 days. */
   showLoadOlder: boolean;
   onLoadOlder: () => void;
@@ -101,23 +105,7 @@ export function ListColumn({
       ) : null}
 
       {readOnly ? null : (
-        <Pressable
-          accessibilityRole="button"
-          onPress={onAddCard}
-          style={{
-            minHeight: MIN_TOUCH_TARGET,
-            justifyContent: "center",
-            paddingHorizontal: spacing.md,
-            borderRadius: radii.card,
-            borderWidth: 1,
-            borderStyle: "dashed",
-            borderColor: colors.line,
-          }}
-        >
-          <AppText size="small" color={colors.muted}>
-            + إضافة مهمة
-          </AppText>
-        </Pressable>
+        <QuickAddCard placeholder="+ إضافة مهمة" onAdd={onAddCard} onOpenDetails={onOpenAddDetails} />
       )}
     </View>
   );

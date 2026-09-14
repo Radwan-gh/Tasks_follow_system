@@ -15,6 +15,7 @@ import {
 } from "@expo-google-fonts/cairo";
 
 import { AuthProvider, useAuth } from "@/features/auth/auth-context";
+import { usePushRegistration } from "@/features/notifications/use-push-registration";
 import { setUnauthorizedHandler } from "@/lib/api";
 import { queryClient } from "@/lib/query-client";
 import { useAutoUpdate } from "@/lib/updates";
@@ -40,6 +41,8 @@ function RootNavigator() {
     setUnauthorizedHandler(clearSession);
     return () => setUnauthorizedHandler(null);
   }, [clearSession]);
+
+  usePushRegistration(user?.id);
 
   if (isLoading) return null;
 

@@ -65,10 +65,35 @@ jobs:
         id: app-version
         run: echo "version=$(jq -r .expo.version app.json)" >> "$GITHUB_OUTPUT"
 
+      # app.json points `android.googleServicesFile` at this, and the file is
+      # gitignored (it is Firebase project config, not source), so prebuild
+      # cannot run without it being written here first. Failing with a readable
+      # message beats prebuild's own cryptic error about a missing file.
+      - name: Write Firebase config
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          if [ -z "$GOOGLE_SERVICES_JSON" ]; then
+            echo "::error::Missing the GOOGLE_SERVICES_JSON repository secret. Paste the contents of apps/mobile/google-services.json into Settings → Secrets and variables → Actions. See apps/mobile/CHEATSHEET.md §6."
+            exit 1
+          fi
+          printf '%s' "$GOOGLE_SERVICES_JSON" > google-services.json
+
       - name: Generate native Android project
         run: npx expo prebuild --platform android --no-install
         env:
           EXPO_PUBLIC_API_URL: ${{ vars.EXPO_PUBLIC_API_URL }}
+
+      # prebuild writes -XX:MaxMetaspaceSize=512m, which is not enough for the
+      # KSP/annotation-processing load once expo-notifications and the Firebase
+      # Gradle plugin are in the build — the JVM dies with
+      # "OutOfMemoryError: Metaspace" partway through :expo-updates:kspReleaseKotlin.
+      # android/ is regenerated on every run, so this has to be re-applied here
+      # rather than committed.
+      - name: Raise Gradle JVM memory
+        run: |
+          sed -i 's/^org\.gradle\.jvmargs=.*/org.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=2048m/' android/gradle.properties
+          grep '^org.gradle.jvmargs=' android/gradle.properties
 
       # Must run after prebuild since android/ is gitignored (regenerated
       # each run) and hashFiles needs it to exist to key the cache.

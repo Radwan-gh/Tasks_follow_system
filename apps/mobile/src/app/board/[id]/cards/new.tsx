@@ -19,23 +19,30 @@ import { api } from "@/lib/api";
 import { MIN_TOUCH_TARGET, colors, fonts, fontSizes, radii, spacing } from "@/theme/tokens";
 
 /**
- * `/board/:id/cards/new?listId=` — the design's "إضافة مهمة جديدة", opened
- * from a specific column's "+" (so the target list is already fixed — no
- * board/status picker here). Only the title is required; everything else is
- * optional. Submission is sequential (`POST cards` → `updateAssignees` →
- * `updateAccess` → `POST subtasks` per subtask) per `v2-new-style.md` §6 —
- * a `cardIdRef`/`doneSubtasksRef` pair means retrying after a failed step
+ * `/board/:id/cards/new?listId=&title=` — the design's "إضافة مهمة جديدة".
+ * This is the *opt-in* path now: the board screen creates title-only cards
+ * inline, and «تفاصيل» opens this screen (carrying whatever was typed in
+ * `title`) for what only it offers — templates, description, due date,
+ * recurrence, priority, assignees, subtasks, restricted access. The target
+ * list is fixed by the caller, so there is no board/status picker here.
+ * Submission is sequential (`POST cards` → `updateAssignees` → `updateAccess`
+ * → `POST subtasks` per subtask) per `v2-new-style.md` §6 — a
+ * `cardIdRef`/`doneSubtasksRef` pair means retrying after a failed step
  * resumes instead of re-creating the card or duplicating subtasks.
  */
 export default function NewCardScreen() {
-  const { id: boardId, listId } = useLocalSearchParams<{ id: string; listId: string }>();
+  const { id: boardId, listId, title: prefillTitle } = useLocalSearchParams<{
+    id: string;
+    listId: string;
+    title?: string;
+  }>();
   const router = useRouter();
   const queryClient = useQueryClient();
 
   const board = useQuery({ queryKey: ["board", boardId], queryFn: () => api.boards.get(boardId) });
   const templates = useQuery({ queryKey: ["templates", boardId], queryFn: () => api.templates.list(boardId) });
 
-  const [title, setTitle] = useState("");
+  const [title, setTitle] = useState(prefillTitle ?? "");
   const [description, setDescription] = useState("");
   const [dueDate, setDueDate] = useState<string | null>(null);
   const [priority, setPriority] = useState<CardPriority>("NORMAL");

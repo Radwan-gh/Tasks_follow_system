@@ -131,7 +131,14 @@ export class NotificationsService {
    */
   async notifyOnce(
     tx: Tx,
-    input: { userId: string; actorId: string; type: NotificationType; cardId: string; boardId?: string | null },
+    input: {
+      userId: string;
+      actorId: string;
+      type: NotificationType;
+      cardId: string;
+      boardId?: string | null;
+      payload?: Record<string, unknown>;
+    },
   ): Promise<void> {
     const existing = await tx.notification.findFirst({
       where: { userId: input.userId, type: input.type, cardId: input.cardId },

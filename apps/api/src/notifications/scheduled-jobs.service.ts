@@ -33,6 +33,7 @@ export class ScheduledJobsService {
       },
       select: {
         id: true,
+        title: true,
         boardId: true,
         dueDate: true,
         createdById: true,
@@ -50,6 +51,9 @@ export class ScheduledJobsService {
           type,
           cardId: card.id,
           boardId: card.boardId,
+          // Without this the notification renders as «موعد «مهمة» يقترب» — tolerable
+          // in the bell, but the push banner is the only thing the user sees.
+          payload: { cardTitle: card.title },
         });
       }
     }

@@ -1,15 +1,19 @@
+import { useEffect } from "react";
 import { Pressable, View } from "react-native";
 import { useRouter } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { AppText } from "@/components/text";
 import { api } from "@/lib/api";
+import { setBadgeCount } from "@/lib/push";
 import { MIN_TOUCH_TARGET, colors } from "@/theme/tokens";
 
 /**
  * The bell + unread badge in "اللوحات"/"مهامي"'s headers
- * (`design-prompt-group-3.md` §3a-1). Polled via TanStack Query rather than
- * push — this project has no OS push infrastructure (`apps/mobile/TASKS.md`).
+ * (`design-prompt-group-3.md` §3a-1). Still polled: OS push (see
+ * `use-push-registration.ts`) only wakes a backgrounded app, so the poll
+ * remains the foreground path. An arriving push also invalidates this query,
+ * so the badge updates immediately rather than at the next 30s tick.
  */
 export function NotificationBell() {
   const router = useRouter();
@@ -20,6 +24,12 @@ export function NotificationBell() {
   });
 
   const unreadCount = notifications.data?.unreadCount ?? 0;
+
+  // Keep the launcher badge in step with the in-app one, so a user who never
+  // opens the app still sees there is something waiting.
+  useEffect(() => {
+    void setBadgeCount(unreadCount);
+  }, [unreadCount]);
 
   return (
     <Pressable

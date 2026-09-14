@@ -53,6 +53,7 @@ import {
   WorkloadReportSchema,
   MyTasksResponseSchema,
   NotificationsResponseSchema,
+  RegisterPushDeviceRequestSchema,
 } from "@app/types";
 
 // Enables `.openapi()` on any zod schema. `apps/api` and `packages/types`
@@ -118,6 +119,7 @@ registry.register("OverdueTasksReport", OverdueTasksReportSchema);
 registry.register("WorkloadReport", WorkloadReportSchema);
 registry.register("MyTasksResponse", MyTasksResponseSchema);
 registry.register("NotificationsResponse", NotificationsResponseSchema);
+registry.register("RegisterPushDeviceRequest", RegisterPushDeviceRequestSchema);
 
 /**
  * Component schemas generated from the registrations above, keyed by the

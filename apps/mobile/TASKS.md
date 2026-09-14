@@ -49,13 +49,18 @@ status moves.
       (`POST cards` → `updateAssignees` → `updateAccess` → `POST subtasks`
       per subtask) with resumable retry on partial failure (a `cardIdRef`/
       `doneSubtasksRef` pair skips already-completed steps instead of
-      duplicating them). Opened from a column's "+ إضافة مهمة" row or the
-      pinned bottom button (which targets whichever column is currently
-      active in the horizontal scroll)
+      duplicating them). This is now the *opt-in* path, opened from the
+      "تفاصيل" link beside the inline quick-add field (which forwards the
+      already-typed title); the default path is title-only inline creation
+      (`features/boards/quick-add-card.tsx`) in every column and in the
+      bottom bar for the currently active column
 - [ ] List management on mobile (create/rename/reorder lists)
 - [ ] Realtime updates — depends on the Socket.IO gateway, which is
       roadmap phase 1 and hasn't been started anywhere in the repo yet
-- [ ] Push notifications (not yet scoped)
+- [x] Push notifications — native FCM tokens (`lib/push.ts`,
+      `features/notifications/use-push-registration.ts`), delivered from a
+      `Notification.pushedAt` outbox swept every 30s server-side. Android only;
+      needs `google-services.json` and a dev build to test (see CHEATSHEET §6)
 
 ## UI / Design
 
@@ -216,15 +221,26 @@ Full detail in `docs/05-boards-lists-cards.md`, `docs/04-authorization.md`,
 - Board detail screen, confirmed on an Android emulator (2026-08-31): the
   column FlatList, move-via-arrow, long-press `MoveCardSheet`, lock icon,
   overdue/upcoming due-date chip styling, assignee avatars, and per-column
-  empty states all work as designed. One real bug was found and fixed in
-  the process — under forced RTL, React Native's horizontal `FlatList`
-  mirrors `scrollToIndex`'s target and `onViewableItemsChanged`'s reported
-  index end-to-start relative to what's actually rendered (confirmed by
-  hand: tapping status chip 1 of 5 landed on chip 3, i.e. `length-1-index`).
-  Both the tap-to-jump status chips and the active-chip highlight now
-  correct for this (see the comment above `scrollToColumn` in
-  `app/board/[id].tsx`). Anyone adding another horizontal `FlatList` to this
-  app should expect the same mirroring and compensate the same way.
+  empty states all work as designed.
+- Board column pager, re-confirmed on an Android emulator (2026-09-12) after
+  the RTL direction bug reported from the device. Root cause: under forced
+  RTL, Yoga lays a horizontal row out right-to-left for real, but
+  `contentOffset.x` stays a raw left-to-right measurement — so offset 0 is
+  the *last* status, not the first. Every index derived from
+  `offset / stride` therefore read the list backwards (the "add task" button
+  said «انتهى» while «جديد» was the column on screen, and the chip highlight
+  stuck one status behind at the far end). `FlatList` makes the same
+  assumption inside `getItemLayout`/`scrollToIndex`/`onViewableItemsChanged`,
+  so neither reversing its data nor mirroring it with `scaleX: -1` stayed
+  correct at every boundary — both were tried and both broke somewhere.
+  The pager is now a plain `ScrollView` whose columns report their own
+  laid-out `x` via `onLayout`; those measured offsets drive `snapToOffsets`,
+  the chip-tap jumps and the active-column lookup, so no direction is
+  assumed anywhere. Verified by hand at both ends and in the middle: the
+  highlighted chip, the visible column, the "add task" label and the
+  peek direction all agree, and the chip strip now scrolls to keep the
+  active chip on screen. Anyone adding another horizontal pager here should
+  measure positions rather than compute them from an assumed direction.
 - Card detail screen, confirmed on an Android emulator (2026-08-31): opening
   a card from the board, editing description, picking a due date via the
   quick-pick sheet (chip updates immediately, no save needed), the assignee

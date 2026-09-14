@@ -1,7 +1,7 @@
 import { Pressable, ScrollView, View } from "react-native";
 import { useRouter } from "expo-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { Notification, NotificationType } from "@app/types";
+import { describeNotification, type Notification, type NotificationType } from "@app/types";
 import { Screen } from "@/components/screen";
 import { AppText } from "@/components/text";
 import { Skeleton } from "@/components/skeleton";
@@ -133,24 +133,6 @@ function NotificationRow({ notification, onPress }: { notification: Notification
       ) : null}
     </Pressable>
   );
-}
-
-function describeNotification(n: Notification): string {
-  const title = typeof n.payload?.cardTitle === "string" ? n.payload.cardTitle : "مهمة";
-  switch (n.type) {
-    case "ASSIGNED":
-      return `أُسندت إليك: ${title}`;
-    case "DUE_SOON":
-      return `موعد «${title}» يقترب`;
-    case "OVERDUE":
-      return `تأخّرت مهمة «${title}»`;
-    case "COMMENT":
-      return `تعليق جديد على «${title}»`;
-    case "CARD_CLOSED":
-      return `نُقلت «${title}» إلى «انتهى»`;
-    default:
-      return title;
-  }
 }
 
 function groupByRecency(items: Notification[]): { label: string; items: Notification[] }[] {

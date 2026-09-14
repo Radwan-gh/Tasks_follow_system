@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useState, type React
 import type { CurrentUser, LoginRequest } from "@app/types";
 import { api } from "@/lib/api";
 import { tokenStorage } from "@/lib/token-storage";
+import { clearCurrentPushToken, getCurrentPushToken } from "@/features/notifications/use-push-registration";
 
 interface AuthContextValue {
   user: CurrentUser | null;
@@ -73,6 +74,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logout = useCallback(async () => {
+    // Deregister the device *before* clearing tokens — the call is authed, and
+    // skipping it would leave the server pushing this user's tasks to a phone
+    // that is no longer signed in as them.
+    const pushToken = getCurrentPushToken();
+    if (pushToken) {
+      await api.notifications.unregisterDevice(pushToken).catch(() => undefined);
+      clearCurrentPushToken();
+    }
+
     const refreshToken = await tokenStorage.getRefreshToken();
     if (refreshToken) await api.auth.logout(refreshToken).catch(() => undefined);
     await tokenStorage.clear();

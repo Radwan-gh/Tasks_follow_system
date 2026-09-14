@@ -87,6 +87,7 @@ model User {
   comments           Comment[]
   attachments        Attachment[]
   notifications      Notification[]
+  pushDevices        PushDevice[]
 }
 
 model RefreshToken {
@@ -235,9 +236,11 @@ model Attachment {
 }
 
 /// In-app notification (assignment, due-soon, overdue, comment on a card
-/// I'm on, my card moved to «انتهى»). No OS push — this is the in-app bell/
-/// center only (`GET /notifications`); `payload` carries the type-specific
-/// bits the client needs to render/route without a second fetch.
+/// I'm on, my card moved to «انتهى»). Read by the in-app bell/center
+/// (`GET /notifications`) *and* used as the outbox for OS push — see
+/// `pushedAt` and `notifications/push-dispatcher.service.ts`. `payload`
+/// carries the type-specific bits the client needs to render/route without a
+/// second fetch.
 model Notification {
   id        String    @id @default(cuid())
   userId    String
@@ -247,10 +250,42 @@ model Notification {
   payload   Json?
   readAt    DateTime?
   createdAt DateTime  @default(now())
+  /// Push-outbox marker, not a delivery receipt: set once the dispatcher has
+  /// *attempted* this row, so a permanently-failing token can never trap the
+  /// sweeper in a retry loop. Null means "not yet swept". Rows for users with
+  /// no registered device are stamped too, otherwise they'd be re-scanned
+  /// forever.
+  pushedAt  DateTime?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, readAt, createdAt])
+  @@index([pushedAt, createdAt])
+}
+
+enum DevicePlatform {
+  ANDROID
+  IOS
+}
+
+/// One row per device a user receives OS push on. A separate table rather than
+/// a column on `User` because one user legitimately has several devices (phone
+/// + tablet, or a reinstall issuing a fresh token) — a single column would
+/// silently stop notifying the older one. `token` is unique so the same
+/// physical device signing in as a different user *reassigns* the row instead
+/// of duplicating it, and the dispatcher deletes rows FCM reports as
+/// unregistered.
+model PushDevice {
+  id         String         @id @default(cuid())
+  userId     String
+  token      String         @unique
+  platform   DevicePlatform
+  lastSeenAt DateTime       @default(now())
+  createdAt  DateTime       @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 /// A board-owner-managed task template: picking it prefills title/

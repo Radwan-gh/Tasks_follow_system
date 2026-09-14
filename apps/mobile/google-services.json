@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "794011510547",
+    "project_id": "taskfollowsystem",
+    "storage_bucket": "taskfollowsystem.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:794011510547:android:9f2767b00dd818915adce6",
+        "android_client_info": {
+          "package_name": "com.tasksfollow.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB6NLXFg5WRaD_erHG1fa4SX_iZ54FQINA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

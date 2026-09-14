@@ -1,17 +1,9 @@
-import { useMemo, useRef, useState } from "react";
-import {
-  FlatList,
-  Pressable,
-  ScrollView,
-  TextInput,
-  View,
-  useWindowDimensions,
-  type ViewToken,
-} from "react-native";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Pressable, ScrollView, TextInput, View, useWindowDimensions } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import type { Card, List } from "@app/types";
+import type { Card } from "@app/types";
 import { Screen } from "@/components/screen";
 import { AppText } from "@/components/text";
 import { ErrorState } from "@/components/state-views";
@@ -21,6 +13,7 @@ import { BottomSheet } from "@/components/bottom-sheet";
 import { ListColumn, sortByPriority } from "@/features/boards/list-column";
 import { CardItem } from "@/features/boards/card-item";
 import { MoveCardSheet } from "@/features/boards/move-card-sheet";
+import { QuickAddCard } from "@/features/boards/quick-add-card";
 import { BoardSummarySheet } from "@/features/boards/board-summary-sheet";
 import { BoardFilterSheet, EMPTY_BOARD_FILTER, isFilterActive, type BoardFilter } from "@/features/boards/board-filter-sheet";
 import { useAuth } from "@/features/auth/auth-context";
@@ -28,17 +21,12 @@ import { EmptyState } from "@/components/state-views";
 import { api } from "@/lib/api";
 import { MIN_TOUCH_TARGET, colors, fonts, fontSizes, radii, spacing } from "@/theme/tokens";
 
-const COLUMN_WIDTH = 300;
-const COLUMN_GAP = spacing.lg;
-
-/** One pager cell: a list plus the index it holds in `board.lists`. */
-type BoardColumn = { list: List; index: number };
-
 /**
  * `/boards/:id` — horizontal-scroll Kanban view (design's "اللوحة — تمرير أفقي
  * بين الحالات"). Tapping a card opens `/card/:id` (`app/card/[id].tsx`) for
- * full detail/editing. Card *creation* is a separate, not-yet-built feature
- * (see `apps/mobile/TASKS.md`).
+ * full detail/editing. Creating one is inline and title-only (`QuickAddCard`,
+ * in every column and in the bottom bar for the active status); the full
+ * `cards/new` screen is the opt-in path behind «تفاصيل».
  */
 export default function BoardScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -46,7 +34,10 @@ export default function BoardScreen() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const { width } = useWindowDimensions();
-  const columnWidth = Math.min(COLUMN_WIDTH, width - spacing.xl * 2 - 24);
+  // One status per screen: each page is exactly the viewport wide, so a
+  // neighbouring status's cards never bleed in at either edge. The page
+  // carries the side gutters and the column fills what is left.
+  const columnWidth = width - spacing.xl * 2;
 
   // «انتهى» defaults to the last 30 days (`v2-new-style.md`'s "يعرض آخر 30
   // يومًا"); tapping "عرض الأقدم" clears this to load everything. Included in
@@ -68,7 +59,8 @@ export default function BoardScreen() {
   const [searchText, setSearchText] = useState("");
   const [filterVisible, setFilterVisible] = useState(false);
   const [filter, setFilter] = useState<BoardFilter>(EMPTY_BOARD_FILTER);
-  const listRef = useRef<FlatList<BoardColumn>>(null);
+  const listRef = useRef<ScrollView>(null);
+  const chipsRef = useRef<ScrollView>(null);
 
   const move = useMutation({
     mutationFn: (input: { cardId: string; targetListId: string }) =>
@@ -77,6 +69,14 @@ export default function BoardScreen() {
       setMovingCardId(null);
       void queryClient.invalidateQueries({ queryKey: ["board", id] });
     },
+  });
+
+  const newCardHref = (listId: string, draftTitle: string) =>
+    `/board/${id}/cards/new?listId=${listId}${draftTitle ? `&title=${encodeURIComponent(draftTitle)}` : ""}`;
+
+  const addCard = useMutation({
+    mutationFn: (input: { listId: string; title: string }) => api.cards.create(input.listId, { title: input.title }),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["board", id] }),
   });
 
   const remove = useMutation({
@@ -149,48 +149,70 @@ export default function BoardScreen() {
 
   // The columns pager, right-to-left.
   //
-  // A horizontal `FlatList` lays its cells out left-to-right even under forced
-  // RTL — only the *scroll* start is mirrored to the right edge. Rendering the
-  // lists in order therefore put «جديد» on the far left and opened the board on
-  // the last status, while the chips above (which are laid out by flexbox, so
-  // genuinely RTL) read the other way round: the highlighted chip never matched
-  // the column on screen.
+  // The lists render in natural order inside a plain `ScrollView` and Yoga's
+  // RTL handling lays them out right-to-left for real — «جديد» at the screen's
+  // right edge, every later status further left, matching the status chips
+  // above (which are the same plain `ScrollView` and have always been right).
   //
-  // So the pager is fed the lists **reversed**: cell `flatIndex` holds list
-  // `length - 1 - flatIndex`, which puts «جديد» on the right and every later
-  // status to its left, in reading order. `toFlatIndex` is that mapping and is
-  // its own inverse; it is the only place the reversal is expressed.
-  const columns = useMemo(() => {
-    const lists = board.data?.lists ?? [];
-    return lists.map((list, index) => ({ list, index })).reverse();
-  }, [board.data]);
+  // What is *not* mirrored is `contentOffset.x`: it stays a raw left-to-right
+  // measurement, so offset 0 is the **left**-most column — the *last* status,
+  // not the first. Deriving an index from `offset / stride` therefore reads
+  // the list backwards, which is what put «انتهى» in the "add task" button
+  // while «جديد» was the column actually on screen. (`FlatList`'s
+  // `getItemLayout`/`scrollToIndex`/`onViewableItemsChanged` make the same
+  // assumption internally, which is why no amount of reversing its data or
+  // mirroring it with `scaleX` stayed correct at every boundary.)
+  //
+  // So nothing here assumes a direction: each page reports its own laid-out
+  // `x`, which — because a page is exactly the viewport wide — *is* the scroll
+  // offset that shows it. Those measured offsets drive the snap points, the
+  // chip-tap jumps and the active-column lookup alike, so the pager is correct
+  // whichever way the platform decides to lay it out.
+  const columnOffsets = useRef<number[]>([]);
+  const [snapOffsets, setSnapOffsets] = useState<number[]>([]);
 
-  // Read through a ref, not `board.data`: these callbacks are captured once by
-  // `useRef` so FlatList never sees a new identity, which `viewabilityConfig`
-  // requires.
-  const listsLengthRef = useRef(0);
-  listsLengthRef.current = board.data?.lists.length ?? 0;
-
-  function toFlatIndex(index: number) {
-    return listsLengthRef.current - 1 - index;
+  function handleColumnLayout(index: number, x: number) {
+    if (columnOffsets.current[index] === x) return;
+    columnOffsets.current[index] = x;
+    const measured = columnOffsets.current.filter((value) => value != null);
+    if (measured.length === board.data?.lists.length) {
+      setSnapOffsets([...measured].sort((a, b) => a - b));
+    }
   }
 
-  const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 60 }).current;
-  const onViewableItemsChanged = useRef(({ viewableItems }: { viewableItems: ViewToken[] }) => {
-    // The snapped column is the *right-most* visible one, i.e. the highest
-    // cell index — the left-most cell is the neighbour peeking in.
-    const flatIndex = viewableItems[viewableItems.length - 1]?.index;
-    if (flatIndex != null) setActiveIndex(listsLengthRef.current - 1 - flatIndex);
-  }).current;
+  function indexFromOffset(offsetX: number) {
+    let closest = activeIndex;
+    let smallestGap = Infinity;
+    columnOffsets.current.forEach((offset, index) => {
+      const gap = Math.abs(offset - offsetX);
+      if (gap < smallestGap) {
+        smallestGap = gap;
+        closest = index;
+      }
+    });
+    return closest;
+  }
 
   function scrollToColumn(index: number, animated = true) {
-    listRef.current?.scrollToIndex({ index: toFlatIndex(index), animated });
+    const offset = columnOffsets.current[index];
+    if (offset != null) listRef.current?.scrollTo({ x: offset, animated });
   }
 
-  // Android parks an RTL scroll view at its right edge on first layout, which
-  // is already the first status — but that is native behaviour we would rather
-  // not depend on, so the opening position is set explicitly, once.
+  // Android already parks an RTL scroll view at its reading start, which is
+  // this same column — but the opening position is set explicitly, once,
+  // rather than relied on.
   const didInitialScroll = useRef(false);
+
+  // The chip strip is narrower than the list of statuses, so the active chip
+  // can sit off-screen (it did for «انتهى» on a five-status board) and the
+  // header then looks like nothing is selected. Keep it centred on whichever
+  // column the pager is showing, measured the same way for the same reason.
+  const chipCenters = useRef<number[]>([]);
+  useEffect(() => {
+    const center = chipCenters.current[activeIndex];
+    if (center == null) return;
+    chipsRef.current?.scrollTo({ x: Math.max(0, center - width / 2), animated: true });
+  }, [activeIndex, width]);
 
   return (
     <Screen edges={{ top: true, bottom: true }}>
@@ -391,6 +413,7 @@ export default function BoardScreen() {
       ) : (
         <>
           <ScrollView
+            ref={chipsRef}
             horizontal
             showsHorizontalScrollIndicator={false}
             style={{ flexGrow: 0, marginBottom: spacing.md }}
@@ -400,6 +423,10 @@ export default function BoardScreen() {
               <Pressable
                 key={list.id}
                 onPress={() => scrollToColumn(index)}
+                onLayout={(e) => {
+                  const { x, width: chipWidth } = e.nativeEvent.layout;
+                  chipCenters.current[index] = x + chipWidth / 2;
+                }}
                 style={{
                   borderRadius: 999,
                   minHeight: MIN_TOUCH_TARGET,
@@ -426,67 +453,61 @@ export default function BoardScreen() {
               لا حالات في هذه اللوحة بعد.
             </AppText>
           ) : (
-            <FlatList
+            <ScrollView
               ref={listRef}
-              data={columns}
-              keyExtractor={(column) => column.list.id}
               horizontal
               showsHorizontalScrollIndicator={false}
-              snapToInterval={columnWidth + COLUMN_GAP}
+              snapToOffsets={snapOffsets.length > 0 ? snapOffsets : undefined}
               decelerationRate="fast"
-              contentContainerStyle={{ paddingHorizontal: spacing.xl, gap: COLUMN_GAP }}
-              getItemLayout={(_, index) => ({
-                length: columnWidth + COLUMN_GAP,
-                offset: (columnWidth + COLUMN_GAP) * index,
-                index,
-              })}
-              viewabilityConfig={viewabilityConfig}
-              onViewableItemsChanged={onViewableItemsChanged}
+              scrollEventThrottle={16}
+              onScroll={(e) => setActiveIndex(indexFromOffset(e.nativeEvent.contentOffset.x))}
               onContentSizeChange={() => {
-                if (didInitialScroll.current) return;
+                if (didInitialScroll.current || snapOffsets.length === 0) return;
                 didInitialScroll.current = true;
                 scrollToColumn(0, false);
               }}
-              renderItem={({ item: { list, index } }) => (
-                <ListColumn
-                  list={list}
-                  width={columnWidth}
-                  resolveAssignees={resolveAssignees}
-                  hasNext={index < board.data!.lists.length - 1}
-                  nextListIsClosed={board.data!.lists[index + 1]?.statusCategory === "CLOSED"}
-                  canCloseCard={canCloseCard}
-                  readOnly={boardReadOnly}
-                  onMoveCardNext={(cardId) => {
-                    const nextList = board.data!.lists[index + 1];
-                    if (nextList) move.mutate({ cardId, targetListId: nextList.id });
-                  }}
-                  onLongPressCard={(cardId) => setMovingCardId(cardId)}
-                  onOpenCard={(cardId) => router.push(`/card/${cardId}`)}
-                  onAddCard={() => router.push(`/board/${id}/cards/new?listId=${list.id}`)}
-                  showLoadOlder={list.statusCategory === "CLOSED" && !!closedSince}
-                  onLoadOlder={() => setClosedSince(undefined)}
-                />
-              )}
-            />
+            >
+              {board.data.lists.map((list, index) => (
+                <View
+                  key={list.id}
+                  style={{ width, paddingHorizontal: spacing.xl }}
+                  onLayout={(e) => handleColumnLayout(index, e.nativeEvent.layout.x)}
+                >
+                  <ListColumn
+                    list={list}
+                    width={columnWidth}
+                    resolveAssignees={resolveAssignees}
+                    hasNext={index < board.data!.lists.length - 1}
+                    nextListIsClosed={board.data!.lists[index + 1]?.statusCategory === "CLOSED"}
+                    canCloseCard={canCloseCard}
+                    readOnly={boardReadOnly}
+                    onMoveCardNext={(cardId) => {
+                      const nextList = board.data!.lists[index + 1];
+                      if (nextList) move.mutate({ cardId, targetListId: nextList.id });
+                    }}
+                    onLongPressCard={(cardId) => setMovingCardId(cardId)}
+                    onOpenCard={(cardId) => router.push(`/card/${cardId}`)}
+                    onAddCard={(title) => addCard.mutateAsync({ listId: list.id, title })}
+                    onOpenAddDetails={(draft) => router.push(newCardHref(list.id, draft))}
+                    showLoadOlder={list.statusCategory === "CLOSED" && !!closedSince}
+                    onLoadOlder={() => setClosedSince(undefined)}
+                  />
+                </View>
+              ))}
+            </ScrollView>
           )}
 
+          {/* A column is a plain `View` with no scroll of its own, so a long
+              column pushes its own add row off screen — this bar is the entry
+              point that stays reachable, hence a field rather than a button. */}
           {board.data.lists[activeIndex] && !boardReadOnly ? (
             <View style={{ paddingHorizontal: spacing.xl, paddingTop: spacing.md }}>
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => router.push(`/board/${id}/cards/new?listId=${board.data!.lists[activeIndex]!.id}`)}
-                style={{
-                  minHeight: MIN_TOUCH_TARGET,
-                  borderRadius: radii.field,
-                  backgroundColor: colors.accent,
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <AppText weight="semibold" color={colors.surface}>
-                  + مهمة جديدة في «{board.data.lists[activeIndex]!.name}»
-                </AppText>
-              </Pressable>
+              <QuickAddCard
+                variant="bar"
+                placeholder={`+ مهمة جديدة في «${board.data.lists[activeIndex]!.name}»`}
+                onAdd={(title) => addCard.mutateAsync({ listId: board.data!.lists[activeIndex]!.id, title })}
+                onOpenDetails={(draft) => router.push(newCardHref(board.data!.lists[activeIndex]!.id, draft))}
+              />
             </View>
           ) : null}
         </>
