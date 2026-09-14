@@ -13,9 +13,9 @@ COPY . .
 ARG VITE_API_URL
 ENV VITE_API_URL=$VITE_API_URL
 
+# turbo builds @app/web's workspace deps (@app/types, @app/api-client) first.
 RUN pnpm install --frozen-lockfile \
-  && pnpm --filter @app/types build \
-  && pnpm --filter @app/web build
+  && pnpm turbo run build --filter=@app/web
 
 # --- runtime: serve the static build ---
 FROM node:20-slim AS run
