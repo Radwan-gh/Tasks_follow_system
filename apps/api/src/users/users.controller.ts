@@ -6,6 +6,8 @@ import {
   ListUsersQuerySchema,
   UpdateUserRoleRequestSchema,
   UpdateUserStatusRequestSchema,
+  UpdateUserPermissionsRequestSchema,
+  type UpdateUserPermissionsRequest,
   type AdminResetPasswordResponse,
   type AdminSetPasswordRequest,
   type CreateUserRequest,
@@ -92,5 +94,17 @@ export class UsersController {
     @Body(new ZodValidationPipe(UpdateUserStatusRequestSchema)) body: UpdateUserStatusRequest,
   ) {
     return this.users.updateStatus(user.id, id, body.isActive);
+  }
+
+  @Patch(":id/permissions")
+  @ApiOperation({ summary: "Grant or revoke a user's permissions (e.g. sending push notifications)" })
+  @ApiParam({ name: "id", description: "User ID" })
+  @ApiBody({ schema: zodRef("UpdateUserPermissionsRequest") })
+  @ApiResponse({ status: 200, schema: zodRef("AdminUser") })
+  updatePermissions(
+    @Param("id") id: string,
+    @Body(new ZodValidationPipe(UpdateUserPermissionsRequestSchema)) body: UpdateUserPermissionsRequest,
+  ) {
+    return this.users.updatePermissions(id, body.canSendNotifications);
   }
 }

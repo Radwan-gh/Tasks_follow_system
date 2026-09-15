@@ -105,6 +105,15 @@ BoardsService.assertMembership(userId, boardId, minRole = "MEMBER")
   التقارير تشمل كل اللوحات، لذلك تُحمى بصلاحية النظام `ADMIN` ولا تمرّ عبر
   `assertMembership` الخاصّ باللوحة.
 
+### `CanSendPushGuard`
+- يحمي `push/*` (قائمة الأجهزة والإرسال اليدوي). يسمح لـ `ADMIN` دائمًا، أو لمستخدم
+  منحه مشرفٌ `canSendNotifications`. القاعدة `canSendPush()` في `packages/types`.
+- يُستخدم بعد `JwtAuthGuard`: `@UseGuards(JwtAuthGuard, CanSendPushGuard)`.
+- يقرأ الدور والصلاحية و`isActive` من قاعدة البيانات لا من JWT، تطبيقًا للقاعدة
+  الذهبية أدناه. انظر [`07-admin.md`](./07-admin.md).
+- الاستثناء الوحيد بلا مصادقة في منظومة الـ push هو `POST /devices`، وهو يسجّل رمزًا
+  فقط ولا يرسل.
+
 ## قاعدة ذهبية للصلاحيات
 
 الصلاحية تُتحقَّق دائمًا مقابل **قاعدة البيانات**، لا مقابل ما يحمله رمز الدخول (JWT)،

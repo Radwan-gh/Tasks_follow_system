@@ -29,9 +29,12 @@ import type {
   NotificationPrefs,
   NotificationsResponse,
   OverdueTasksReport,
+  PushDevice,
   RegisterPushDeviceRequest,
   ReportOverview,
   SaveCardAsTemplateRequest,
+  SendPushRequest,
+  SendPushResponse,
   Subtask,
   Template,
   UpdateAppSettingsRequest,
@@ -43,6 +46,7 @@ import type {
   UpdateNotificationPrefsRequest,
   UpdateSubtaskRequest,
   UpdateTemplateRequest,
+  UpdateUserPermissionsRequest,
   UserRole,
   WorkloadReport,
 } from "@app/types";
@@ -204,6 +208,8 @@ export function createApiClient({ baseUrl, storage, onUnauthorized }: ApiClientO
         }),
       resetPassword: (id: string) =>
         request<AdminResetPasswordResponse>(`/admin/users/${id}/reset-password`, { method: "POST" }),
+      updateUserPermissions: (id: string, body: UpdateUserPermissionsRequest) =>
+        request<AdminUser>(`/admin/users/${id}/permissions`, { method: "PATCH", body: JSON.stringify(body) }),
     },
     boards: {
       list: () => request<BoardSummary[]>("/boards"),
@@ -307,12 +313,26 @@ export function createApiClient({ baseUrl, storage, onUnauthorized }: ApiClientO
       list: () => request<NotificationsResponse>("/notifications"),
       markRead: (id: string) => request<void>(`/notifications/${id}/read`, { method: "PATCH" }),
       markAllRead: () => request<void>("/notifications/read-all", { method: "POST" }),
-      /** Registers this device's native FCM token so the server can push to it. Idempotent. */
+      /** Registers this install's FCM token *and* links it to the signed-in user. Idempotent. */
       registerDevice: (body: RegisterPushDeviceRequest) =>
         request<void>("/notifications/devices", { method: "POST", body: JSON.stringify(body) }),
-      /** Call on logout, *before* clearing tokens — this request still needs auth. */
-      unregisterDevice: (token: string) =>
-        request<void>(`/notifications/devices/${encodeURIComponent(token)}`, { method: "DELETE" }),
+      /**
+       * Unlinks this install from the user on logout — the server keeps its FCM
+       * token for anonymous pushes. Call *before* clearing tokens: it needs auth.
+       */
+      unregisterDevice: (deviceId: string) =>
+        request<void>(`/notifications/devices/${encodeURIComponent(deviceId)}`, { method: "DELETE" }),
+    },
+    devices: {
+      /** Anonymous registration on app launch — no sign-in required. Idempotent by `deviceId`. */
+      register: (body: RegisterPushDeviceRequest) =>
+        request<void>("/devices", { method: "POST", body: JSON.stringify(body) }),
+    },
+    push: {
+      /** Requires ADMIN or `canSendNotifications`. */
+      listDevices: () => request<PushDevice[]>("/push/devices"),
+      send: (body: SendPushRequest) =>
+        request<SendPushResponse>("/push/send", { method: "POST", body: JSON.stringify(body) }),
     },
     me: {
       getNotificationPrefs: () => request<NotificationPrefs>("/me/notification-prefs"),

@@ -109,7 +109,14 @@ export default function AdminUsersScreen() {
     onError: reportError,
   });
 
-  const isMutating = updateRole.isPending || updateStatus.isPending;
+  const updatePermissions = useMutation({
+    mutationFn: (input: { id: string; canSendNotifications: boolean }) =>
+      api.admin.updateUserPermissions(input.id, { canSendNotifications: input.canSendNotifications }),
+    onSuccess: invalidate,
+    onError: reportError,
+  });
+
+  const isMutating = updateRole.isPending || updateStatus.isPending || updatePermissions.isPending;
   const totalPages = users.data ? Math.max(1, Math.ceil(users.data.total / users.data.pageSize)) : 1;
 
   return (
@@ -235,6 +242,9 @@ export default function AdminUsersScreen() {
                     background={u.isActive ? "#E6F4EE" : colors.alertSoft}
                     color={u.isActive ? "#1F7A5C" : colors.alert}
                   />
+                  {u.role !== "ADMIN" && u.canSendNotifications ? (
+                    <Badge label="يرسل الإشعارات" background={colors.accentSoft} color={colors.accent} />
+                  ) : null}
                   <AppText size="caption" color={colors.muted}>
                     {u.boardCount} لوحة
                   </AppText>
@@ -262,6 +272,14 @@ export default function AdminUsersScreen() {
                     }
                   />
                   <ActionButton label="إعادة تعيين كلمة المرور" onPress={() => setResettingTarget(u)} />
+                  {/* Admins can always send, so the grant only means something for USER rows. */}
+                  {u.role !== "ADMIN" ? (
+                    <ActionButton
+                      label={u.canSendNotifications ? "منع إرسال الإشعارات" : "السماح بإرسال الإشعارات"}
+                      disabled={isMutating}
+                      onPress={() => updatePermissions.mutate({ id: u.id, canSendNotifications: !u.canSendNotifications })}
+                    />
+                  ) : null}
                 </View>
               </View>
             );

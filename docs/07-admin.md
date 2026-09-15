@@ -21,6 +21,22 @@
 | `POST /admin/users/:id/reset-password` | توليد كلمة مرور مؤقتة عشوائية (يستخدمها `apps/mobile`) — انظر [`14-notifications-comments-attachments.md`](./14-notifications-comments-attachments.md) |
 | `PATCH /admin/users/:id/role` | تغيير دور المستخدم (USER/ADMIN) |
 | `PATCH /admin/users/:id/status` | تفعيل/تعطيل المستخدم |
+| `PATCH /admin/users/:id/permissions` | منح/سحب صلاحية «إرسال الإشعارات» (`canSendNotifications`) |
+
+## صلاحية «إرسال الإشعارات» (Permissions)
+
+- `User.canSendNotifications` (افتراضيًا `false`) يسمح لمستخدم `USER` بفتح شاشة
+  «إرسال إشعار» في الجوال واستدعاء `GET /push/devices` و`POST /push/send`.
+- **المشرف يستطيع الإرسال دائمًا** بصرف النظر عن العمود، فالقاعدة
+  `role === "ADMIN" || canSendNotifications`، معرَّفة مرّة واحدة في
+  `canSendPush()` (`packages/types`) ويستعملها الخادم والجوال.
+- البوابة `CanSendPushGuard` تقرأ الدور والصلاحية و`isActive` من قاعدة البيانات
+  في كل طلب، لذا **لا حاجة لإبطال رموز التحديث** عند السحب: يسري من الطلب
+  التالي، بخلاف تغيير الدور/الحالة.
+- في الجوال: زرّ «السماح بإرسال الإشعارات» / «منع إرسال الإشعارات» في «المستخدمون
+  والصلاحيات»، يظهر لصفوف `USER` فقط، مع شارة «يرسل الإشعارات» لمن مُنحها.
+- تفاصيل الإرسال نفسه في
+  [`14-notifications-comments-attachments.md`](./14-notifications-comments-attachments.md).
 
 ## إنشاء مستخدم (Create) — بديل التسجيل الذاتي
 

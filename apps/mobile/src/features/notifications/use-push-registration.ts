@@ -1,51 +1,117 @@
-import { useEffect } from "react";
+import { useEffect, useSyncExternalStore } from "react";
+import { AppState } from "react-native";
 import { useRouter } from "expo-router";
 import * as Notifications from "expo-notifications";
 import { useQueryClient } from "@tanstack/react-query";
+import { ApiError } from "@app/api-client";
 import { api } from "@/lib/api";
+import { getDeviceId } from "@/lib/device-id";
 import { registerForPush } from "@/lib/push";
 
-/** Remembered so `logout` can tell the server to forget this device. */
-let currentPushToken: string | null = null;
+export interface PushStatus {
+  deviceId: string | null;
+  /** Whether the last sync reached the server, and whether it was linked to a user. */
+  state: "idle" | "registered" | "error";
+  linkedToUser: boolean;
+  lastSyncedAt: string | null;
+  /** Human-readable reason the last sync failed, shown on the «إرسال إشعار» screen. */
+  error: string | null;
+}
 
-export function getCurrentPushToken(): string | null {
-  return currentPushToken;
+let status: PushStatus = { deviceId: null, state: "idle", linkedToUser: false, lastSyncedAt: null, error: null };
+const listeners = new Set<() => void>();
+
+function setStatus(patch: Partial<PushStatus>) {
+  status = { ...status, ...patch };
+  listeners.forEach((listener) => listener());
+}
+
+/** Live registration status of this install — the on-device diagnostic for push. */
+export function usePushStatus(): PushStatus {
+  return useSyncExternalStore(
+    (listener) => {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+    () => status,
+  );
+}
+
+/** The signed-in user at the moment a queued sync actually runs, not when it was requested. */
+let currentUserId: string | undefined;
+/** Serialises syncs so a launch-time anonymous call can never land after the login-time linking call. */
+let queue: Promise<void> = Promise.resolve();
+
+/**
+ * Sends this install's FCM token to the server: anonymously while signed out,
+ * linked to the user while signed in. Safe to call as often as you like —
+ * both endpoints are idempotent by `deviceId`.
+ *
+ * Never throws: push is an enhancement and must not stop the app. But failures
+ * are recorded in `PushStatus` and logged (`adb logcat | grep "\[push\]"`)
+ * rather than swallowed — a silent `catch {}` here is what previously left no
+ * device row and no clue why.
+ */
+export function syncPushDevice(): Promise<void> {
+  queue = queue.then(async () => {
+    try {
+      const deviceId = await getDeviceId();
+      setStatus({ deviceId });
+
+      const registration = await registerForPush();
+      if (!registration) {
+        setStatus({
+          state: "error",
+          error: "الإشعارات غير متاحة على هذا الجهاز: الإذن مرفوض أو ليس جهازًا حقيقيًا",
+        });
+        console.warn("[push] no device token: permission denied or not a physical device");
+        return;
+      }
+
+      const body = { deviceId, ...registration };
+      const userId = currentUserId;
+      if (userId) await api.notifications.registerDevice(body);
+      else await api.devices.register(body);
+
+      setStatus({ state: "registered", linkedToUser: !!userId, lastSyncedAt: new Date().toISOString(), error: null });
+    } catch (error) {
+      const message = error instanceof ApiError ? `${error.status}: ${error.message}` : String(error);
+      setStatus({ state: "error", error: message });
+      console.warn("[push] device registration failed:", message);
+    }
+  });
+  return queue;
 }
 
 /**
- * Registers this device for OS push and routes a tapped notification to its
+ * Registers this install for OS push and routes a tapped notification to its
  * card. Mounted once, in the root navigator, under both `AuthProvider` and
  * `QueryClientProvider`.
  *
- * Every path here is best-effort: a denied permission, a device without Google
- * Play services, or an unreachable API must never stop the app from starting,
- * so nothing in this hook is allowed to throw.
+ * Registration does not wait for sign-in: it runs as soon as the app opens
+ * (anonymously while the auth check is still pending), again whenever the
+ * signed-in user changes (to link or re-link the install), whenever the app
+ * returns from the background, and whenever FCM rotates the token.
  */
 export function usePushRegistration(userId: string | undefined): void {
   const router = useRouter();
   const queryClient = useQueryClient();
 
-  // Re-registers whenever the signed-in user changes. Also covers token
-  // rotation, since FCM can issue a new token at any launch.
   useEffect(() => {
-    if (!userId) return;
-    let cancelled = false;
-
-    (async () => {
-      try {
-        const registration = await registerForPush();
-        if (!registration || cancelled) return;
-        await api.notifications.registerDevice(registration);
-        currentPushToken = registration.token;
-      } catch {
-        // Push is an enhancement — the in-app notification centre still works.
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
+    currentUserId = userId;
+    void syncPushDevice();
   }, [userId]);
+
+  useEffect(() => {
+    const appState = AppState.addEventListener("change", (next) => {
+      if (next === "active") void syncPushDevice();
+    });
+    const tokenRotation = Notifications.addPushTokenListener(() => void syncPushDevice());
+    return () => {
+      appState.remove();
+      tokenRotation.remove();
+    };
+  }, []);
 
   // A push arriving while the app is open should update the bell badge now,
   // rather than waiting out the remainder of its 30s poll interval.
@@ -72,7 +138,15 @@ export function usePushRegistration(userId: string | undefined): void {
   }, [router]);
 }
 
-/** Clears the remembered token after logout has deregistered it. */
-export function clearCurrentPushToken(): void {
-  currentPushToken = null;
+/**
+ * Logout: unlink this install from the user while the session is still valid.
+ * The server keeps the row and its FCM token, so the phone stays reachable
+ * anonymously; the `userId` effect above then re-syncs it as anonymous.
+ */
+export async function unlinkPushDevice(): Promise<void> {
+  try {
+    await api.notifications.unregisterDevice(await getDeviceId());
+  } catch (error) {
+    console.warn("[push] unlink on logout failed:", String(error));
+  }
 }

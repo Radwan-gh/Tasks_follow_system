@@ -80,6 +80,7 @@ export class AuthController {
       role: record.role,
       isActive: record.isActive,
       mustChangePassword: record.mustChangePassword,
+      canSendNotifications: record.canSendNotifications,
       createdAt: record.createdAt.toISOString(),
     };
   }

@@ -49,23 +49,23 @@ export class NotificationsController {
 
   @Post("devices")
   @HttpCode(204)
-  @ApiOperation({ summary: "Register this device's push token for the current user" })
+  @ApiOperation({ summary: "Register this install's push token and link it to the current user" })
   @ApiBody({ schema: zodRef("RegisterPushDeviceRequest") })
   @ApiResponse({ status: 204, description: "Registered" })
   async registerDevice(
     @CurrentUser() user: AuthUser,
     @Body(new ZodValidationPipe(RegisterPushDeviceRequestSchema)) body: RegisterPushDeviceRequest,
   ) {
-    await this.devices.register(user.id, body.token, body.platform);
+    await this.devices.register(user.id, body);
   }
 
-  @Delete("devices/:token")
+  @Delete("devices/:deviceId")
   @HttpCode(204)
-  @ApiOperation({ summary: "Unregister a push token (called on logout)" })
-  @ApiParam({ name: "token", description: "The device push token to forget" })
-  @ApiResponse({ status: 204, description: "Unregistered" })
-  async unregisterDevice(@CurrentUser() user: AuthUser, @Param("token") token: string) {
-    await this.devices.unregister(user.id, token);
+  @ApiOperation({ summary: "Unlink this install from the current user (called on logout); the token is kept" })
+  @ApiParam({ name: "deviceId", description: "The app install's deviceId" })
+  @ApiResponse({ status: 204, description: "Unlinked" })
+  async unlinkDevice(@CurrentUser() user: AuthUser, @Param("deviceId") deviceId: string) {
+    await this.devices.unlink(user.id, deviceId);
   }
 }
 

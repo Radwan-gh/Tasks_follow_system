@@ -61,9 +61,17 @@ export const UserSchema = z.object({
   // Set by an admin's `POST /admin/users/:id/reset-password`; the client uses
   // this to route straight to "عيّن كلمة مرور جديدة" instead of the tabs.
   mustChangePassword: z.boolean(),
+  // Granted by an admin; lets a USER open «إرسال إشعار». Admins can always
+  // send regardless of this flag — check with `canSendPush()`, not the flag.
+  canSendNotifications: z.boolean(),
   createdAt: z.string().datetime(),
 });
 export type User = z.infer<typeof UserSchema>;
+
+/** Whether a user may send push notifications from the app. Mirrors the server's `CanSendPushGuard`. */
+export function canSendPush(user: Pick<User, "role" | "canSendNotifications">): boolean {
+  return user.role === "ADMIN" || user.canSendNotifications;
+}
 
 /** Shape returned by GET /auth/me and stored client-side as the logged-in user. */
 export const CurrentUserSchema = UserSchema;
@@ -300,6 +308,22 @@ export type Notification = z.infer<typeof NotificationSchema>;
  *  distributed as a sideloaded APK and there is no iOS build pipeline yet. */
 export const DevicePlatform = z.enum(["ANDROID", "IOS"]);
 export type DevicePlatform = z.infer<typeof DevicePlatform>;
+
+/** Row of `GET /push/devices` — an app install that can receive push; `user` is null while signed out. */
+export const PushDeviceSchema = z.object({
+  deviceId: z.string().nullable(),
+  platform: DevicePlatform,
+  lastSeenAt: z.string().datetime(),
+  user: UserSchema.pick({ id: true, displayName: true, email: true }).nullable(),
+});
+export type PushDevice = z.infer<typeof PushDeviceSchema>;
+
+/** `POST /push/send` result: how many device tokens were targeted, and how many FCM accepted. */
+export const SendPushResponseSchema = z.object({
+  targeted: z.number().int(),
+  delivered: z.number().int(),
+});
+export type SendPushResponse = z.infer<typeof SendPushResponseSchema>;
 
 /**
  * A board-owner-managed task template: picking it prefills title/description/

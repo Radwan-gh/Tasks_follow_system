@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Pressable, ScrollView, View } from "react-native";
 import { useRouter } from "expo-router";
+import { canSendPush } from "@app/types";
 import { Screen } from "@/components/screen";
 import { AppText } from "@/components/text";
 import { CurrencySettingSection } from "@/features/account/currency-setting-section";
@@ -102,6 +103,25 @@ export default function AccountScreen() {
             }}
           >
             <AppText weight="semibold">المستخدمون والصلاحيات</AppText>
+          </Pressable>
+        ) : null}
+
+        {user && canSendPush(user) ? (
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => router.push("/push")}
+            style={{
+              minHeight: MIN_TOUCH_TARGET,
+              borderRadius: radii.field,
+              borderWidth: 1,
+              borderColor: colors.line,
+              backgroundColor: colors.surface,
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <AppText weight="semibold">إرسال إشعار</AppText>
           </Pressable>
         ) : null}
 

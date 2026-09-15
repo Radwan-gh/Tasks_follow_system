@@ -66,6 +66,11 @@ model User {
   /// user successfully calls `POST /auth/change-password`. Forces the
   /// "عيّن كلمة مرور جديدة" screen on first login with a temporary password.
   mustChangePassword Boolean @default(false)
+  /// Lets a non-admin send push notifications from the app's «إرسال إشعار»
+  /// screen. Admins can always send regardless — see `canSendPush()` in
+  /// `common/guards/can-send-push.guard.ts`. Granted via
+  /// `PATCH /admin/users/:id/permissions`.
+  canSendNotifications Boolean @default(false)
   createdAt    DateTime @default(now())
 
   /// Three notification-category toggles (assignment/comments,
@@ -275,15 +280,22 @@ enum DevicePlatform {
 /// physical device signing in as a different user *reassigns* the row instead
 /// of duplicating it, and the dispatcher deletes rows FCM reports as
 /// unregistered.
+/// One row per app install. Registered on every launch whether or not anyone
+/// is signed in, so anonymous installs can still be pushed to by `deviceId`.
+/// `userId` is linked on login and cleared (not deleted) on logout; the row
+/// itself only goes away when FCM reports its token dead.
 model PushDevice {
   id         String         @id @default(cuid())
-  userId     String
+  /// Random UUID the app generates on first launch and keeps in SecureStore.
+  /// Nullable only for rows registered before installs had an id.
+  deviceId   String?        @unique
+  userId     String?
   token      String         @unique
   platform   DevicePlatform
   lastSeenAt DateTime       @default(now())
   createdAt  DateTime       @default(now())
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([userId])
 }

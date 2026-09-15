@@ -174,14 +174,25 @@ Testing:
 - **Expo Go cannot receive push** (removed in SDK 53) and neither can an
   emulator — you need a dev build on a real device:
   `pnpm --filter @app/mobile android`.
-- Delivery is on a ~30s sweep, not instant. Assign a card to another account,
-  background the app, and wait a moment.
-- To check the backend half without a device, confirm `pushedAt` gets stamped:
+- The device registers **as soon as the app opens**, signed in or not. Check
+  for its `PushDevice` row (`userId` is null while signed out). If there is
+  none, run `adb logcat | grep "\[push\]"` to see why.
+- Quickest end-to-end test: sign in as an admin (or a user granted
+  «السماح بإرسال الإشعارات»), open حسابي → «إرسال إشعار». The top card shows
+  this install's `deviceId` and registration status. Pick «أجهزة محدّدة» →
+  this device, background the app, and send. This is immediate, not swept.
+- Task notifications (assign/comment) use a ~30s sweep and only reach devices
+  linked to the recipient. Assign a card to another account, background the
+  app, and wait.
+- To check the backend without a device, register a fake install, then send
+  to it. Expect `{"targeted":1,"delivered":0}`, and the row gets pruned:
 
 ```bash
-curl -X POST localhost:3000/notifications/devices \
+curl -X POST localhost:3000/devices -H "Content-Type: application/json" \
+  -d '{"deviceId":"00000000-0000-4000-8000-000000000000","token":"fake","platform":"ANDROID"}'
+curl -X POST localhost:3000/push/send \
   -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
-  -d '{"token":"fake-token","platform":"ANDROID"}'
+  -d '{"title":"t","body":"b","target":{"kind":"devices","deviceIds":["00000000-0000-4000-8000-000000000000"]}}'
 ```
 
 ## Gotchas

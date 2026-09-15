@@ -60,6 +60,7 @@ AppSettings (single global row, no relations)
 | `isActive` | boolean | If `false`, login is blocked and sessions are revoked (default `true`) |
 | `notificationPrefs` | optional JSON | Three notification-preference toggles (assignment/comments · due-dates/overdue · my cards moved), all `true` by default — see `NotificationPrefsSchema` |
 | `mustChangePassword` | boolean | Set by `POST /admin/users/:id/reset-password` (default `false`), cleared automatically by `POST /auth/change-password` — see [`14-notifications-comments-attachments.md`](./14-notifications-comments-attachments.md#password-reset) |
+| `canSendNotifications` | boolean | Lets a `USER` send manual push from the app's «إرسال إشعار» screen (default `false`). `ADMIN`s can always send regardless — the rule is `canSendPush()` in `packages/types`. Granted via `PATCH /admin/users/:id/permissions` — see [`07-admin.md`](./07-admin.md) |
 | `createdAt` | date | Creation time |
 
 ### RefreshToken
@@ -133,7 +134,8 @@ that board**.
 |---|---|---|
 | `Comment` | A text comment on a card | `cardId`, `authorId`, `body`, `createdAt`. Merged with `CardActivity` into one timeline on the client, not one schema on the server. Live endpoints under `/cards/:cardId/comments` — see [`14-notifications-comments-attachments.md`](./14-notifications-comments-attachments.md) |
 | `Attachment` | An image attached to a card | `cardId`, `uploaderId`, `filename`, `mimeType`, `sizeBytes`. Files live on the API server's local disk (`apps/api/uploads/`), served via `/uploads/*` — not cloud storage. Live endpoints under `/cards/:cardId/attachments` |
-| `Notification` | An in-app notification (no OS push) | `userId`, `type`, `cardId?`, `boardId?`, `payload?`, `readAt?`. Live endpoints under `/notifications` and `/me/notification-prefs` |
+| `Notification` | An in-app notification, also delivered as OS push by the 30s sweep | `userId`, `type`, `cardId?`, `boardId?`, `payload?`, `readAt?`, `pushedAt?`. Live endpoints under `/notifications` and `/me/notification-prefs` |
+| `PushDevice` | One **app install** that can receive OS push — signed in or anonymous | `deviceId?` (unique, app-generated UUID kept in SecureStore; null only on legacy rows), `token` (unique FCM token), `platform`, `userId?` (linked on login, set to `null` on logout — the row and token are kept; `SetNull` when the user is deleted), `lastSeenAt`. Registered by `POST /devices` (public) on every app launch; deleted only when FCM reports the token dead — see [`14-notifications-comments-attachments.md`](./14-notifications-comments-attachments.md) |
 | `Template` | A board-scoped task template that prefills title/description/subtasks (§3c-3) | `boardId`, `name`, `titlePattern`, `description?`, `subtaskTitles[]`. Distinct from `TASK_WORKFLOW_TEMPLATE` in `board-templates.ts`, which seeds a **board's lists**, not a card. CRUD under `/boards/:id/templates` (owner-only to write, any member to list) plus `POST /cards/:id/save-as-template` (owner-only — reads the card's current title/description/subtasks server-side) |
 | `AppSettings` | Single global-settings row (§3c-1) | One row, fixed id `"global"`, upserted by `SettingsService`. Currently just `currencySymbol` (default `"ل.س"`) — the symbol shown next to every cost amount app-wide. Read via `GET /settings` (any authenticated user), written via `PATCH /admin/settings` (`ADMIN` system role) |
 

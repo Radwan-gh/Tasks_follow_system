@@ -14,6 +14,7 @@ function serialize(user: UserWithBoardCount): AdminUser {
     role: user.role,
     isActive: user.isActive,
     mustChangePassword: user.mustChangePassword,
+    canSendNotifications: user.canSendNotifications,
     createdAt: user.createdAt.toISOString(),
     boardCount: user._count.boardMemberships,
   };
@@ -159,6 +160,22 @@ export class UsersService {
       });
       return serialize(updated);
     });
+  }
+
+  /**
+   * Grants or revokes "can send notifications". No session revocation needed:
+   * `CanSendPushGuard` reads the flag from the database on every request, so a
+   * revoke takes effect immediately.
+   */
+  async updatePermissions(targetId: string, canSendNotifications: boolean): Promise<AdminUser> {
+    const target = await this.prisma.user.findUnique({ where: { id: targetId }, select: { id: true } });
+    if (!target) throw new NotFoundException("User not found");
+    const updated = await this.prisma.user.update({
+      where: { id: targetId },
+      data: { canSendNotifications },
+      include: BOARD_COUNT_INCLUDE,
+    });
+    return serialize(updated);
   }
 
   private async assertNotLastActiveAdmin(tx: Prisma.TransactionClient, target: { id: string; role: string; isActive: boolean }) {

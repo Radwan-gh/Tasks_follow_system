@@ -231,9 +231,35 @@ export const UpdateAppSettingsRequestSchema = z.object({
 });
 export type UpdateAppSettingsRequest = z.infer<typeof UpdateAppSettingsRequestSchema>;
 
-/** `POST /notifications/devices` — registers this device's native FCM token for the current user. Idempotent: re-sending the same token refreshes it rather than adding a row. */
+/**
+ * `POST /devices` (public, anonymous) and `POST /notifications/devices` (links
+ * the install to the signed-in user). Idempotent by `deviceId`: re-sending
+ * refreshes the token rather than adding a row.
+ */
 export const RegisterPushDeviceRequestSchema = z.object({
+  deviceId: z.string().uuid(),
   token: z.string().min(1).max(4096),
   platform: DevicePlatform,
 });
 export type RegisterPushDeviceRequest = z.infer<typeof RegisterPushDeviceRequestSchema>;
+
+export const SendPushTargetSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("all") }),
+  z.object({ kind: z.literal("devices"), deviceIds: z.array(z.string().uuid()).min(1).max(500) }),
+  z.object({ kind: z.literal("users"), userIds: z.array(z.string().min(1)).min(1).max(500) }),
+]);
+export type SendPushTarget = z.infer<typeof SendPushTargetSchema>;
+
+/** `POST /push/send` — requires ADMIN or `canSendNotifications`. */
+export const SendPushRequestSchema = z.object({
+  title: z.string().trim().min(1).max(100),
+  body: z.string().trim().min(1).max(1000),
+  target: SendPushTargetSchema,
+});
+export type SendPushRequest = z.infer<typeof SendPushRequestSchema>;
+
+/** `PATCH /admin/users/:id/permissions`. */
+export const UpdateUserPermissionsRequestSchema = z.object({
+  canSendNotifications: z.boolean(),
+});
+export type UpdateUserPermissionsRequest = z.infer<typeof UpdateUserPermissionsRequestSchema>;
