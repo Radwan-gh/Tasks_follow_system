@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import type { BoardMemberCandidate, BoardRole } from "@app/types";
 import { BottomSheet } from "@/components/bottom-sheet";
 import { AppText } from "@/components/text";
+import { useAuth } from "@/features/auth/auth-context";
 import { api } from "@/lib/api";
 import { avatarColorFor } from "@/lib/avatar";
 import { initials } from "@/lib/initials";
@@ -34,6 +35,8 @@ export function AddMemberSheet({
   adding: boolean;
   onPick: (user: BoardMemberCandidate, role: AddableRole) => void;
 }) {
+  // Named to avoid shadowing the `user` each result row is mapped over.
+  const { user: currentUser } = useAuth();
   const [search, setSearch] = useState("");
   const [debounced, setDebounced] = useState("");
   const [role, setRole] = useState<AddableRole>("MEMBER");
@@ -127,11 +130,19 @@ export function AddMemberSheet({
             <ActivityIndicator color={colors.accent} />
           </View>
         ) : users.length === 0 ? (
-          <AppText size="small" color={colors.muted} style={{ paddingVertical: spacing.md }}>
-            {debounced
-              ? `لا يوجد مستخدم يطابق «${debounced}» ويمكن إضافته.`
-              : "كل المستخدمين أعضاء في هذه اللوحة بالفعل."}
-          </AppText>
+          <View style={{ paddingVertical: spacing.md, gap: spacing.xs }}>
+            <AppText size="small" color={colors.muted}>
+              {debounced
+                ? `لا يوجد مستخدم يطابق «${debounced}» ويمكن إضافته.`
+                : "كل المستخدمين أعضاء في هذه اللوحة بالفعل."}
+            </AppText>
+            {/* Only an admin can act on this, so only an admin is told about it. */}
+            {debounced && currentUser?.role === "ADMIN" ? (
+              <AppText size="caption" color={colors.muted}>
+                إن لم يكن له حساب بعد، أنشئه من «حسابي ← المستخدمون والصلاحيات».
+              </AppText>
+            ) : null}
+          </View>
         ) : (
           <ScrollView
             style={{ maxHeight: 380 }}
