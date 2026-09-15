@@ -50,12 +50,18 @@ BoardsService.assertMembership(userId, boardId, minRole = "MEMBER")
 | **أرشفة اللوحة** (`isArchived`) | **OWNER** |
 | **حذف اللوحة** | **OWNER** |
 | **إضافة/إزالة عضو، وتبديل دوره بين MEMBER/VIEWER** | **OWNER** |
+| **البحث عن مستخدمين لإضافتهم** (`GET /boards/:id/member-candidates`) | **OWNER** |
 
 ملاحظات:
 - عند إنشاء لوحة يُضاف منشئها تلقائيًا كعضو بدور **OWNER**.
 - **لا يمكن إزالة عضو دوره OWNER** من اللوحة (حماية من فقدان المالك)، ولا تغيير دوره عبر
   `PATCH /boards/:id/members/:userId/role`.
 - عند تعديل اللوحة، وجود `isArchived` في الطلب يرفع المتطلّب تلقائيًا إلى OWNER.
+- **دليل المستخدمين ليس مفتوحًا للجميع:** المسار الوحيد الذي يسرد مستخدمين خارج
+  أعضاء اللوحة هو `GET /boards/:id/member-candidates`، وهو محكوم بنفس شرط الإضافة
+  (**OWNER** على تلك اللوحة تحديدًا) لا بمجرّد تسجيل الدخول — انظر
+  [`05-boards-lists-cards.md`](./05-boards-lists-cards.md). سرد كل المستخدمين يبقى
+  حكرًا على ADMIN عبر `GET /admin/users`.
 
 ### دور «مشاهد» (`VIEWER`) — §3c-4
 

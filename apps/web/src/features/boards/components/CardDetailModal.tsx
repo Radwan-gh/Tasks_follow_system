@@ -10,6 +10,7 @@ import type {
   UpdateCardRequest,
 } from "@app/types";
 import { api } from "../../../lib/api-client";
+import { MemberChecklist } from "./MemberPicker";
 
 interface CardDetailModalProps {
   card: Card;
@@ -136,6 +137,7 @@ export function CardDetailModal({
             members={boardMembers}
             selected={assigneeIds}
             onToggle={(id) => setAssigneeIds((prev) => toggled(prev, id))}
+            onClear={() => setAssigneeIds(new Set())}
             emptyHint="لا يوجد أعضاء في اللوحة لإسنادها إليهم."
           />
           <div className="flex justify-end">
@@ -160,22 +162,19 @@ export function CardDetailModal({
               تقييد الوصول لأشخاص محددين
             </label>
             {restricted && (
-              <div className="space-y-1 rounded border border-slate-200 p-2">
+              <div className="space-y-1">
                 <p className="text-xs text-slate-500">
                   مالك اللوحة وأنت (المُنشئ) تملكان الوصول دائمًا. اختر من يمكنه أيضًا رؤية هذه المهمة:
                 </p>
-                {boardMembers
-                  .filter((m) => m.userId !== boardOwnerId && m.userId !== card.createdById)
-                  .map((m) => (
-                    <label key={m.userId} className="flex items-center gap-2 text-sm text-slate-700">
-                      <input
-                        type="checkbox"
-                        checked={memberIds.has(m.userId)}
-                        onChange={() => toggleMember(m.userId)}
-                      />
-                      {m.user.displayName} <span className="text-slate-400">{m.user.email}</span>
-                    </label>
-                  ))}
+                <MemberChecklist
+                  members={boardMembers.filter(
+                    (m) => m.userId !== boardOwnerId && m.userId !== card.createdById,
+                  )}
+                  selected={memberIds}
+                  onToggle={toggleMember}
+                  onClear={() => setMemberIds(new Set())}
+                  emptyHint="لا يوجد أعضاء آخرون في اللوحة."
+                />
               </div>
             )}
             <div className="flex justify-end">
@@ -198,31 +197,6 @@ export function CardDetailModal({
 
         <CardHistory activities={history} loading={historyLoading} />
       </div>
-    </div>
-  );
-}
-
-/** A checkbox list of board members, used to pick assignees (card or subtask). */
-function MemberChecklist({
-  members,
-  selected,
-  onToggle,
-  emptyHint,
-}: {
-  members: BoardMember[];
-  selected: Set<string>;
-  onToggle: (userId: string) => void;
-  emptyHint: string;
-}) {
-  if (members.length === 0) return <p className="text-xs text-slate-400">{emptyHint}</p>;
-  return (
-    <div className="space-y-1 rounded border border-slate-200 p-2">
-      {members.map((m) => (
-        <label key={m.userId} className="flex items-center gap-2 text-sm text-slate-700">
-          <input type="checkbox" checked={selected.has(m.userId)} onChange={() => onToggle(m.userId)} />
-          {m.user.displayName} <span className="text-slate-400">{m.user.email}</span>
-        </label>
-      ))}
     </div>
   );
 }
@@ -337,6 +311,7 @@ function SubtaskRow({
             members={boardMembers}
             selected={assigneeIds}
             onToggle={(id) => setAssigneeIds((prev) => toggled(prev, id))}
+            onClear={() => setAssigneeIds(new Set())}
             emptyHint="لا يوجد أعضاء لإسنادها إليهم."
           />
           <div className="flex justify-end">

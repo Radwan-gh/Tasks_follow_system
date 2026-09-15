@@ -102,6 +102,29 @@ export const BoardMemberSchema = z.object({
 });
 export type BoardMember = z.infer<typeof BoardMemberSchema>;
 
+/**
+ * A user the board owner may still add — the result rows of
+ * `GET /boards/:id/member-candidates`. Deliberately the same shape as
+ * `BoardMember["user"]` so member lists and search results render through one
+ * component. Already-members are filtered out server-side, so every row is
+ * addable.
+ */
+export const BoardMemberCandidateSchema = UserSchema.pick({
+  id: true,
+  email: true,
+  displayName: true,
+  isActive: true,
+});
+export type BoardMemberCandidate = z.infer<typeof BoardMemberCandidateSchema>;
+
+export const BoardMemberCandidateListSchema = z.object({
+  users: z.array(BoardMemberCandidateSchema),
+  // True when the search matched more users than `limit` — the UI tells the
+  // user to keep typing instead of silently hiding matches.
+  hasMore: z.boolean(),
+});
+export type BoardMemberCandidateList = z.infer<typeof BoardMemberCandidateListSchema>;
+
 export const BoardSummarySchema = z.object({
   id: z.string(),
   name: z.string().min(1).max(200),

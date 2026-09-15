@@ -17,6 +17,9 @@ import { MIN_TOUCH_TARGET, colors, fonts, fontSizes, radii, spacing } from "@/th
 
 type TargetKind = "all" | "devices";
 
+/** Above this many registered devices, the list needs a search box. */
+const DEVICE_SEARCH_THRESHOLD = 6;
+
 /**
  * `/push` — «إرسال إشعار». Composes a manual push to every install or to
  * selected installs, signed in or anonymous. Reachable from «حسابي» for an
@@ -42,6 +45,7 @@ export default function SendPushScreen() {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [deviceSearch, setDeviceSearch] = useState("");
 
   const devices = useQuery({
     queryKey: ["push-devices"],
@@ -70,6 +74,18 @@ export default function SendPushScreen() {
     setResult(null);
     send.mutate(targetKind === "all" ? { kind: "all" } : { kind: "devices", deviceIds: [...selected] });
   }
+
+  const deviceTerm = deviceSearch.trim().toLowerCase();
+  // Selected devices stay listed even when filtered out, so "أجهزة محدّدة"
+  // never claims a count the user cannot see or undo.
+  const visibleDevices = (devices.data ?? []).filter(
+    (device) =>
+      !deviceTerm ||
+      (device.deviceId ? selected.has(device.deviceId) : false) ||
+      (device.user?.displayName ?? "زائر").toLowerCase().includes(deviceTerm) ||
+      (device.user?.email ?? "").toLowerCase().includes(deviceTerm) ||
+      (device.deviceId ?? "").toLowerCase().includes(deviceTerm),
+  );
 
   function toggleDevice(deviceId: string) {
     setSelected((current) => {
@@ -170,7 +186,35 @@ export default function SendPushScreen() {
             <EmptyState icon="phone-portrait-outline" title="لا أجهزة" message="لم يُسجَّل أي جهاز بعد." />
           ) : (
             <View style={{ gap: spacing.sm }}>
-              {devices.data.map((device) => {
+              {devices.data.length >= DEVICE_SEARCH_THRESHOLD ? (
+                <TextInput
+                  value={deviceSearch}
+                  onChangeText={setDeviceSearch}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  placeholder="ابحث باسم المستخدم"
+                  placeholderTextColor={colors.muted}
+                  accessibilityLabel="ابحث عن مستخدم أو جهاز"
+                  style={{
+                    minHeight: MIN_TOUCH_TARGET,
+                    borderWidth: 1,
+                    borderColor: colors.line,
+                    borderRadius: radii.field,
+                    paddingHorizontal: spacing.lg,
+                    fontFamily: fonts.regular,
+                    fontSize: fontSizes.body,
+                    color: colors.ink,
+                    textAlign: "right",
+                    writingDirection: "rtl",
+                  }}
+                />
+              ) : null}
+              {visibleDevices.length === 0 ? (
+                <AppText size="small" color={colors.muted}>
+                  لا مستخدم أو جهاز يطابق «{deviceSearch.trim()}».
+                </AppText>
+              ) : null}
+              {visibleDevices.map((device) => {
                 if (!device.deviceId) return null;
                 const deviceId = device.deviceId;
                 const isSelected = selected.has(deviceId);
