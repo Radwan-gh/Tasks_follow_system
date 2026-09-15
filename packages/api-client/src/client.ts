@@ -44,9 +44,11 @@ import type {
   UpdateCardRequest,
   UpdateListRequest,
   UpdateNotificationPrefsRequest,
+  UpdateProfileRequest,
   UpdateSubtaskRequest,
   UpdateTemplateRequest,
   UpdateUserPermissionsRequest,
+  UpdateUserRequest,
   UserRole,
   WorkloadReport,
 } from "@app/types";
@@ -182,6 +184,8 @@ export function createApiClient({ baseUrl, storage, onUnauthorized }: ApiClientO
       changePassword: (body: ChangePasswordRequest) =>
         request<void>("/auth/change-password", { method: "POST", body: JSON.stringify(body) }),
       me: () => request<CurrentUser>("/auth/me"),
+      updateProfile: (body: UpdateProfileRequest) =>
+        request<CurrentUser>("/auth/me", { method: "PATCH", body: JSON.stringify(body) }),
     },
     admin: {
       listUsers: (params: { search?: string; page?: number; pageSize?: number } = {}) => {
@@ -194,6 +198,8 @@ export function createApiClient({ baseUrl, storage, onUnauthorized }: ApiClientO
       },
       createUser: (body: CreateUserRequest) =>
         request<AdminUser>("/admin/users", { method: "POST", body: JSON.stringify(body) }),
+      updateUser: (id: string, body: UpdateUserRequest) =>
+        request<AdminUser>(`/admin/users/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
       setUserPassword: (id: string, password: string) =>
         request<AdminUser>(`/admin/users/${id}/password`, {
           method: "PATCH",

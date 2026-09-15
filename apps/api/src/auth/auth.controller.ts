@@ -1,27 +1,25 @@
-import { Body, Controller, Get, HttpCode, NotFoundException, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, Patch, Post, UseGuards } from "@nestjs/common";
 import { ApiBearerAuth, ApiBody, ApiOperation, ApiResponse, ApiTags } from "@nestjs/swagger";
 import {
   ChangePasswordRequestSchema,
   LoginRequestSchema,
   RefreshRequestSchema,
+  UpdateProfileRequestSchema,
   type ChangePasswordRequest,
   type LoginRequest,
   type RefreshRequest,
+  type UpdateProfileRequest,
 } from "@app/types";
 import { CurrentUser, type AuthUser } from "../common/decorators/current-user.decorator";
 import { JwtAuthGuard } from "../common/guards/jwt-auth.guard";
 import { ZodValidationPipe } from "../common/pipes/zod-validation.pipe";
-import { PrismaService } from "../prisma/prisma.service";
 import { zodRef } from "../swagger/zod-ref";
 import { AuthService } from "./auth.service";
 
 @ApiTags("Auth")
 @Controller("auth")
 export class AuthController {
-  constructor(
-    private readonly auth: AuthService,
-    private readonly prisma: PrismaService,
-  ) {}
+  constructor(private readonly auth: AuthService) {}
 
   @Post("login")
   @ApiOperation({ summary: "Log in with email and password" })
@@ -70,18 +68,20 @@ export class AuthController {
   @Get("me")
   @ApiOperation({ summary: "Get the current logged-in user" })
   @ApiResponse({ status: 200, schema: zodRef("User") })
-  async me(@CurrentUser() user: AuthUser) {
-    const record = await this.prisma.user.findUnique({ where: { id: user.id } });
-    if (!record) throw new NotFoundException();
-    return {
-      id: record.id,
-      email: record.email,
-      displayName: record.displayName,
-      role: record.role,
-      isActive: record.isActive,
-      mustChangePassword: record.mustChangePassword,
-      canSendNotifications: record.canSendNotifications,
-      createdAt: record.createdAt.toISOString(),
-    };
+  me(@CurrentUser() user: AuthUser) {
+    return this.auth.getProfile(user.id);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @Patch("me")
+  @ApiOperation({ summary: "Edit the current user's own profile (display name)" })
+  @ApiBody({ schema: zodRef("UpdateProfileRequest") })
+  @ApiResponse({ status: 200, schema: zodRef("User") })
+  updateMe(
+    @CurrentUser() user: AuthUser,
+    @Body(new ZodValidationPipe(UpdateProfileRequestSchema)) body: UpdateProfileRequest,
+  ) {
+    return this.auth.updateProfile(user.id, body);
   }
 }

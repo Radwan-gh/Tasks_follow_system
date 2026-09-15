@@ -8,6 +8,8 @@ interface AuthContextValue {
   isLoading: boolean;
   login: (input: LoginRequest) => Promise<void>;
   logout: () => Promise<void>;
+  /** Re-reads `GET /auth/me` into state — used after the user edits their own profile. */
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -34,6 +36,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(await api.auth.me());
   }
 
+  async function refreshUser() {
+    setUser(await api.auth.me());
+  }
+
   async function logout() {
     const refreshToken = tokenStore.getRefreshToken();
     if (refreshToken) await api.auth.logout(refreshToken).catch(() => undefined);
@@ -42,7 +48,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, logout }}>{children}</AuthContext.Provider>
+    <AuthContext.Provider value={{ user, isLoading, login, logout, refreshUser }}>{children}</AuthContext.Provider>
   );
 }
 

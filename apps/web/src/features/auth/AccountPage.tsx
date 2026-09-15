@@ -55,6 +55,81 @@ function CurrencySettingSection() {
   );
 }
 
+/**
+ * Self-service profile edit — `PATCH /auth/me`. Only the display name is
+ * editable here: the email is the account's login identity and, since accounts
+ * are admin-provisioned, only an admin changes it (`PATCH /admin/users/:id`).
+ */
+function ProfileSection() {
+  const { user, refreshUser } = useAuth();
+  const [displayName, setDisplayName] = useState(user?.displayName ?? "");
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  // The context user arrives asynchronously on a hard reload, so seed the
+  // field once it does (and whenever a save swaps in the server's value).
+  useEffect(() => {
+    if (user) setDisplayName(user.displayName);
+  }, [user?.displayName]);
+
+  const trimmed = displayName.trim();
+  const dirty = trimmed.length > 0 && trimmed !== user?.displayName;
+
+  async function onSubmit(e: FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setSuccess(false);
+    setSaving(true);
+    try {
+      await api.auth.updateProfile({ displayName: trimmed });
+      await refreshUser();
+      setSuccess(true);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "تعذّر حفظ البيانات");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <form onSubmit={onSubmit} className="space-y-4 rounded-lg bg-white p-6 shadow-sm">
+      <h2 className="text-base font-semibold text-slate-900">المعلومات الشخصية</h2>
+      {error && <p className="rounded bg-red-50 p-2 text-sm text-red-600">{error}</p>}
+      {success && <p className="rounded bg-green-50 p-2 text-sm text-green-700">تم حفظ البيانات بنجاح.</p>}
+
+      <label className="block space-y-1">
+        <span className="text-sm text-slate-600">الاسم المعروض</span>
+        <input
+          required
+          maxLength={100}
+          value={displayName}
+          onChange={(e) => setDisplayName(e.target.value)}
+          className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+        />
+      </label>
+
+      <label className="block space-y-1">
+        <span className="text-sm text-slate-600">البريد الإلكتروني</span>
+        <input
+          disabled
+          value={user?.email ?? ""}
+          className="w-full rounded border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-500"
+        />
+        <span className="block text-xs text-slate-400">لتغيير البريد الإلكتروني راجع المشرف.</span>
+      </label>
+
+      <button
+        type="submit"
+        disabled={!dirty || saving}
+        className="w-full rounded bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
+      >
+        {saving ? "جارٍ الحفظ..." : "حفظ البيانات"}
+      </button>
+    </form>
+  );
+}
+
 export function AccountPage() {
   const { user, logout } = useAuth();
   const [currentPassword, setCurrentPassword] = useState("");
@@ -103,7 +178,9 @@ export function AccountPage() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-md p-6">
+      <main className="mx-auto max-w-md space-y-6 p-6">
+        <ProfileSection />
+
         <form onSubmit={onSubmit} className="space-y-4 rounded-lg bg-white p-6 shadow-sm">
           <h2 className="text-base font-semibold text-slate-900">تغيير كلمة المرور</h2>
           {error && <p className="rounded bg-red-50 p-2 text-sm text-red-600">{error}</p>}
@@ -143,11 +220,7 @@ export function AccountPage() {
           </button>
         </form>
 
-        {user?.role === "ADMIN" ? (
-          <div className="mt-6">
-            <CurrencySettingSection />
-          </div>
-        ) : null}
+        {user?.role === "ADMIN" ? <CurrencySettingSection /> : null}
       </main>
     </div>
   );

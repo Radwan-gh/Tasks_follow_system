@@ -3,12 +3,13 @@ import { Pressable, ScrollView, TextInput, View } from "react-native";
 import { useRouter } from "expo-router";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError } from "@app/api-client";
-import type { AdminUser, UserRole } from "@app/types";
+import type { AdminUser, UpdateUserRequest, UserRole } from "@app/types";
 import { Screen } from "@/components/screen";
 import { AppText } from "@/components/text";
 import { ConfirmSheet } from "@/components/confirm-sheet";
 import { Skeleton } from "@/components/skeleton";
 import { EmptyState, ErrorState } from "@/components/state-views";
+import { EditUserSheet } from "@/features/admin/edit-user-sheet";
 import { NewUserSheet } from "@/features/admin/new-user-sheet";
 import { ResetPasswordResultSheet } from "@/features/admin/reset-password-result-sheet";
 import { useAuth } from "@/features/auth/auth-context";
@@ -37,6 +38,10 @@ export default function AdminUsersScreen() {
   const [page, setPage] = useState(1);
   const [error, setError] = useState<string | null>(null);
   const [creatingUser, setCreatingUser] = useState(false);
+  // Row open in the edit sheet; its error stays separate from the screen-level
+  // banner so a duplicate-email conflict shows next to the fields.
+  const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
+  const [editError, setEditError] = useState<string | null>(null);
   const [resettingTarget, setResettingTarget] = useState<AdminUser | null>(null);
   const [resetResult, setResetResult] = useState<{ email: string; temporaryPassword: string } | null>(null);
   const [confirming, setConfirming] = useState<{ userId: string; action: "role" | "status" } | null>(null);
@@ -78,6 +83,16 @@ export default function AdminUsersScreen() {
     onError: reportError,
   });
 
+  const updateUser = useMutation({
+    mutationFn: (input: { id: string; body: UpdateUserRequest }) => api.admin.updateUser(input.id, input.body),
+    onSuccess: () => {
+      setEditingUser(null);
+      setEditError(null);
+      invalidate();
+    },
+    onError: (err) => setEditError(err instanceof ApiError ? err.message : "حدث خطأ غير متوقّع"),
+  });
+
   const resetPassword = useMutation({
     mutationFn: (id: string) => api.admin.resetPassword(id),
     onSuccess: (result) => {
@@ -116,7 +131,8 @@ export default function AdminUsersScreen() {
     onError: reportError,
   });
 
-  const isMutating = updateRole.isPending || updateStatus.isPending || updatePermissions.isPending;
+  const isMutating =
+    updateRole.isPending || updateStatus.isPending || updatePermissions.isPending || updateUser.isPending;
   const totalPages = users.data ? Math.max(1, Math.ceil(users.data.total / users.data.pageSize)) : 1;
 
   return (
@@ -271,6 +287,14 @@ export default function AdminUsersScreen() {
                         : setConfirming({ userId: u.id, action: "status" })
                     }
                   />
+                  <ActionButton
+                    label="تعديل البيانات"
+                    disabled={isMutating}
+                    onPress={() => {
+                      setEditError(null);
+                      setEditingUser(u);
+                    }}
+                  />
                   <ActionButton label="إعادة تعيين كلمة المرور" onPress={() => setResettingTarget(u)} />
                   {/* Admins can always send, so the grant only means something for USER rows. */}
                   {u.role !== "ADMIN" ? (
@@ -320,6 +344,19 @@ export default function AdminUsersScreen() {
         onClose={() => setCreatingUser(false)}
         onCreate={(input) => createUser.mutate(input)}
         creating={createUser.isPending}
+      />
+
+      <EditUserSheet
+        user={editingUser}
+        saving={updateUser.isPending}
+        error={editError}
+        onClose={() => {
+          setEditingUser(null);
+          setEditError(null);
+        }}
+        onSave={(body) => {
+          if (editingUser) updateUser.mutate({ id: editingUser.id, body });
+        }}
       />
 
       <ConfirmSheet

@@ -7,7 +7,9 @@ import {
   UpdateUserRoleRequestSchema,
   UpdateUserStatusRequestSchema,
   UpdateUserPermissionsRequestSchema,
+  UpdateUserRequestSchema,
   type UpdateUserPermissionsRequest,
+  type UpdateUserRequest,
   type AdminResetPasswordResponse,
   type AdminSetPasswordRequest,
   type CreateUserRequest,
@@ -47,6 +49,16 @@ export class UsersController {
   @ApiResponse({ status: 400, description: "Email already in use" })
   create(@Body(new ZodValidationPipe(CreateUserRequestSchema)) body: CreateUserRequest) {
     return this.users.create(body);
+  }
+
+  @Patch(":id")
+  @ApiOperation({ summary: "Edit a user's display name and/or login email" })
+  @ApiParam({ name: "id", description: "User ID" })
+  @ApiBody({ schema: zodRef("UpdateUserRequest") })
+  @ApiResponse({ status: 200, schema: zodRef("AdminUser") })
+  @ApiResponse({ status: 409, description: "Email already in use" })
+  update(@Param("id") id: string, @Body(new ZodValidationPipe(UpdateUserRequestSchema)) body: UpdateUserRequest) {
+    return this.users.update(id, body);
   }
 
   @Patch(":id/password")

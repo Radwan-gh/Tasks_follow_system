@@ -53,9 +53,9 @@ AppSettings (single global row, no relations)
 | Field | Type | Business-logic notes |
 |---|---|---|
 | `id` | id (cuid) | Primary key |
-| `email` | unique string | Used for login and for adding a member to a board |
+| `email` | unique string | Used for login and for adding a member to a board. Editable by an admin via `PATCH /admin/users/:id` — a change revokes the target's refresh tokens, see [`07-admin.md`](./07-admin.md) |
 | `passwordHash` | string | bcrypt hash — **the raw password is never stored** |
-| `displayName` | string | Display name |
+| `displayName` | string | Display name. Edited by the user themselves via `PATCH /auth/me`, or by an admin via `PATCH /admin/users/:id` |
 | `role` | `USER` \| `ADMIN` | Role at the **whole-system** level (default `USER`) |
 | `isActive` | boolean | If `false`, login is blocked and sessions are revoked (default `true`) |
 | `notificationPrefs` | optional JSON | Three notification-preference toggles (assignment/comments · due-dates/overdue · my cards moved), all `true` by default — see `NotificationPrefsSchema` |

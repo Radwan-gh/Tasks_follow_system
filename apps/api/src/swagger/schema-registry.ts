@@ -33,6 +33,8 @@ import {
   ListUsersQuerySchema,
   UpdateUserRoleRequestSchema,
   UpdateUserStatusRequestSchema,
+  UpdateUserRequestSchema,
+  UpdateProfileRequestSchema,
   CreateListRequestSchema,
   UpdateListRequestSchema,
   CreateCardRequestSchema,
@@ -101,6 +103,8 @@ registry.register("AdminResetPasswordResponse", AdminResetPasswordResponseSchema
 registry.register("ListUsersQuery", ListUsersQuerySchema);
 registry.register("UpdateUserRoleRequest", UpdateUserRoleRequestSchema);
 registry.register("UpdateUserStatusRequest", UpdateUserStatusRequestSchema);
+registry.register("UpdateUserRequest", UpdateUserRequestSchema);
+registry.register("UpdateProfileRequest", UpdateProfileRequestSchema);
 registry.register("CreateListRequest", CreateListRequestSchema);
 registry.register("UpdateListRequest", UpdateListRequestSchema);
 registry.register("CreateCardRequest", CreateCardRequestSchema);

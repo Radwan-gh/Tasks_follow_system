@@ -111,6 +111,29 @@ export const UpdateUserStatusRequestSchema = z.object({
 });
 export type UpdateUserStatusRequest = z.infer<typeof UpdateUserStatusRequestSchema>;
 
+/**
+ * Admin-only edit of a user's identity fields — display name and login email.
+ * Credentials, role, status and permissions keep their own endpoints, so this
+ * one never carries a password. Both fields are optional: an empty patch is a
+ * no-op. See `PATCH /admin/users/:id`.
+ */
+export const UpdateUserRequestSchema = z.object({
+  email: z.string().trim().email().optional(),
+  displayName: z.string().trim().min(1).max(100).optional(),
+});
+export type UpdateUserRequest = z.infer<typeof UpdateUserRequestSchema>;
+
+/**
+ * Self-service profile edit for the logged-in user (`PATCH /auth/me`). Only
+ * the display name: the email is the account's login identity and, since
+ * accounts are admin-provisioned, only an admin changes it
+ * (`PATCH /admin/users/:id`).
+ */
+export const UpdateProfileRequestSchema = z.object({
+  displayName: z.string().trim().min(1).max(100),
+});
+export type UpdateProfileRequest = z.infer<typeof UpdateProfileRequestSchema>;
+
 export const CreateListRequestSchema = z.object({
   name: z.string().min(1).max(200),
 });

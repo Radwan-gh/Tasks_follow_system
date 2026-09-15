@@ -1,5 +1,12 @@
 import { ConflictException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
-import type { AdminUser, AdminUserList, CreateUserRequest, ListUsersQuery, UserRole } from "@app/types";
+import type {
+  AdminUser,
+  AdminUserList,
+  CreateUserRequest,
+  ListUsersQuery,
+  UpdateUserRequest,
+  UserRole,
+} from "@app/types";
 import type { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { generateTemporaryPassword, hashPassword } from "../common/util/password.util";
@@ -69,6 +76,44 @@ export class UsersService {
       include: BOARD_COUNT_INCLUDE,
     });
     return serialize(user);
+  }
+
+  /**
+   * Admin edit of a user's identity fields (display name / login email).
+   * Credentials, role and status have their own endpoints — this one only
+   * touches who the account *is*.
+   *
+   * A changed email is the login identity, so it must stay unique (duplicate →
+   * `Conflict`) and the target's refresh tokens are revoked: live access
+   * tokens still carry the old `email` claim, and revoking caps them at an
+   * access-token TTL — the same session-capping rationale as a password, role
+   * or status change. A rename alone changes no identity, so sessions survive it.
+   */
+  async update(targetId: string, input: UpdateUserRequest): Promise<AdminUser> {
+    return this.prisma.$transaction(async (tx) => {
+      const target = await tx.user.findUnique({ where: { id: targetId }, include: BOARD_COUNT_INCLUDE });
+      if (!target) throw new NotFoundException("User not found");
+
+      const emailChanged = input.email !== undefined && input.email !== target.email;
+      const nameChanged = input.displayName !== undefined && input.displayName !== target.displayName;
+      if (!emailChanged && !nameChanged) return serialize(target);
+
+      if (emailChanged) {
+        const existing = await tx.user.findUnique({ where: { email: input.email } });
+        if (existing) throw new ConflictException("Email already registered");
+      }
+
+      const updated = await tx.user.update({
+        where: { id: targetId },
+        data: {
+          ...(emailChanged ? { email: input.email } : {}),
+          ...(nameChanged ? { displayName: input.displayName } : {}),
+        },
+        include: BOARD_COUNT_INCLUDE,
+      });
+      if (emailChanged) await this.revokeRefreshTokens(tx, targetId);
+      return serialize(updated);
+    });
   }
 
   /**

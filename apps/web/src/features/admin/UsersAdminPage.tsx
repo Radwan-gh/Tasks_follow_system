@@ -1,9 +1,10 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { UserRole } from "@app/types";
+import type { AdminUser, UpdateUserRequest, UserRole } from "@app/types";
 import { api, ApiError } from "../../lib/api-client";
 import { useAuth } from "../auth/AuthContext";
+import { EditUserModal } from "./EditUserModal";
 
 const PAGE_SIZE = 20;
 
@@ -15,6 +16,10 @@ export function UsersAdminPage() {
   const [page, setPage] = useState(1);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  // Row currently open in the edit dialog. Its own error is kept separate from
+  // the page-level one so it shows inside the dialog, next to the fields.
+  const [editing, setEditing] = useState<AdminUser | null>(null);
+  const [editError, setEditError] = useState<string | null>(null);
 
   // New-user form state.
   const [newName, setNewName] = useState("");
@@ -57,6 +62,17 @@ export function UsersAdminPage() {
       setNewIsAdmin(false);
     },
     onError: onMutationError,
+  });
+
+  const updateUser = useMutation({
+    mutationFn: ({ id, body }: { id: string; body: UpdateUserRequest }) => api.admin.updateUser(id, body),
+    onSuccess: (updated) => {
+      onMutationSuccess();
+      setEditing(null);
+      setEditError(null);
+      setNotice(`تم تحديث بيانات ${updated.email}.`);
+    },
+    onError: (err: unknown) => setEditError(err instanceof ApiError ? err.message : "حدث خطأ ما"),
   });
 
   const setPassword = useMutation({
@@ -116,7 +132,7 @@ export function UsersAdminPage() {
   }
 
   const totalPages = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1;
-  const isMutating = updateRole.isPending || updateStatus.isPending || setPassword.isPending;
+  const isMutating = updateRole.isPending || updateStatus.isPending || setPassword.isPending || updateUser.isPending;
 
   return (
     <div className="min-h-screen bg-slate-100">
@@ -262,6 +278,16 @@ export function UsersAdminPage() {
                             {u.isActive ? "إلغاء التفعيل" : "إعادة التفعيل"}
                           </button>
                           <button
+                            onClick={() => {
+                              setEditError(null);
+                              setEditing(u);
+                            }}
+                            disabled={isMutating}
+                            className="rounded border border-slate-300 px-2 py-1 text-xs text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                          >
+                            تعديل البيانات
+                          </button>
+                          <button
                             onClick={() => onSetPassword(u.id, u.email)}
                             disabled={isMutating}
                             className="rounded border border-slate-300 px-2 py-1 text-xs text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
@@ -298,6 +324,19 @@ export function UsersAdminPage() {
               التالي
             </button>
           </div>
+        )}
+
+        {editing && (
+          <EditUserModal
+            user={editing}
+            saving={updateUser.isPending}
+            error={editError}
+            onClose={() => {
+              setEditing(null);
+              setEditError(null);
+            }}
+            onSave={(body) => updateUser.mutate({ id: editing.id, body })}
+          />
         )}
       </main>
     </div>
