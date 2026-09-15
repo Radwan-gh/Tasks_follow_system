@@ -50,7 +50,7 @@ export function AssigneePickerSheet({
   }
 
   return (
-    <BottomSheet visible={visible} onClose={onClose}>
+    <BottomSheet visible={visible} onClose={onClose} scrollable={false}>
       <View style={{ paddingHorizontal: spacing.xl, gap: spacing.md, maxHeight: "80%" }}>
         <View style={{ gap: spacing.xs }}>
           <AppText weight="bold" size="title">
