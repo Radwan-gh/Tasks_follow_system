@@ -3,13 +3,14 @@ import { Pressable, ScrollView, TextInput, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError } from "@app/api-client";
-import type { BoardRole } from "@app/types";
+import type { BoardMemberCandidate, BoardRole } from "@app/types";
 import { Screen } from "@/components/screen";
 import { AppText } from "@/components/text";
 import { ConfirmSheet } from "@/components/confirm-sheet";
 import { DueDateSheet } from "@/components/due-date-sheet";
 import { ErrorState } from "@/components/state-views";
 import { Skeleton } from "@/components/skeleton";
+import { AddMemberSheet } from "@/features/boards/add-member-sheet";
 import { TemplatesSection } from "@/features/boards/templates-section";
 import { useAuth } from "@/features/auth/auth-context";
 import { avatarColorFor } from "@/lib/avatar";
@@ -25,6 +26,9 @@ import { MIN_TOUCH_TARGET, colors, fonts, fontSizes, radii, spacing } from "@/th
  * (`PATCH /boards/:id`, `POST`/`DELETE .../members`) — this is UI only,
  * mirroring `apps/web`'s `BoardSettingsModal`/`BoardMembersModal`.
  */
+/** Above this many members, the list gets its own filter box. */
+const MEMBER_FILTER_THRESHOLD = 6;
+
 export default function BoardSettingsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
@@ -40,7 +44,8 @@ export default function BoardSettingsScreen() {
   const [pickingDueDate, setPickingDueDate] = useState(false);
   const [confirmingArchive, setConfirmingArchive] = useState(false);
   const [removingMember, setRemovingMember] = useState<{ userId: string; displayName: string } | null>(null);
-  const [memberEmail, setMemberEmail] = useState("");
+  const [addingMember, setAddingMember] = useState(false);
+  const [memberFilter, setMemberFilter] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -55,6 +60,8 @@ export default function BoardSettingsScreen() {
   function invalidate() {
     void queryClient.invalidateQueries({ queryKey: ["board", id] });
     void queryClient.invalidateQueries({ queryKey: ["boards"] });
+    // Keep the "add member" search from offering someone who is already in.
+    void queryClient.invalidateQueries({ queryKey: ["member-candidates", id] });
   }
 
   function reportError(err: unknown) {
@@ -87,13 +94,17 @@ export default function BoardSettingsScreen() {
   });
 
   const addMember = useMutation({
-    mutationFn: (email: string) => api.boards.addMember(id, email),
+    mutationFn: (input: { email: string; role: Exclude<BoardRole, "OWNER"> }) =>
+      api.boards.addMember(id, input.email, input.role),
     onSuccess: () => {
-      setMemberEmail("");
+      setAddingMember(false);
       setError(null);
       invalidate();
     },
-    onError: reportError,
+    onError: (err) => {
+      setAddingMember(false);
+      reportError(err);
+    },
   });
 
   const removeMember = useMutation({
@@ -131,6 +142,14 @@ export default function BoardSettingsScreen() {
   }
 
   const canArchive = board.data.ownerId === user?.id;
+  const filterTerm = memberFilter.trim().toLowerCase();
+  const visibleMembers = filterTerm
+    ? board.data.members.filter(
+        (m) =>
+          m.user.displayName.toLowerCase().includes(filterTerm) ||
+          m.user.email.toLowerCase().includes(filterTerm),
+      )
+    : board.data.members;
 
   return (
     <Screen edges={{ top: true, bottom: true }} style={{ backgroundColor: colors.surface }}>
@@ -232,17 +251,38 @@ export default function BoardSettingsScreen() {
             أعضاء اللوحة
           </AppText>
 
-          <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
+          {/* Owners add people by searching the directory — no exact email to recall. */}
+          {canArchive ? (
+            <Pressable
+              accessibilityRole="button"
+              disabled={addMember.isPending}
+              onPress={() => setAddingMember(true)}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: spacing.sm,
+                minHeight: MIN_TOUCH_TARGET,
+                borderRadius: radii.field,
+                backgroundColor: colors.accent,
+              }}
+            >
+              <AppText weight="semibold" color={colors.surface}>
+                {addMember.isPending ? "جارٍ الإضافة..." : "＋ إضافة عضو"}
+              </AppText>
+            </Pressable>
+          ) : null}
+
+          {/* A long board's member list needs filtering as much as the picker does. */}
+          {board.data.members.length >= MEMBER_FILTER_THRESHOLD ? (
             <TextInput
-              value={memberEmail}
-              onChangeText={setMemberEmail}
-              placeholder="إضافة عضو بالبريد الإلكتروني"
+              value={memberFilter}
+              onChangeText={setMemberFilter}
+              placeholder="تصفية الأعضاء بالاسم أو البريد"
               placeholderTextColor={colors.muted}
               autoCapitalize="none"
-              keyboardType="email-address"
-              onSubmitEditing={() => memberEmail.trim() && addMember.mutate(memberEmail.trim())}
+              accessibilityLabel="تصفية الأعضاء"
               style={{
-                flex: 1,
                 minHeight: MIN_TOUCH_TARGET,
                 borderWidth: 1,
                 borderColor: colors.line,
@@ -255,27 +295,15 @@ export default function BoardSettingsScreen() {
                 writingDirection: "rtl",
               }}
             />
-            <Pressable
-              accessibilityRole="button"
-              disabled={!memberEmail.trim() || addMember.isPending}
-              onPress={() => addMember.mutate(memberEmail.trim())}
-              style={{
-                minHeight: MIN_TOUCH_TARGET,
-                paddingHorizontal: spacing.lg,
-                borderRadius: radii.field,
-                backgroundColor: colors.accent,
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <AppText weight="semibold" color={colors.surface}>
-                إضافة
-              </AppText>
-            </Pressable>
-          </View>
+          ) : null}
 
           <View style={{ gap: spacing.sm }}>
-            {board.data.members.map((member) => {
+            {visibleMembers.length === 0 ? (
+              <AppText size="small" color={colors.muted}>
+                لا يوجد عضو يطابق «{memberFilter.trim()}».
+              </AppText>
+            ) : null}
+            {visibleMembers.map((member) => {
               const palette = avatarColorFor(member.userId);
               return (
                 <View
@@ -417,6 +445,14 @@ export default function BoardSettingsScreen() {
           </View>
         ) : null}
       </ScrollView>
+
+      <AddMemberSheet
+        visible={addingMember}
+        onClose={() => setAddingMember(false)}
+        boardId={id}
+        adding={addMember.isPending}
+        onPick={(user: BoardMemberCandidate, role) => addMember.mutate({ email: user.email, role })}
+      />
 
       <DueDateSheet visible={pickingDueDate} onClose={() => setPickingDueDate(false)} onChange={setDueDate} />
 

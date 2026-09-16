@@ -60,6 +60,18 @@ export const AddBoardMemberRequestSchema = z.object({
 });
 export type AddBoardMemberRequest = z.infer<typeof AddBoardMemberRequestSchema>;
 
+/**
+ * `GET /boards/:id/member-candidates` — owner-only lookup that powers the
+ * "add member" search box in both apps. An empty `search` is valid and
+ * deliberate: opening the picker shows the first `limit` candidates so a user
+ * never has to guess an exact email to get started.
+ */
+export const SearchMemberCandidatesQuerySchema = z.object({
+  search: z.string().max(200).optional(),
+  limit: z.coerce.number().int().min(1).max(50).default(20),
+});
+export type SearchMemberCandidatesQuery = z.infer<typeof SearchMemberCandidatesQuerySchema>;
+
 /** `PATCH /boards/:id/members/:userId` — owner-only switch between `MEMBER` and `VIEWER`. Never `OWNER` (no ownership transfer via this route). */
 export const UpdateBoardMemberRoleRequestSchema = z.object({
   role: z.enum(["MEMBER", "VIEWER"]),

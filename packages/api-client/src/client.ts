@@ -13,6 +13,7 @@ import type {
   CreateUserRequest,
   BoardDetail,
   BoardMember,
+  BoardMemberCandidateList,
   BoardOwnerSummary,
   BoardSummary,
   Card,
@@ -221,6 +222,14 @@ export function createApiClient({ baseUrl, storage, onUnauthorized }: ApiClientO
       getSummary: (id: string) => request<BoardOwnerSummary>(`/boards/${id}/summary`),
       update: (id: string, body: UpdateBoardRequest) =>
         request<BoardSummary>(`/boards/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+      /** Owner-only user search behind the "add member" picker. Empty search = first page of candidates. */
+      memberCandidates: (id: string, params: { search?: string; limit?: number } = {}) => {
+        const query = new URLSearchParams();
+        if (params.search) query.set("search", params.search);
+        if (params.limit) query.set("limit", String(params.limit));
+        const qs = query.toString();
+        return request<BoardMemberCandidateList>(`/boards/${id}/member-candidates${qs ? `?${qs}` : ""}`);
+      },
       addMember: (id: string, email: string, role?: Exclude<BoardRole, "OWNER">) =>
         request<BoardMember>(`/boards/${id}/members`, { method: "POST", body: JSON.stringify({ email, role }) }),
       updateMemberRole: (id: string, userId: string, role: Exclude<BoardRole, "OWNER">) =>

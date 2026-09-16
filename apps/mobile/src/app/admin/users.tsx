@@ -37,6 +37,7 @@ export default function AdminUsersScreen() {
   const [page, setPage] = useState(1);
   const [error, setError] = useState<string | null>(null);
   const [creatingUser, setCreatingUser] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
   const [resettingTarget, setResettingTarget] = useState<AdminUser | null>(null);
   const [resetResult, setResetResult] = useState<{ email: string; temporaryPassword: string } | null>(null);
   const [confirming, setConfirming] = useState<{ userId: string; action: "role" | "status" } | null>(null);
@@ -73,9 +74,12 @@ export default function AdminUsersScreen() {
       }),
     onSuccess: () => {
       setCreatingUser(false);
+      setCreateError(null);
       invalidate();
     },
-    onError: reportError,
+    // Reported inside the sheet, not on the screen behind it: a rejected
+    // email (already registered) is invisible under an open bottom sheet.
+    onError: (err) => setCreateError(err instanceof ApiError ? err.message : "حدث خطأ غير متوقّع"),
   });
 
   const resetPassword = useMutation({
@@ -116,6 +120,14 @@ export default function AdminUsersScreen() {
     onError: reportError,
   });
 
+  /** Searching for someone who has no account yet is the moment to create them. */
+  function openNewUser() {
+    setCreateError(null);
+    setCreatingUser(true);
+  }
+  const searchTerm = search.trim();
+  const searchLooksLikeEmail = searchTerm.includes("@");
+
   const isMutating = updateRole.isPending || updateStatus.isPending || updatePermissions.isPending;
   const totalPages = users.data ? Math.max(1, Math.ceil(users.data.total / users.data.pageSize)) : 1;
 
@@ -136,20 +148,24 @@ export default function AdminUsersScreen() {
           <AppText color={colors.muted}>إلغاء</AppText>
         </Pressable>
         <AppText weight="bold">المستخدمون والصلاحيات</AppText>
-        <Pressable accessibilityRole="button" onPress={() => setCreatingUser(true)} hitSlop={8}>
+        <Pressable accessibilityRole="button" accessibilityLabel="مستخدم جديد" onPress={openNewUser} hitSlop={8}>
           <AppText size="title" weight="bold" color={colors.accent}>
             +
           </AppText>
         </Pressable>
       </View>
 
-      <View style={{ padding: spacing.xl, paddingBottom: spacing.md }}>
+      <View style={{ padding: spacing.xl, paddingBottom: spacing.md, flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
         <TextInput
           value={search}
           onChangeText={setSearch}
           placeholder="ابحث بالبريد الإلكتروني أو الاسم"
           placeholderTextColor={colors.muted}
+          autoCapitalize="none"
+          autoCorrect={false}
+          accessibilityLabel="ابحث عن مستخدم"
           style={{
+            flex: 1,
             minHeight: MIN_TOUCH_TARGET,
             backgroundColor: colors.canvas,
             borderWidth: 1,
@@ -163,6 +179,21 @@ export default function AdminUsersScreen() {
             writingDirection: "rtl",
           }}
         />
+        {searchTerm ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="مسح البحث"
+            onPress={() => setSearch("")}
+            style={{
+              minHeight: MIN_TOUCH_TARGET,
+              minWidth: MIN_TOUCH_TARGET,
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <AppText color={colors.muted}>✕</AppText>
+          </Pressable>
+        ) : null}
       </View>
 
       <ScrollView contentContainerStyle={{ paddingHorizontal: spacing.xl, paddingBottom: spacing.xxl, gap: spacing.md }}>
@@ -182,7 +213,27 @@ export default function AdminUsersScreen() {
         ) : users.isError ? (
           <ErrorState onRetry={() => void users.refetch()} />
         ) : users.data.users.length === 0 ? (
-          <EmptyState icon="people-outline" title="لا نتائج" message="لا يوجد مستخدمون يطابقون بحثك." />
+          <View style={{ gap: spacing.md }}>
+            <EmptyState icon="people-outline" title="لا نتائج" message="لا يوجد مستخدمون يطابقون بحثك." />
+            {searchTerm ? (
+              <Pressable
+                accessibilityRole="button"
+                onPress={openNewUser}
+                style={{
+                  minHeight: MIN_TOUCH_TARGET,
+                  borderRadius: radii.field,
+                  backgroundColor: colors.accent,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  paddingHorizontal: spacing.lg,
+                }}
+              >
+                <AppText weight="semibold" color={colors.surface}>
+                  إنشاء مستخدم «{searchTerm}»
+                </AppText>
+              </Pressable>
+            ) : null}
+          </View>
         ) : (
           users.data.users.map((u) => {
             const isSelf = u.id === currentUser?.id;
@@ -317,9 +368,15 @@ export default function AdminUsersScreen() {
 
       <NewUserSheet
         visible={creatingUser}
-        onClose={() => setCreatingUser(false)}
+        onClose={() => {
+          setCreatingUser(false);
+          setCreateError(null);
+        }}
         onCreate={(input) => createUser.mutate(input)}
         creating={createUser.isPending}
+        initialEmail={searchLooksLikeEmail ? searchTerm : ""}
+        initialName={searchLooksLikeEmail ? "" : searchTerm}
+        error={createError}
       />
 
       <ConfirmSheet

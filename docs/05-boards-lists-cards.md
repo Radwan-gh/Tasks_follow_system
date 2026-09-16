@@ -12,7 +12,8 @@
 كل المسارات تتطلّب مصادقة (Bearer JWT) ما عدا `/auth/*`.
 
 - **اللوحات:** `GET/POST /boards`، `GET /boards/archived`، `GET/PATCH/DELETE /boards/:id`،
-  `GET /boards/:id/summary`، `POST/DELETE /boards/:id/members[/:userId]`
+  `GET /boards/:id/summary`، `POST/DELETE /boards/:id/members[/:userId]`،
+  `GET /boards/:id/member-candidates`
 - **القوائم:** `POST /boards/:boardId/lists`، `PATCH/DELETE /lists/:id`
 - **البطاقات:** `POST /lists/:listId/cards`، `GET/PATCH/DELETE /cards/:id`،
   `GET /cards/:id/history`، `PATCH /cards/:id/access`، `PATCH /cards/:id/assignees`
@@ -58,7 +59,29 @@
 - **الإضافة (OWNER):** يُبحث عن المستخدم بالبريد؛ يُرفض إن لم يوجد، أو إن كان عضوًا
   بالفعل. يُضاف بدور **MEMBER** افتراضيًا، أو **VIEWER** إن أُرسل `role` صراحةً في
   الطلب.
+- **البحث عن مرشّحين للإضافة (OWNER) — `GET /boards/:id/member-candidates`:** المصدر
+  `BoardsService.listMemberCandidates`. يُغني المالك عن حفظ البريد الإلكتروني حرفيًا:
+  يستقبل `search` اختياريًا (مطابقة **جزئية غير حسّاسة لحالة الأحرف** على البريد
+  **أو** الاسم المعروض) و`limit` (افتراضيًا 20، بحدّ أقصى 50)، ويُرجِع
+  `{ users, hasMore }` (`BoardMemberCandidateList` في `packages/types`).
+  - **نفس صلاحية الإضافة تمامًا** (`assertMembership(..., "OWNER")`) — فالمالك يستطيع
+    أصلًا استكشاف وجود أي بريد عبر `POST /boards/:id/members`؛ لذا لا يوسّع هذا المسار
+    من يرى دليل المستخدمين.
+  - **يستثني أعضاء اللوحة الحاليين** (`boardMemberships: { none: { boardId } }`) فكل
+    صفّ مُرجَع قابل للإضافة فعلًا.
+  - **`search` فارغ طلبٌ صالح ومقصود:** فتح المنتقي يعرض أوائل المرشّحين مباشرةً، فلا
+    يواجه المستخدم صندوقًا فارغًا لا يعرف بماذا يبدأ.
+  - **المستخدمون المعطَّلون يظهرون** (مرتَّبين في الآخر، وبشارة «معطَّل» في الواجهة)
+    مطابقةً لما تقبله `addMember` — إخفاؤهم يعني حجب مستخدم يستطيع المالك إضافته
+    بالبريد على أي حال.
+  - يُجلَب صفّ إضافي واحد (`take: limit + 1`) لحساب `hasMore` دون استعلام عدّ ثانٍ.
 - **الإزالة (OWNER):** يُرفض إن لم توجد العضوية، و**يُمنع إزالة عضو دوره OWNER**.
+- **في الواجهات:** الويب `BoardMembersModal.tsx` (بحث فوري بالاسم أو البريد + تنقّل
+  بالأسهم/Enter + اختيار الدور قبل الإضافة)، والجوال ورقة
+  `features/boards/add-member-sheet.tsx` من شاشة إعدادات اللوحة. كلاهما يستدعي
+  `member-candidates` ثم `POST /boards/:id/members` بالبريد المُختار من النتيجة، فلا
+  يُدخِل المستخدم بريدًا يدويًا. تفاصيل قاعدة «كل مكان يُختار فيه مستخدم قابل للبحث»
+  في [`12-mobile-app.md`](./12-mobile-app.md).
 - **تبديل الدور (OWNER) — `PATCH /boards/:id/members/:userId/role`:** يبدّل عضوًا قائمًا
   بين `MEMBER` و`VIEWER` فقط (لا يصل لـ`OWNER` أبدًا عبر هذا المسار)؛ تفاصيل دور
   «مشاهد» الكاملة في [`04-authorization.md`](./04-authorization.md).

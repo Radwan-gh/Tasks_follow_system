@@ -3,10 +3,12 @@ import { ApiBearerAuth, ApiBody, ApiOperation, ApiParam, ApiQuery, ApiResponse, 
 import {
   AddBoardMemberRequestSchema,
   CreateBoardRequestSchema,
+  SearchMemberCandidatesQuerySchema,
   UpdateBoardMemberRoleRequestSchema,
   UpdateBoardRequestSchema,
   type AddBoardMemberRequest,
   type CreateBoardRequest,
+  type SearchMemberCandidatesQuery,
   type UpdateBoardMemberRoleRequest,
   type UpdateBoardRequest,
 } from "@app/types";
@@ -95,6 +97,21 @@ export class BoardsController {
   @ApiResponse({ status: 403, description: "Requires OWNER role" })
   async remove(@CurrentUser() user: AuthUser, @Param("id") id: string) {
     await this.boards.remove(user.id, id);
+  }
+
+  @Get(":id/member-candidates")
+  @ApiOperation({ summary: "Search users who can still be added to this board (owner-only)" })
+  @ApiParam({ name: "id", description: "Board ID" })
+  @ApiQuery({ name: "search", required: false, description: "Matches email or display name, case-insensitive" })
+  @ApiQuery({ name: "limit", required: false })
+  @ApiResponse({ status: 200, schema: zodRef("BoardMemberCandidateList") })
+  @ApiResponse({ status: 403, description: "Requires OWNER role" })
+  memberCandidates(
+    @CurrentUser() user: AuthUser,
+    @Param("id") id: string,
+    @Query(new ZodValidationPipe(SearchMemberCandidatesQuerySchema)) query: SearchMemberCandidatesQuery,
+  ) {
+    return this.boards.listMemberCandidates(user.id, id, query);
   }
 
   @Post(":id/members")

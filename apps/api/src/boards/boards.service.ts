@@ -273,6 +273,50 @@ export class BoardsService {
     await this.prisma.board.delete({ where: { id: boardId } });
   }
 
+  /**
+   * Owner-only directory lookup behind the "add member" search box in both
+   * apps — the alternative to making the owner type an exact email. Same
+   * authorization as `addMember` itself (`assertMembership(..., "OWNER")`),
+   * so it never widens who can see the user directory: an owner could already
+   * probe for any address through `POST /boards/:id/members`.
+   *
+   * Already-members are excluded so every row returned is actually addable,
+   * and deactivated users are kept (badged "معطَّل" in the UI) to match what
+   * `addMember` accepts — filtering them here would hide a user the owner can
+   * still add by email.
+   */
+  async listMemberCandidates(
+    userId: string,
+    boardId: string,
+    { search, limit }: { search?: string; limit: number },
+  ) {
+    await this.assertMembership(userId, boardId, "OWNER");
+
+    const term = search?.trim();
+    const where: Prisma.UserWhereInput = {
+      boardMemberships: { none: { boardId } },
+      ...(term
+        ? {
+            OR: [
+              { email: { contains: term, mode: "insensitive" as const } },
+              { displayName: { contains: term, mode: "insensitive" as const } },
+            ],
+          }
+        : {}),
+    };
+
+    // Fetch one extra row to tell "exactly `limit` matches" from "more than
+    // `limit`" without a second COUNT query.
+    const rows = await this.prisma.user.findMany({
+      where,
+      select: { id: true, email: true, displayName: true, isActive: true },
+      orderBy: [{ isActive: "desc" }, { displayName: "asc" }],
+      take: limit + 1,
+    });
+
+    return { users: rows.slice(0, limit), hasMore: rows.length > limit };
+  }
+
   async addMember(userId: string, boardId: string, email: string, role: "MEMBER" | "VIEWER" = "MEMBER") {
     await this.assertMembership(userId, boardId, "OWNER");
 

@@ -1,25 +1,53 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Pressable, TextInput, View } from "react-native";
 import { BottomSheet } from "@/components/bottom-sheet";
 import { AppText } from "@/components/text";
 import { MIN_TOUCH_TARGET, colors, fonts, fontSizes, radii, spacing } from "@/theme/tokens";
 
-/** New-user bottom sheet — the design's «ورقة مستخدم جديد» (الاسم · البريد · كلمة المرور · مفتاح المشرف). */
+/**
+ * New-user bottom sheet — the design's «ورقة مستخدم جديد» (الاسم · البريد ·
+ * كلمة المرور · مفتاح المشرف).
+ *
+ * `initialName`/`initialEmail` let the admin screen carry whatever was typed
+ * into its search box straight into the form: searching for someone who has
+ * no account yet is exactly the moment you want to create them, and retyping
+ * the address is the step that made it feel clumsy.
+ *
+ * `error` is rendered *inside* the sheet rather than on the screen behind it
+ * — a duplicate-email rejection shown under the sheet is invisible.
+ */
 export function NewUserSheet({
   visible,
   onClose,
   onCreate,
   creating,
+  initialName = "",
+  initialEmail = "",
+  error,
 }: {
   visible: boolean;
   onClose: () => void;
   onCreate: (input: { displayName: string; email: string; password: string; isAdmin: boolean }) => void;
   creating: boolean;
+  initialName?: string;
+  initialEmail?: string;
+  error?: string | null;
 }) {
-  const [displayName, setDisplayName] = useState("");
-  const [email, setEmail] = useState("");
+  const [displayName, setDisplayName] = useState(initialName);
+  const [email, setEmail] = useState(initialEmail);
   const [password, setPassword] = useState("");
   const [isAdmin, setIsAdmin] = useState(false);
+
+  // Seed only as the sheet opens, so typing is never overwritten mid-edit.
+  useEffect(() => {
+    if (visible) {
+      setDisplayName(initialName);
+      setEmail(initialEmail);
+      setPassword("");
+      setIsAdmin(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible]);
 
   function close() {
     setDisplayName("");
@@ -37,6 +65,14 @@ export function NewUserSheet({
         <AppText weight="bold" size="title">
           مستخدم جديد
         </AppText>
+
+        {error ? (
+          <View style={{ backgroundColor: colors.alertSoft, borderRadius: radii.field, padding: spacing.md }}>
+            <AppText size="small" color={colors.alert}>
+              {error}
+            </AppText>
+          </View>
+        ) : null}
 
         <TextInput
           value={displayName}
