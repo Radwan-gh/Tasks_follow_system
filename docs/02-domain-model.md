@@ -53,10 +53,10 @@ AppSettings (single global row, no relations)
 | Field | Type | Business-logic notes |
 |---|---|---|
 | `id` | id (cuid) | Primary key |
-| `username` | unique string | **The login credential.** Stored lowercase; sign-in lowercases the input, so casing doesn't matter. Also the secondary identity line under `displayName` in member lists and pickers |
-| `email` | optional unique string | Contact information only — **not** a credential, and not how a member is added to a board. May be `null` |
+| `username` | unique string | **The login credential.** Stored lowercase; sign-in lowercases the input, so casing doesn't matter. Also the secondary identity line under `displayName` in member lists and pickers. Not editable after creation |
+| `email` | optional unique string | Contact information only — **not** a credential, and not how a member is added to a board. May be `null`. Editable by an admin via `PATCH /admin/users/:id` (and clearable) — sessions are unaffected, see [`07-admin.md`](./07-admin.md) |
 | `passwordHash` | string | bcrypt hash — **the raw password is never stored** |
-| `displayName` | string | Display name |
+| `displayName` | string | Display name. Edited by the user themselves via `PATCH /auth/me`, or by an admin via `PATCH /admin/users/:id` |
 | `role` | `USER` \| `ADMIN` | Role at the **whole-system** level (default `USER`) |
 | `isActive` | boolean | If `false`, login is blocked and sessions are revoked (default `true`) |
 | `notificationPrefs` | optional JSON | Three notification-preference toggles (assignment/comments · due-dates/overdue · my cards moved), all `true` by default — see `NotificationPrefsSchema` |

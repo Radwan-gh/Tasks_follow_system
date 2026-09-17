@@ -13,6 +13,8 @@ interface AuthContextValue {
   /** Drops the session locally, without calling the API. Used when the client
    *  reports the refresh token is dead — there is nothing left to revoke. */
   clearSession: () => void;
+  /** Re-reads `GET /auth/me` into state — used after the user edits their own profile. */
+  refreshUser: () => Promise<void>;
   /**
    * Completes the "عيّن كلمة مرور جديدة" forced-reset screen
    * (`design-prompt-group-3.md` §3a-7). Reuses the just-entered login
@@ -86,6 +88,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   }, []);
 
+  const refreshUser = useCallback(async () => {
+    setUser(await api.auth.me());
+  }, []);
+
   const clearSession = useCallback(() => {
     setPendingReauthPassword(null);
     setUser(null);
@@ -102,7 +108,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, logout, clearSession, completePasswordReset }}>
+    <AuthContext.Provider value={{ user, isLoading, login, logout, clearSession, refreshUser, completePasswordReset }}>
       {children}
     </AuthContext.Provider>
   );

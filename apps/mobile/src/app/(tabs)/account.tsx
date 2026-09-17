@@ -1,19 +1,39 @@
 import { useState } from "react";
 import { Pressable, ScrollView, View } from "react-native";
 import { useRouter } from "expo-router";
+import { useMutation } from "@tanstack/react-query";
+import { ApiError } from "@app/api-client";
 import { canSendPush } from "@app/types";
 import { Screen } from "@/components/screen";
 import { AppText } from "@/components/text";
 import { CurrencySettingSection } from "@/features/account/currency-setting-section";
+import { EditProfileSheet } from "@/features/account/edit-profile-sheet";
 import { NotificationPrefsSection } from "@/features/account/notification-prefs-section";
 import { useAuth } from "@/features/auth/auth-context";
+import { api } from "@/lib/api";
 import { initials } from "@/lib/initials";
 import { MIN_TOUCH_TARGET, colors, radii, spacing } from "@/theme/tokens";
 
 export default function AccountScreen() {
-  const { user, logout } = useAuth();
+  const { user, logout, refreshUser } = useAuth();
   const router = useRouter();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [editingProfile, setEditingProfile] = useState(false);
+  const [profileError, setProfileError] = useState<string | null>(null);
+
+  // Self-service edit of the user's own display name (`PATCH /auth/me`); the
+  // context is re-read afterwards so the header and avatar update at once.
+  const updateProfile = useMutation({
+    mutationFn: async (displayName: string) => {
+      await api.auth.updateProfile({ displayName });
+      await refreshUser();
+    },
+    onSuccess: () => {
+      setEditingProfile(false);
+      setProfileError(null);
+    },
+    onError: (err) => setProfileError(err instanceof ApiError ? err.message : "تعذّر حفظ البيانات"),
+  });
 
   async function onLogout() {
     setIsLoggingOut(true);
@@ -33,7 +53,13 @@ export default function AccountScreen() {
       </View>
 
       <ScrollView contentContainerStyle={{ paddingHorizontal: spacing.xl, gap: spacing.lg }}>
-        <View
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="تعديل بياناتي"
+          onPress={() => {
+            setProfileError(null);
+            setEditingProfile(true);
+          }}
           style={{
             backgroundColor: colors.surface,
             borderRadius: radii.card,
@@ -81,7 +107,10 @@ export default function AccountScreen() {
               </AppText>
             </View>
           ) : null}
-        </View>
+          <AppText size="small" color={colors.accent}>
+            تعديل
+          </AppText>
+        </Pressable>
 
         <NotificationPrefsSection />
 
@@ -144,6 +173,20 @@ export default function AccountScreen() {
           </AppText>
         </Pressable>
       </ScrollView>
+
+      <EditProfileSheet
+        visible={editingProfile}
+        displayName={user?.displayName ?? ""}
+        username={user?.username ?? ""}
+        email={user?.email ?? ""}
+        saving={updateProfile.isPending}
+        error={profileError}
+        onClose={() => {
+          setEditingProfile(false);
+          setProfileError(null);
+        }}
+        onSave={(displayName) => updateProfile.mutate(displayName)}
+      />
     </Screen>
   );
 }

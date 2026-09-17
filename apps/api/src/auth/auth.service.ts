@@ -1,7 +1,13 @@
-import { BadRequestException, ForbiddenException, Injectable, UnauthorizedException } from "@nestjs/common";
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+  UnauthorizedException,
+} from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { JwtService } from "@nestjs/jwt";
-import type { AuthResponse, LoginRequest } from "@app/types";
+import type { AuthResponse, CurrentUser, LoginRequest, UpdateProfileRequest } from "@app/types";
 import * as bcrypt from "bcrypt";
 import { createHash, randomUUID } from "crypto";
 import { PrismaService } from "../prisma/prisma.service";
@@ -21,6 +27,31 @@ function ttlToMs(ttl: string): number {
 interface RefreshPayload {
   sub: string;
   jti: string;
+}
+
+/** The `GET /auth/me` / `PATCH /auth/me` response shape (`CurrentUser` in `packages/types`). */
+function serializeCurrentUser(user: {
+  id: string;
+  username: string;
+  email: string | null;
+  displayName: string;
+  role: string;
+  isActive: boolean;
+  mustChangePassword: boolean;
+  canSendNotifications: boolean;
+  createdAt: Date;
+}): CurrentUser {
+  return {
+    id: user.id,
+    username: user.username,
+    email: user.email,
+    displayName: user.displayName,
+    role: user.role as CurrentUser["role"],
+    isActive: user.isActive,
+    mustChangePassword: user.mustChangePassword,
+    canSendNotifications: user.canSendNotifications,
+    createdAt: user.createdAt.toISOString(),
+  };
 }
 
 @Injectable()
@@ -95,6 +126,32 @@ export class AuthService {
         data: { revokedAt: new Date() },
       }),
     ]);
+  }
+
+  /** `GET /auth/me` — the logged-in user, re-read from the database rather than the token. */
+  async getProfile(userId: string): Promise<CurrentUser> {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException("User not found");
+    return serializeCurrentUser(user);
+  }
+
+  /**
+   * Self-service profile edit (`PATCH /auth/me`). Only the display name: the
+   * username is the login credential of an admin-provisioned account and the
+   * email is a contact field on it, so changing either stays an admin action
+   * (`PATCH /admin/users/:id`). Nothing here affects authentication, so no
+   * refresh token is revoked.
+   */
+  async updateProfile(userId: string, input: UpdateProfileRequest): Promise<CurrentUser> {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException("User not found");
+    if (user.displayName === input.displayName) return serializeCurrentUser(user);
+
+    const updated = await this.prisma.user.update({
+      where: { id: userId },
+      data: { displayName: input.displayName },
+    });
+    return serializeCurrentUser(updated);
   }
 
   private async verifyRefreshToken(refreshToken: string): Promise<RefreshPayload> {
