@@ -16,6 +16,7 @@ type UserWithBoardCount = Prisma.UserGetPayload<{ include: { _count: { select: {
 function serialize(user: UserWithBoardCount): AdminUser {
   return {
     id: user.id,
+    username: user.username,
     email: user.email,
     displayName: user.displayName,
     role: user.role,
@@ -37,8 +38,9 @@ export class UsersService {
     const where: Prisma.UserWhereInput = query.search
       ? {
           OR: [
-            { email: { contains: query.search, mode: "insensitive" } },
+            { username: { contains: query.search, mode: "insensitive" } },
             { displayName: { contains: query.search, mode: "insensitive" } },
+            { email: { contains: query.search, mode: "insensitive" } },
           ],
         }
       : {};
@@ -59,16 +61,27 @@ export class UsersService {
 
   /**
    * Provision a new account. Public self-registration was removed — an admin
-   * sets the initial email, display name, password, and (optionally) role.
+   * sets the initial username, display name, password, and (optionally) role.
+   * `email` is optional and purely contact information.
    */
   async create(input: CreateUserRequest): Promise<AdminUser> {
-    const existing = await this.prisma.user.findUnique({ where: { email: input.email } });
-    if (existing) throw new ConflictException("Email already registered");
+    // Usernames are stored lowercase so that sign-in can be case-insensitive
+    // without a second index.
+    const username = input.username.trim().toLowerCase();
+    const email = input.email?.trim() || null;
+
+    const takenUsername = await this.prisma.user.findUnique({ where: { username } });
+    if (takenUsername) throw new ConflictException("Username already registered");
+    if (email) {
+      const takenEmail = await this.prisma.user.findUnique({ where: { email } });
+      if (takenEmail) throw new ConflictException("Email already registered");
+    }
 
     const passwordHash = await hashPassword(input.password);
     const user = await this.prisma.user.create({
       data: {
-        email: input.email,
+        username,
+        email,
         passwordHash,
         displayName: input.displayName,
         role: input.role ?? "USER",
@@ -79,39 +92,38 @@ export class UsersService {
   }
 
   /**
-   * Admin edit of a user's identity fields (display name / login email).
+   * Admin edit of a user's descriptive fields (display name / contact email).
    * Credentials, role and status have their own endpoints — this one only
    * touches who the account *is*.
    *
-   * A changed email is the login identity, so it must stay unique (duplicate →
-   * `Conflict`) and the target's refresh tokens are revoked: live access
-   * tokens still carry the old `email` claim, and revoking caps them at an
-   * access-token TTL — the same session-capping rationale as a password, role
-   * or status change. A rename alone changes no identity, so sessions survive it.
+   * Neither field is a credential — `username` is, and it is not editable here —
+   * so no session is capped: an access token carries `sub`/`username`/`role`
+   * and none of those change. The email column is still unique, so a duplicate
+   * is a `Conflict`.
    */
   async update(targetId: string, input: UpdateUserRequest): Promise<AdminUser> {
     return this.prisma.$transaction(async (tx) => {
       const target = await tx.user.findUnique({ where: { id: targetId }, include: BOARD_COUNT_INCLUDE });
       if (!target) throw new NotFoundException("User not found");
 
-      const emailChanged = input.email !== undefined && input.email !== target.email;
+      const email = input.email === undefined ? undefined : input.email.trim() || null;
+      const emailChanged = email !== undefined && email !== target.email;
       const nameChanged = input.displayName !== undefined && input.displayName !== target.displayName;
       if (!emailChanged && !nameChanged) return serialize(target);
 
-      if (emailChanged) {
-        const existing = await tx.user.findUnique({ where: { email: input.email } });
+      if (emailChanged && email) {
+        const existing = await tx.user.findUnique({ where: { email } });
         if (existing) throw new ConflictException("Email already registered");
       }
 
       const updated = await tx.user.update({
         where: { id: targetId },
         data: {
-          ...(emailChanged ? { email: input.email } : {}),
+          ...(emailChanged ? { email } : {}),
           ...(nameChanged ? { displayName: input.displayName } : {}),
         },
         include: BOARD_COUNT_INCLUDE,
       });
-      if (emailChanged) await this.revokeRefreshTokens(tx, targetId);
       return serialize(updated);
     });
   }

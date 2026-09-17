@@ -22,7 +22,7 @@ export class AuthController {
   constructor(private readonly auth: AuthService) {}
 
   @Post("login")
-  @ApiOperation({ summary: "Log in with email and password" })
+  @ApiOperation({ summary: "Log in with username and password" })
   @ApiBody({ schema: zodRef("LoginRequest") })
   @ApiResponse({ status: 200, schema: zodRef("AuthResponse") })
   @ApiResponse({ status: 401, description: "Invalid credentials" })

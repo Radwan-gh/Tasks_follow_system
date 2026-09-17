@@ -202,7 +202,16 @@ revokes the token it was called with and issues a new one (rotation), so a
 leaked-then-reused refresh token is detectable/rejected. `JwtStrategy` +
 `JwtAuthGuard` (`common/guards/jwt-auth.guard.ts`) protect all non-auth
 routes; `@CurrentUser()` (`common/decorators/current-user.decorator.ts`)
-pulls `{ id, email }` off the validated request. There is **no public
+pulls `{ id, username, role }` off the validated request — authorization keys
+off `id` alone, so nothing breaks for tokens issued before username login.
+
+**Login is by `username`, not email.** `User.username` is the unique credential
+(stored lowercase; `AuthService.login` lowercases the input, so sign-in is
+case-insensitive), and `User.email` is an *optional* contact field that is never
+a credential. Because email can be absent, `POST /boards/:id/members` takes a
+`userId` — sourced from a `member-candidates` row — rather than resolving a
+typed-in string to an account. Anywhere a person is listed, `username` is the
+secondary identity line under `displayName`. There is **no public
 self-registration**: accounts are created only by an ADMIN via
 `POST /admin/users`, admins reset any user's password via
 `PATCH /admin/users/:id/password`, and a user changes their own via

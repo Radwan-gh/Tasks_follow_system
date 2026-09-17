@@ -57,7 +57,14 @@ enum CardPriority {
 
 model User {
   id           String   @id @default(cuid())
-  email        String   @unique
+  /// The login credential — what the user types in the sign-in box. Set by an
+  /// admin at `POST /admin/users` and never changed by the user themselves.
+  /// Stored lowercase; `AuthService.login` lowercases the input before looking
+  /// it up so sign-in is case-insensitive.
+  username     String   @unique
+  /// Contact address only — **not** a credential. Optional because accounts are
+  /// provisioned by an admin who may not have an address for the person.
+  email        String?  @unique
   passwordHash String
   displayName  String
   role         UserRole @default(USER)

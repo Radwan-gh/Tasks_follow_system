@@ -17,7 +17,7 @@ export function TemplatePickerSheet({
   onSelect: (template: Template) => void;
 }) {
   return (
-    <BottomSheet visible={visible} onClose={onClose}>
+    <BottomSheet visible={visible} onClose={onClose} scrollable={false}>
       <View style={{ paddingHorizontal: spacing.xl, gap: spacing.md, maxHeight: "80%", paddingBottom: spacing.sm }}>
         <AppText weight="bold" size="title">
           استخدام قالب

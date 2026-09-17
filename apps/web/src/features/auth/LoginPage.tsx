@@ -5,7 +5,7 @@ import { useAuth } from "./AuthContext";
 export function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -15,7 +15,7 @@ export function LoginPage() {
     setError(null);
     setSubmitting(true);
     try {
-      await login({ email, password });
+      await login({ username, password });
       navigate("/boards");
     } catch (err) {
       setError(err instanceof Error ? err.message : "فشل تسجيل الدخول");
@@ -30,11 +30,12 @@ export function LoginPage() {
         <h1 className="text-xl font-semibold text-slate-900">تسجيل الدخول</h1>
         {error && <p className="rounded bg-red-50 p-2 text-sm text-red-600">{error}</p>}
         <input
-          type="email"
+          type="text"
           required
-          placeholder="البريد الإلكتروني"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          autoComplete="username"
+          placeholder="اسم المستخدم"
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
           className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
         />
         <input

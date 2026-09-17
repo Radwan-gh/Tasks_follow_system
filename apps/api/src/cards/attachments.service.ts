@@ -18,7 +18,7 @@ function serialize(row: {
   mimeType: string;
   sizeBytes: number;
   createdAt: Date;
-  uploader: { id: string; email: string; displayName: string };
+  uploader: { id: string; username: string; displayName: string };
 }): Attachment {
   return {
     id: row.id,
@@ -62,7 +62,7 @@ export class AttachmentsService {
     const rows = await this.prisma.attachment.findMany({
       where: { cardId },
       orderBy: { createdAt: "asc" },
-      include: { uploader: { select: { id: true, email: true, displayName: true } } },
+      include: { uploader: { select: { id: true, username: true, displayName: true } } },
     });
     return rows.map(serialize);
   }
@@ -101,7 +101,7 @@ export class AttachmentsService {
         mimeType: file.mimetype,
         sizeBytes: file.size,
       },
-      include: { uploader: { select: { id: true, email: true, displayName: true } } },
+      include: { uploader: { select: { id: true, username: true, displayName: true } } },
     });
     return serialize(created);
   }

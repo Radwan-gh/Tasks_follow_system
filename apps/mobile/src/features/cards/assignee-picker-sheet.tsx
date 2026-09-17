@@ -1,18 +1,25 @@
-import { useEffect, useState } from "react";
-import { Pressable, ScrollView, View } from "react-native";
+import { useEffect, useMemo, useState } from "react";
+import { Pressable, ScrollView, TextInput, View } from "react-native";
 import type { BoardMember } from "@app/types";
 import { BottomSheet } from "@/components/bottom-sheet";
 import { AppText } from "@/components/text";
 import { avatarColorFor } from "@/lib/avatar";
 import { initials } from "@/lib/initials";
-import { MIN_TOUCH_TARGET, colors, radii, spacing } from "@/theme/tokens";
+import { MIN_TOUCH_TARGET, colors, fonts, fontSizes, radii, spacing } from "@/theme/tokens";
 
 /**
  * Generic member-picker sheet — reused for card assignees, subtask
  * assignees, and restricted-access members (`v2-new-style.md` §5's
  * `AssigneePickerSheet`). Manages its own selection state, seeded fresh from
  * `selectedIds` each time it opens, and only commits on "حفظ".
+ *
+ * Big boards get a search box, and whoever is picked stays visible as a chip
+ * above the list, so a search term can never hide the current selection.
  */
+
+/** Above this many members, scanning the list is slower than filtering it. */
+const SEARCH_THRESHOLD = 6;
+
 export function AssigneePickerSheet({
   visible,
   onClose,
@@ -33,9 +40,26 @@ export function AssigneePickerSheet({
   saveLabel?: string;
 }) {
   const [selected, setSelected] = useState<Set<string>>(new Set(selectedIds));
+  const [search, setSearch] = useState("");
+
+  const term = search.trim().toLowerCase();
+  const visibleMembers = useMemo(
+    () =>
+      term
+        ? members.filter(
+            (m) =>
+              m.user.displayName.toLowerCase().includes(term) || m.user.username.toLowerCase().includes(term),
+          )
+        : members,
+    [members, term],
+  );
+  const chosen = useMemo(() => members.filter((m) => selected.has(m.userId)), [members, selected]);
 
   useEffect(() => {
-    if (visible) setSelected(new Set(selectedIds));
+    if (visible) {
+      setSelected(new Set(selectedIds));
+      setSearch("");
+    }
     // Re-seed only when the sheet opens, not on every parent re-render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
@@ -50,7 +74,7 @@ export function AssigneePickerSheet({
   }
 
   return (
-    <BottomSheet visible={visible} onClose={onClose}>
+    <BottomSheet visible={visible} onClose={onClose} scrollable={false}>
       <View style={{ paddingHorizontal: spacing.xl, gap: spacing.md, maxHeight: "80%" }}>
         <View style={{ gap: spacing.xs }}>
           <AppText weight="bold" size="title">
@@ -63,13 +87,74 @@ export function AssigneePickerSheet({
           ) : null}
         </View>
 
+        {chosen.length > 0 ? (
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.xs }}>
+            {chosen.map((member) => (
+              <Pressable
+                key={member.userId}
+                accessibilityRole="button"
+                accessibilityLabel={`إزالة ${member.user.displayName}`}
+                onPress={() => toggle(member.userId)}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: spacing.xs,
+                  borderRadius: radii.chip,
+                  backgroundColor: colors.accentSoft,
+                  paddingHorizontal: spacing.md,
+                  paddingVertical: 6,
+                }}
+              >
+                <AppText size="caption" weight="semibold" color={colors.accent}>
+                  {member.user.displayName}
+                </AppText>
+                <AppText size="caption" color={colors.accent}>
+                  ✕
+                </AppText>
+              </Pressable>
+            ))}
+          </View>
+        ) : null}
+
+        {members.length >= SEARCH_THRESHOLD ? (
+          <TextInput
+            value={search}
+            onChangeText={setSearch}
+            autoCapitalize="none"
+            autoCorrect={false}
+            placeholder="ابحث بالاسم أو اسم المستخدم"
+            placeholderTextColor={colors.muted}
+            accessibilityLabel="ابحث عن عضو"
+            style={{
+              minHeight: MIN_TOUCH_TARGET,
+              borderWidth: 1,
+              borderColor: colors.line,
+              borderRadius: radii.field,
+              paddingHorizontal: spacing.lg,
+              fontFamily: fonts.regular,
+              fontSize: fontSizes.body,
+              color: colors.ink,
+              textAlign: "right",
+              writingDirection: "rtl",
+            }}
+          />
+        ) : null}
+
         {members.length === 0 ? (
           <AppText size="small" color={colors.muted}>
             لا يوجد أعضاء في اللوحة لإسنادها إليهم.
           </AppText>
+        ) : visibleMembers.length === 0 ? (
+          <AppText size="small" color={colors.muted} style={{ paddingVertical: spacing.md }}>
+            لا يوجد عضو يطابق «{search.trim()}».
+          </AppText>
         ) : (
-          <ScrollView style={{ maxHeight: 420 }} contentContainerStyle={{ gap: spacing.sm }}>
-            {members.map((member) => {
+          <ScrollView
+            style={{ maxHeight: 420 }}
+            contentContainerStyle={{ gap: spacing.sm }}
+            keyboardShouldPersistTaps="handled"
+          >
+            {visibleMembers.map((member) => {
               const isSelected = selected.has(member.userId);
               const palette = avatarColorFor(member.userId);
               return (
@@ -107,7 +192,7 @@ export function AssigneePickerSheet({
                   <View style={{ flex: 1 }}>
                     <AppText weight="semibold">{member.user.displayName}</AppText>
                     <AppText size="caption" color={colors.muted}>
-                      {member.user.email}
+                      {member.user.username}
                     </AppText>
                   </View>
                   <View

@@ -466,7 +466,7 @@ export class CardsService {
     const activities = await this.prisma.cardActivity.findMany({
       where: { cardId },
       orderBy: { createdAt: "asc" },
-      include: { actor: { select: { id: true, email: true, displayName: true } } },
+      include: { actor: { select: { id: true, username: true, displayName: true } } },
     });
     return activities.map(serializeCardActivity);
   }
@@ -500,7 +500,7 @@ function serializeCardActivity(activity: {
   fromValue: string | null;
   toValue: string | null;
   createdAt: Date;
-  actor: { id: string; email: string; displayName: string };
+  actor: { id: string; username: string; displayName: string };
 }) {
   return {
     id: activity.id,

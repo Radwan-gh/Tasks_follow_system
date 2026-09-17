@@ -205,7 +205,7 @@ export function buildReportPdf(
         ],
         // "معطل" spelled without the shadda diacritic — a combining mark
         // renders detached from its base letter in this font/pipeline.
-        report.assignees.map((a) => [a.displayName, a.email, String(a.openCards), a.isActive ? "نشط" : "معطل"]),
+        report.assignees.map((a) => [a.displayName, a.username, String(a.openCards), a.isActive ? "نشط" : "معطل"]),
       );
       break;
     }

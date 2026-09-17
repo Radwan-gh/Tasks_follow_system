@@ -53,7 +53,8 @@ AppSettings (single global row, no relations)
 | Field | Type | Business-logic notes |
 |---|---|---|
 | `id` | id (cuid) | Primary key |
-| `email` | unique string | Used for login and for adding a member to a board. Editable by an admin via `PATCH /admin/users/:id` — a change revokes the target's refresh tokens, see [`07-admin.md`](./07-admin.md) |
+| `username` | unique string | **The login credential.** Stored lowercase; sign-in lowercases the input, so casing doesn't matter. Also the secondary identity line under `displayName` in member lists and pickers. Not editable after creation |
+| `email` | optional unique string | Contact information only — **not** a credential, and not how a member is added to a board. May be `null`. Editable by an admin via `PATCH /admin/users/:id` (and clearable) — sessions are unaffected, see [`07-admin.md`](./07-admin.md) |
 | `passwordHash` | string | bcrypt hash — **the raw password is never stored** |
 | `displayName` | string | Display name. Edited by the user themselves via `PATCH /auth/me`, or by an admin via `PATCH /admin/users/:id` |
 | `role` | `USER` \| `ADMIN` | Role at the **whole-system** level (default `USER`) |

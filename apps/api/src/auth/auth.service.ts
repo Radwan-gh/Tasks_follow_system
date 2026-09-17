@@ -32,7 +32,8 @@ interface RefreshPayload {
 /** The `GET /auth/me` / `PATCH /auth/me` response shape (`CurrentUser` in `packages/types`). */
 function serializeCurrentUser(user: {
   id: string;
-  email: string;
+  username: string;
+  email: string | null;
   displayName: string;
   role: string;
   isActive: boolean;
@@ -42,6 +43,7 @@ function serializeCurrentUser(user: {
 }): CurrentUser {
   return {
     id: user.id,
+    username: user.username,
     email: user.email,
     displayName: user.displayName,
     role: user.role as CurrentUser["role"],
@@ -61,7 +63,10 @@ export class AuthService {
   ) {}
 
   async login(input: LoginRequest): Promise<AuthResponse> {
-    const user = await this.prisma.user.findUnique({ where: { email: input.email } });
+    // Usernames are stored lowercase, so sign-in is case-insensitive.
+    const user = await this.prisma.user.findUnique({
+      where: { username: input.username.trim().toLowerCase() },
+    });
     if (!user || !(await bcrypt.compare(input.password, user.passwordHash))) {
       throw new UnauthorizedException("Invalid credentials");
     }
@@ -132,9 +137,10 @@ export class AuthService {
 
   /**
    * Self-service profile edit (`PATCH /auth/me`). Only the display name: the
-   * email is the login identity of an admin-provisioned account, so changing
-   * it stays an admin action (`PATCH /admin/users/:id`). Nothing here affects
-   * authentication, so no refresh token is revoked.
+   * username is the login credential of an admin-provisioned account and the
+   * email is a contact field on it, so changing either stays an admin action
+   * (`PATCH /admin/users/:id`). Nothing here affects authentication, so no
+   * refresh token is revoked.
    */
   async updateProfile(userId: string, input: UpdateProfileRequest): Promise<CurrentUser> {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
@@ -158,11 +164,11 @@ export class AuthService {
     }
   }
 
-  private async issueTokens(user: { id: string; email: string; role: string }): Promise<AuthResponse> {
+  private async issueTokens(user: { id: string; username: string; role: string }): Promise<AuthResponse> {
     const jti = randomUUID();
     const [accessToken, refreshToken] = await Promise.all([
       this.jwt.signAsync(
-        { sub: user.id, email: user.email, role: user.role },
+        { sub: user.id, username: user.username, role: user.role },
         {
           secret: this.config.getOrThrow<string>("JWT_ACCESS_SECRET"),
           expiresIn: this.config.get<string>("JWT_ACCESS_TTL") ?? "15m",

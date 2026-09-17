@@ -214,7 +214,7 @@ export class BoardsService {
         userId: m.userId,
         boardId: m.boardId,
         role: m.role,
-        user: { id: m.user.id, email: m.user.email, displayName: m.user.displayName, isActive: m.user.isActive },
+        user: { id: m.user.id, username: m.user.username, displayName: m.user.displayName, isActive: m.user.isActive },
       })),
       lists: board.lists.map((list) => ({
         id: list.id,
@@ -273,11 +273,56 @@ export class BoardsService {
     await this.prisma.board.delete({ where: { id: boardId } });
   }
 
-  async addMember(userId: string, boardId: string, email: string, role: "MEMBER" | "VIEWER" = "MEMBER") {
+  /**
+   * Owner-only directory lookup behind the "add member" search box in both
+   * apps. Matches on username or display name. Same authorization as
+   * `addMember` itself (`assertMembership(..., "OWNER")`), so it never widens
+   * who can see the user directory.
+   *
+   * This is now the *only* way to find someone to add: `addMember` takes a
+   * `userId`, which the caller gets from these rows.
+   *
+   * Already-members are excluded so every row returned is actually addable,
+   * and deactivated users are kept (badged "معطَّل" in the UI) to match what
+   * `addMember` accepts.
+   */
+  async listMemberCandidates(
+    userId: string,
+    boardId: string,
+    { search, limit }: { search?: string; limit: number },
+  ) {
     await this.assertMembership(userId, boardId, "OWNER");
 
-    const target = await this.prisma.user.findUnique({ where: { email } });
-    if (!target) throw new NotFoundException("No user with that email");
+    const term = search?.trim();
+    const where: Prisma.UserWhereInput = {
+      boardMemberships: { none: { boardId } },
+      ...(term
+        ? {
+            OR: [
+              { username: { contains: term, mode: "insensitive" as const } },
+              { displayName: { contains: term, mode: "insensitive" as const } },
+            ],
+          }
+        : {}),
+    };
+
+    // Fetch one extra row to tell "exactly `limit` matches" from "more than
+    // `limit`" without a second COUNT query.
+    const rows = await this.prisma.user.findMany({
+      where,
+      select: { id: true, username: true, displayName: true, isActive: true },
+      orderBy: [{ isActive: "desc" }, { displayName: "asc" }],
+      take: limit + 1,
+    });
+
+    return { users: rows.slice(0, limit), hasMore: rows.length > limit };
+  }
+
+  async addMember(userId: string, boardId: string, targetUserId: string, role: "MEMBER" | "VIEWER" = "MEMBER") {
+    await this.assertMembership(userId, boardId, "OWNER");
+
+    const target = await this.prisma.user.findUnique({ where: { id: targetUserId } });
+    if (!target) throw new NotFoundException("No such user");
 
     const existing = await this.prisma.boardMember.findUnique({
       where: { boardId_userId: { boardId, userId: target.id } },
@@ -294,7 +339,7 @@ export class BoardsService {
       role: member.role,
       user: {
         id: member.user.id,
-        email: member.user.email,
+        username: member.user.username,
         displayName: member.user.displayName,
         isActive: member.user.isActive,
       },
@@ -322,7 +367,7 @@ export class BoardsService {
       role: member.role,
       user: {
         id: member.user.id,
-        email: member.user.email,
+        username: member.user.username,
         displayName: member.user.displayName,
         isActive: member.user.isActive,
       },

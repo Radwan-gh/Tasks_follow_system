@@ -38,12 +38,13 @@ export default function AdminUsersScreen() {
   const [page, setPage] = useState(1);
   const [error, setError] = useState<string | null>(null);
   const [creatingUser, setCreatingUser] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
   // Row open in the edit sheet; its error stays separate from the screen-level
   // banner so a duplicate-email conflict shows next to the fields.
   const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
   const [editError, setEditError] = useState<string | null>(null);
   const [resettingTarget, setResettingTarget] = useState<AdminUser | null>(null);
-  const [resetResult, setResetResult] = useState<{ email: string; temporaryPassword: string } | null>(null);
+  const [resetResult, setResetResult] = useState<{ username: string; temporaryPassword: string } | null>(null);
   const [confirming, setConfirming] = useState<{ userId: string; action: "role" | "status" } | null>(null);
 
   useEffect(() => {
@@ -69,18 +70,28 @@ export default function AdminUsersScreen() {
   }
 
   const createUser = useMutation({
-    mutationFn: (input: { displayName: string; email: string; password: string; isAdmin: boolean }) =>
+    mutationFn: (input: {
+      displayName: string;
+      username: string;
+      email: string | null;
+      password: string;
+      isAdmin: boolean;
+    }) =>
       api.admin.createUser({
         displayName: input.displayName,
+        username: input.username,
         email: input.email,
         password: input.password,
         role: input.isAdmin ? "ADMIN" : "USER",
       }),
     onSuccess: () => {
       setCreatingUser(false);
+      setCreateError(null);
       invalidate();
     },
-    onError: reportError,
+    // Reported inside the sheet, not on the screen behind it: a rejected
+    // username (already taken) is invisible under an open bottom sheet.
+    onError: (err) => setCreateError(err instanceof ApiError ? err.message : "حدث خطأ غير متوقّع"),
   });
 
   const updateUser = useMutation({
@@ -96,7 +107,8 @@ export default function AdminUsersScreen() {
   const resetPassword = useMutation({
     mutationFn: (id: string) => api.admin.resetPassword(id),
     onSuccess: (result) => {
-      if (resettingTarget) setResetResult({ email: resettingTarget.email, temporaryPassword: result.temporaryPassword });
+      if (resettingTarget)
+        setResetResult({ username: resettingTarget.username, temporaryPassword: result.temporaryPassword });
       setResettingTarget(null);
       invalidate();
     },
@@ -131,6 +143,16 @@ export default function AdminUsersScreen() {
     onError: reportError,
   });
 
+  /** Searching for someone who has no account yet is the moment to create them. */
+  function openNewUser() {
+    setCreateError(null);
+    setCreatingUser(true);
+  }
+  const searchTerm = search.trim();
+  // A username-shaped term is prefilled as the handle; anything else (spaces,
+  // Arabic letters, capitals) is far likelier to be the person's display name.
+  const searchLooksLikeUsername = /^[a-z0-9._-]+$/.test(searchTerm);
+
   const isMutating =
     updateRole.isPending || updateStatus.isPending || updatePermissions.isPending || updateUser.isPending;
   const totalPages = users.data ? Math.max(1, Math.ceil(users.data.total / users.data.pageSize)) : 1;
@@ -152,20 +174,24 @@ export default function AdminUsersScreen() {
           <AppText color={colors.muted}>إلغاء</AppText>
         </Pressable>
         <AppText weight="bold">المستخدمون والصلاحيات</AppText>
-        <Pressable accessibilityRole="button" onPress={() => setCreatingUser(true)} hitSlop={8}>
+        <Pressable accessibilityRole="button" accessibilityLabel="مستخدم جديد" onPress={openNewUser} hitSlop={8}>
           <AppText size="title" weight="bold" color={colors.accent}>
             +
           </AppText>
         </Pressable>
       </View>
 
-      <View style={{ padding: spacing.xl, paddingBottom: spacing.md }}>
+      <View style={{ padding: spacing.xl, paddingBottom: spacing.md, flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
         <TextInput
           value={search}
           onChangeText={setSearch}
-          placeholder="ابحث بالبريد الإلكتروني أو الاسم"
+          placeholder="ابحث باسم المستخدم أو الاسم"
           placeholderTextColor={colors.muted}
+          autoCapitalize="none"
+          autoCorrect={false}
+          accessibilityLabel="ابحث عن مستخدم"
           style={{
+            flex: 1,
             minHeight: MIN_TOUCH_TARGET,
             backgroundColor: colors.canvas,
             borderWidth: 1,
@@ -179,6 +205,21 @@ export default function AdminUsersScreen() {
             writingDirection: "rtl",
           }}
         />
+        {searchTerm ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="مسح البحث"
+            onPress={() => setSearch("")}
+            style={{
+              minHeight: MIN_TOUCH_TARGET,
+              minWidth: MIN_TOUCH_TARGET,
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <AppText color={colors.muted}>✕</AppText>
+          </Pressable>
+        ) : null}
       </View>
 
       <ScrollView contentContainerStyle={{ paddingHorizontal: spacing.xl, paddingBottom: spacing.xxl, gap: spacing.md }}>
@@ -198,7 +239,27 @@ export default function AdminUsersScreen() {
         ) : users.isError ? (
           <ErrorState onRetry={() => void users.refetch()} />
         ) : users.data.users.length === 0 ? (
-          <EmptyState icon="people-outline" title="لا نتائج" message="لا يوجد مستخدمون يطابقون بحثك." />
+          <View style={{ gap: spacing.md }}>
+            <EmptyState icon="people-outline" title="لا نتائج" message="لا يوجد مستخدمون يطابقون بحثك." />
+            {searchTerm ? (
+              <Pressable
+                accessibilityRole="button"
+                onPress={openNewUser}
+                style={{
+                  minHeight: MIN_TOUCH_TARGET,
+                  borderRadius: radii.field,
+                  backgroundColor: colors.accent,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  paddingHorizontal: spacing.lg,
+                }}
+              >
+                <AppText weight="semibold" color={colors.surface}>
+                  إنشاء مستخدم «{searchTerm}»
+                </AppText>
+              </Pressable>
+            ) : null}
+          </View>
         ) : (
           users.data.users.map((u) => {
             const isSelf = u.id === currentUser?.id;
@@ -242,7 +303,7 @@ export default function AdminUsersScreen() {
                       ) : null}
                     </AppText>
                     <AppText size="small" color={colors.muted}>
-                      {u.email}
+                      {u.username}
                     </AppText>
                   </View>
                 </View>
@@ -341,9 +402,15 @@ export default function AdminUsersScreen() {
 
       <NewUserSheet
         visible={creatingUser}
-        onClose={() => setCreatingUser(false)}
+        onClose={() => {
+          setCreatingUser(false);
+          setCreateError(null);
+        }}
         onCreate={(input) => createUser.mutate(input)}
         creating={createUser.isPending}
+        initialUsername={searchLooksLikeUsername ? searchTerm : ""}
+        initialName={searchLooksLikeUsername ? "" : searchTerm}
+        error={createError}
       />
 
       <EditUserSheet
@@ -378,7 +445,7 @@ export default function AdminUsersScreen() {
       <ResetPasswordResultSheet
         visible={!!resetResult}
         onClose={() => setResetResult(null)}
-        email={resetResult?.email ?? null}
+        username={resetResult?.username ?? null}
         temporaryPassword={resetResult?.temporaryPassword ?? null}
       />
     </Screen>

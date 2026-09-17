@@ -57,8 +57,9 @@ function CurrencySettingSection() {
 
 /**
  * Self-service profile edit — `PATCH /auth/me`. Only the display name is
- * editable here: the email is the account's login identity and, since accounts
- * are admin-provisioned, only an admin changes it (`PATCH /admin/users/:id`).
+ * editable here: `username` is the account's login credential and the email is
+ * contact information on it, and since accounts are admin-provisioned only an
+ * admin changes either (`PATCH /admin/users/:id`).
  */
 function ProfileSection() {
   const { user, refreshUser } = useAuth();
@@ -110,13 +111,23 @@ function ProfileSection() {
       </label>
 
       <label className="block space-y-1">
+        <span className="text-sm text-slate-600">اسم المستخدم</span>
+        <input
+          disabled
+          value={user?.username ?? ""}
+          className="w-full rounded border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-500"
+        />
+        <span className="block text-xs text-slate-400">اسم الدخول، ولا يمكن تعديله.</span>
+      </label>
+
+      <label className="block space-y-1">
         <span className="text-sm text-slate-600">البريد الإلكتروني</span>
         <input
           disabled
           value={user?.email ?? ""}
           className="w-full rounded border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-500"
         />
-        <span className="block text-xs text-slate-400">لتغيير البريد الإلكتروني راجع المشرف.</span>
+        <span className="block text-xs text-slate-400">للتواصل فقط؛ لتغييره راجع المشرف.</span>
       </label>
 
       <button

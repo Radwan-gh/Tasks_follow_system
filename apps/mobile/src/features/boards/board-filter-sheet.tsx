@@ -1,9 +1,10 @@
-import { Pressable, View } from "react-native";
+import { useMemo, useState } from "react";
+import { Pressable, TextInput, View } from "react-native";
 import type { BoardMember, CardPriority } from "@app/types";
 import { BottomSheet } from "@/components/bottom-sheet";
 import { AppText } from "@/components/text";
 import { priorityLabel } from "@/components/priority-control";
-import { MIN_TOUCH_TARGET, colors, radii, spacing } from "@/theme/tokens";
+import { MIN_TOUCH_TARGET, colors, fonts, fontSizes, radii, spacing } from "@/theme/tokens";
 
 export interface BoardFilter {
   myTasksOnly: boolean;
@@ -18,6 +19,9 @@ export function isFilterActive(filter: BoardFilter): boolean {
 }
 
 const PRIORITIES: CardPriority[] = ["LOW", "NORMAL", "URGENT"];
+
+/** Above this many members, the chip wall needs a search box in front of it. */
+const SEARCH_THRESHOLD = 6;
 
 /**
  * "ترشيح" sheet (`design-prompt-group-3.md` §3b-2): مهامي فقط · حسب العضو
@@ -37,6 +41,23 @@ export function BoardFilterSheet({
   onChange: (next: BoardFilter) => void;
   members: BoardMember[];
 }) {
+  const [search, setSearch] = useState("");
+  const term = search.trim().toLowerCase();
+  // Picked members always stay on screen, so a search term never hides an
+  // active filter the user would then not know how to clear.
+  const visibleMembers = useMemo(
+    () =>
+      term
+        ? members.filter(
+            (m) =>
+              value.memberIds.includes(m.userId) ||
+              m.user.displayName.toLowerCase().includes(term) ||
+              m.user.username.toLowerCase().includes(term),
+          )
+        : members,
+    [members, term, value.memberIds],
+  );
+
   return (
     <BottomSheet visible={visible} onClose={onClose}>
       <View style={{ paddingHorizontal: spacing.xl, gap: spacing.lg, paddingBottom: spacing.md }}>
@@ -67,8 +88,36 @@ export function BoardFilterSheet({
           <AppText size="caption" weight="semibold" color={colors.muted}>
             حسب العضو
           </AppText>
+          {members.length >= SEARCH_THRESHOLD ? (
+            <TextInput
+              value={search}
+              onChangeText={setSearch}
+              autoCapitalize="none"
+              autoCorrect={false}
+              placeholder="ابحث عن عضو"
+              placeholderTextColor={colors.muted}
+              accessibilityLabel="ابحث عن عضو"
+              style={{
+                minHeight: MIN_TOUCH_TARGET,
+                borderWidth: 1,
+                borderColor: colors.line,
+                borderRadius: radii.field,
+                paddingHorizontal: spacing.lg,
+                fontFamily: fonts.regular,
+                fontSize: fontSizes.body,
+                color: colors.ink,
+                textAlign: "right",
+                writingDirection: "rtl",
+              }}
+            />
+          ) : null}
+          {visibleMembers.length === 0 ? (
+            <AppText size="small" color={colors.muted}>
+              لا يوجد عضو يطابق «{search.trim()}».
+            </AppText>
+          ) : null}
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.sm }}>
-            {members.map((member) => {
+            {visibleMembers.map((member) => {
               const active = value.memberIds.includes(member.userId);
               return (
                 <Pressable

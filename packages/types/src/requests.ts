@@ -1,8 +1,19 @@
 import { z } from "zod";
-import { CardPriority, DevicePlatform, NotificationPrefsSchema, RecurrenceRuleSchema, UserRole } from "./domain";
+import {
+  CardPriority,
+  DevicePlatform,
+  NotificationPrefsSchema,
+  RecurrenceRuleSchema,
+  UsernameSchema,
+  UserRole,
+} from "./domain";
 
+/**
+ * Sign-in credentials. `username`, not email — the server lowercases and trims
+ * before looking the account up, so the casing the user types doesn't matter.
+ */
 export const LoginRequestSchema = z.object({
-  email: z.string().email(),
+  username: z.string().min(1).max(50),
   password: z.string().min(1),
 });
 export type LoginRequest = z.infer<typeof LoginRequestSchema>;
@@ -53,12 +64,32 @@ export const UpdateBoardRequestSchema = z.object({
 });
 export type UpdateBoardRequest = z.infer<typeof UpdateBoardRequestSchema>;
 
-/** `role` defaults to `MEMBER` server-side when omitted; `OWNER` is never a valid value here (ownership doesn't transfer via this endpoint). */
+/**
+ * `role` defaults to `MEMBER` server-side when omitted; `OWNER` is never a valid
+ * value here (ownership doesn't transfer via this endpoint).
+ *
+ * Identifies the invitee by `userId`, not by an address: both apps pick the
+ * person from the `member-candidates` type-ahead and so already hold the row,
+ * which means the server never has to resolve a human-typed string back to an
+ * account.
+ */
 export const AddBoardMemberRequestSchema = z.object({
-  email: z.string().email(),
+  userId: z.string().min(1),
   role: z.enum(["MEMBER", "VIEWER"]).optional(),
 });
 export type AddBoardMemberRequest = z.infer<typeof AddBoardMemberRequestSchema>;
+
+/**
+ * `GET /boards/:id/member-candidates` — owner-only lookup that powers the
+ * "add member" search box in both apps. Matches on username or display name.
+ * An empty `search` is valid and deliberate: opening the picker shows the first
+ * `limit` candidates so a user never has to guess an exact name to get started.
+ */
+export const SearchMemberCandidatesQuerySchema = z.object({
+  search: z.string().max(200).optional(),
+  limit: z.coerce.number().int().min(1).max(50).default(20),
+});
+export type SearchMemberCandidatesQuery = z.infer<typeof SearchMemberCandidatesQuerySchema>;
 
 /** `PATCH /boards/:id/members/:userId` — owner-only switch between `MEMBER` and `VIEWER`. Never `OWNER` (no ownership transfer via this route). */
 export const UpdateBoardMemberRoleRequestSchema = z.object({
@@ -72,7 +103,9 @@ export type UpdateBoardMemberRoleRequest = z.infer<typeof UpdateBoardMemberRoleR
  * (optionally) the role. See `POST /admin/users`.
  */
 export const CreateUserRequestSchema = z.object({
-  email: z.string().email(),
+  username: UsernameSchema,
+  /** Optional contact address. Omitted or empty means the account simply has none. */
+  email: z.string().email().nullable().optional(),
   password: z.string().min(8).max(200),
   displayName: z.string().min(1).max(100),
   role: UserRole.optional(),
@@ -112,22 +145,24 @@ export const UpdateUserStatusRequestSchema = z.object({
 export type UpdateUserStatusRequest = z.infer<typeof UpdateUserStatusRequestSchema>;
 
 /**
- * Admin-only edit of a user's identity fields — display name and login email.
- * Credentials, role, status and permissions keep their own endpoints, so this
- * one never carries a password. Both fields are optional: an empty patch is a
- * no-op. See `PATCH /admin/users/:id`.
+ * Admin-only edit of a user's descriptive fields — display name and contact
+ * email. Credentials (`username`, password), role, status and permissions keep
+ * their own endpoints, so this one never carries a password. Both fields are
+ * optional: an empty patch is a no-op. An empty-string `email` clears the
+ * address, since it is optional contact information rather than a credential.
+ * See `PATCH /admin/users/:id`.
  */
 export const UpdateUserRequestSchema = z.object({
-  email: z.string().trim().email().optional(),
+  email: z.union([z.string().trim().email(), z.literal("")]).optional(),
   displayName: z.string().trim().min(1).max(100).optional(),
 });
 export type UpdateUserRequest = z.infer<typeof UpdateUserRequestSchema>;
 
 /**
  * Self-service profile edit for the logged-in user (`PATCH /auth/me`). Only
- * the display name: the email is the account's login identity and, since
- * accounts are admin-provisioned, only an admin changes it
- * (`PATCH /admin/users/:id`).
+ * the display name: `username` is the account's login credential and the email
+ * is contact information on an admin-provisioned account, so only an admin
+ * changes either (`PATCH /admin/users/:id`).
  */
 export const UpdateProfileRequestSchema = z.object({
   displayName: z.string().trim().min(1).max(100),

@@ -46,13 +46,13 @@ export class UsersController {
   @ApiOperation({ summary: "Provision a new user account (no public self-registration)" })
   @ApiBody({ schema: zodRef("CreateUserRequest") })
   @ApiResponse({ status: 201, schema: zodRef("AdminUser") })
-  @ApiResponse({ status: 400, description: "Email already in use" })
+  @ApiResponse({ status: 400, description: "Username or email already in use" })
   create(@Body(new ZodValidationPipe(CreateUserRequestSchema)) body: CreateUserRequest) {
     return this.users.create(body);
   }
 
   @Patch(":id")
-  @ApiOperation({ summary: "Edit a user's display name and/or login email" })
+  @ApiOperation({ summary: "Edit a user's display name and/or contact email" })
   @ApiParam({ name: "id", description: "User ID" })
   @ApiBody({ schema: zodRef("UpdateUserRequest") })
   @ApiResponse({ status: 200, schema: zodRef("AdminUser") })

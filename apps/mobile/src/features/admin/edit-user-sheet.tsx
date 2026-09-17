@@ -6,11 +6,11 @@ import { AppText } from "@/components/text";
 import { MIN_TOUCH_TARGET, colors, fonts, fontSizes, radii, spacing } from "@/theme/tokens";
 
 /**
- * Admin edit sheet for a user's identity fields — `PATCH /admin/users/:id`.
- * Role, status, permissions and passwords keep their own row actions, so this
- * sheet only carries the display name and the login email. Only changed fields
- * are sent: an email change revokes the target's sessions server-side, and a
- * rename alone must not.
+ * Admin edit sheet for a user's descriptive fields — `PATCH /admin/users/:id`.
+ * Role, status, permissions and passwords keep their own row actions, and
+ * `username` is the login credential and never editable, so this sheet only
+ * carries the display name and the (optional) contact email. Only changed
+ * fields are sent, and an emptied email is sent as `""` to clear it.
  */
 export function EditUserSheet({
   user,
@@ -32,16 +32,15 @@ export function EditUserSheet({
   useEffect(() => {
     if (user) {
       setDisplayName(user.displayName);
-      setEmail(user.email);
+      setEmail(user.email ?? "");
     }
   }, [user]);
 
   const trimmedName = displayName.trim();
   const trimmedEmail = email.trim();
   const nameChanged = !!user && trimmedName !== user.displayName;
-  const emailChanged = !!user && trimmedEmail !== user.email;
-  const canSubmit =
-    trimmedName.length > 0 && trimmedEmail.length > 0 && (nameChanged || emailChanged) && !saving;
+  const emailChanged = !!user && trimmedEmail !== (user.email ?? "");
+  const canSubmit = trimmedName.length > 0 && (nameChanged || emailChanged) && !saving;
 
   return (
     <BottomSheet visible={!!user} onClose={onClose}>
@@ -69,18 +68,16 @@ export function EditUserSheet({
         <TextInput
           value={email}
           onChangeText={setEmail}
-          placeholder="البريد الإلكتروني"
+          placeholder="البريد الإلكتروني (اختياري)"
           placeholderTextColor={colors.muted}
           autoCapitalize="none"
           keyboardType="email-address"
           style={fieldStyle}
         />
 
-        {emailChanged ? (
-          <AppText size="caption" color={colors.muted}>
-            تغيير البريد الإلكتروني يغيّر بيانات تسجيل دخول المستخدم وينهي جلساته الحالية.
-          </AppText>
-        ) : null}
+        <AppText size="caption" color={colors.muted}>
+          اسم الدخول «{user?.username}» لا يمكن تعديله. البريد للتواصل فقط، واتركه فارغًا لإزالته.
+        </AppText>
 
         <Pressable
           accessibilityRole="button"

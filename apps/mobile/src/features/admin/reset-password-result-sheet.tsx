@@ -14,12 +14,12 @@ import { MIN_TOUCH_TARGET, colors, fonts, radii, spacing } from "@/theme/tokens"
 export function ResetPasswordResultSheet({
   visible,
   onClose,
-  email,
+  username,
   temporaryPassword,
 }: {
   visible: boolean;
   onClose: () => void;
-  email: string | null;
+  username: string | null;
   temporaryPassword: string | null;
 }) {
   const [copied, setCopied] = useState(false);
@@ -42,9 +42,9 @@ export function ResetPasswordResultSheet({
         <AppText weight="bold" size="title">
           كلمة المرور المؤقتة
         </AppText>
-        {email ? (
+        {username ? (
           <AppText size="small" color={colors.muted}>
-            {email}
+            {username}
           </AppText>
         ) : null}
 

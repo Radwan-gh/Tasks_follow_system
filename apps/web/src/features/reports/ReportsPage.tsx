@@ -230,7 +230,7 @@ function WorkloadReport() {
             >
               <div>
                 <span className="text-slate-800">{a.displayName}</span>
-                <span className="text-slate-400"> {a.email}</span>
+                <span className="text-slate-400"> {a.username}</span>
                 {!a.isActive && (
                   <span className="ms-2 rounded bg-red-100 px-1.5 py-0.5 text-xs text-red-700">
                     يحتاج إعادة إسناد — معطَّل

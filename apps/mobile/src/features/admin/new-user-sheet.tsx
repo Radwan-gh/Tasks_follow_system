@@ -1,35 +1,75 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Pressable, TextInput, View } from "react-native";
 import { BottomSheet } from "@/components/bottom-sheet";
 import { AppText } from "@/components/text";
 import { MIN_TOUCH_TARGET, colors, fonts, fontSizes, radii, spacing } from "@/theme/tokens";
 
-/** New-user bottom sheet — the design's «ورقة مستخدم جديد» (الاسم · البريد · كلمة المرور · مفتاح المشرف). */
+/**
+ * New-user bottom sheet — the design's «ورقة مستخدم جديد» (الاسم · اسم
+ * المستخدم · كلمة المرور · مفتاح المشرف).
+ *
+ * The credential is the **username**; the email is optional contact info, so
+ * it gets its own clearly-marked field and is submitted as `null` when blank.
+ *
+ * `initialName`/`initialUsername` let the admin screen carry whatever was
+ * typed into its search box straight into the form: searching for someone who
+ * has no account yet is exactly the moment you want to create them, and
+ * retyping the handle is the step that made it feel clumsy.
+ *
+ * `error` is rendered *inside* the sheet rather than on the screen behind it
+ * — a duplicate-username rejection shown under the sheet is invisible.
+ */
 export function NewUserSheet({
   visible,
   onClose,
   onCreate,
   creating,
+  initialName = "",
+  initialUsername = "",
+  error,
 }: {
   visible: boolean;
   onClose: () => void;
-  onCreate: (input: { displayName: string; email: string; password: string; isAdmin: boolean }) => void;
+  onCreate: (input: {
+    displayName: string;
+    username: string;
+    email: string | null;
+    password: string;
+    isAdmin: boolean;
+  }) => void;
   creating: boolean;
+  initialName?: string;
+  initialUsername?: string;
+  error?: string | null;
 }) {
-  const [displayName, setDisplayName] = useState("");
+  const [displayName, setDisplayName] = useState(initialName);
+  const [username, setUsername] = useState(initialUsername);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isAdmin, setIsAdmin] = useState(false);
 
+  // Seed only as the sheet opens, so typing is never overwritten mid-edit.
+  useEffect(() => {
+    if (visible) {
+      setDisplayName(initialName);
+      setUsername(initialUsername);
+      setEmail("");
+      setPassword("");
+      setIsAdmin(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible]);
+
   function close() {
     setDisplayName("");
+    setUsername("");
     setEmail("");
     setPassword("");
     setIsAdmin(false);
     onClose();
   }
 
-  const canSubmit = displayName.trim().length > 0 && email.trim().length > 0 && password.length >= 8 && !creating;
+  const canSubmit = displayName.trim().length > 0 && username.trim().length > 0 && password.length >= 8 && !creating;
 
   return (
     <BottomSheet visible={visible} onClose={close}>
@@ -37,6 +77,14 @@ export function NewUserSheet({
         <AppText weight="bold" size="title">
           مستخدم جديد
         </AppText>
+
+        {error ? (
+          <View style={{ backgroundColor: colors.alertSoft, borderRadius: radii.field, padding: spacing.md }}>
+            <AppText size="small" color={colors.alert}>
+              {error}
+            </AppText>
+          </View>
+        ) : null}
 
         <TextInput
           value={displayName}
@@ -46,11 +94,22 @@ export function NewUserSheet({
           style={fieldStyle}
         />
         <TextInput
-          value={email}
-          onChangeText={setEmail}
-          placeholder="البريد الإلكتروني"
+          value={username}
+          onChangeText={setUsername}
+          placeholder="اسم المستخدم"
           placeholderTextColor={colors.muted}
           autoCapitalize="none"
+          autoCorrect={false}
+          autoComplete="username"
+          style={fieldStyle}
+        />
+        <TextInput
+          value={email}
+          onChangeText={setEmail}
+          placeholder="البريد الإلكتروني (اختياري)"
+          placeholderTextColor={colors.muted}
+          autoCapitalize="none"
+          autoCorrect={false}
           keyboardType="email-address"
           style={fieldStyle}
         />
@@ -95,7 +154,15 @@ export function NewUserSheet({
         <Pressable
           accessibilityRole="button"
           disabled={!canSubmit}
-          onPress={() => onCreate({ displayName: displayName.trim(), email: email.trim(), password, isAdmin })}
+          onPress={() =>
+            onCreate({
+              displayName: displayName.trim(),
+              username: username.trim(),
+              email: email.trim() || null,
+              password,
+              isAdmin,
+            })
+          }
           style={{
             minHeight: MIN_TOUCH_TARGET,
             borderRadius: radii.field,

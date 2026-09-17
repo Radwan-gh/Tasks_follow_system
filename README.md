@@ -74,7 +74,7 @@ correctness tests.
 ### Data model
 
 ```
-User            id, email, passwordHash, displayName
+User            id, username, email?, passwordHash, displayName
 RefreshToken    id, userId, tokenHash, expiresAt, revokedAt
 
 Board           id, name, description, ownerId, isArchived

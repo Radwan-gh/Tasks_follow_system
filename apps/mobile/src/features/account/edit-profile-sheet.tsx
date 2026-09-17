@@ -6,12 +6,14 @@ import { MIN_TOUCH_TARGET, colors, fonts, fontSizes, radii, spacing } from "@/th
 
 /**
  * Self-service profile edit sheet — `PATCH /auth/me`. Only the display name:
- * the email is the login identity of an admin-provisioned account, so it is
- * shown read-only here and changed by an admin in «المستخدمون والصلاحيات».
+ * `username` is the login credential of an admin-provisioned account and the
+ * email is contact information on it, so both are read-only here and an admin
+ * changes them in «المستخدمون والصلاحيات».
  */
 export function EditProfileSheet({
   visible,
   displayName,
+  username,
   email,
   saving,
   error,
@@ -20,6 +22,7 @@ export function EditProfileSheet({
 }: {
   visible: boolean;
   displayName: string;
+  username: string;
   email: string;
   saving: boolean;
   error: string | null;
@@ -64,15 +67,24 @@ export function EditProfileSheet({
         />
 
         <AppText size="small" color={colors.muted}>
+          اسم المستخدم
+        </AppText>
+        <View style={{ ...fieldStyle, backgroundColor: colors.canvas, justifyContent: "center" }}>
+          <AppText size="small" color={colors.muted}>
+            {username}
+          </AppText>
+        </View>
+
+        <AppText size="small" color={colors.muted}>
           البريد الإلكتروني
         </AppText>
         <View style={{ ...fieldStyle, backgroundColor: colors.canvas, justifyContent: "center" }}>
           <AppText size="small" color={colors.muted}>
-            {email}
+            {email || "—"}
           </AppText>
         </View>
         <AppText size="caption" color={colors.muted}>
-          لتغيير البريد الإلكتروني راجع المشرف.
+          اسم المستخدم هو اسم الدخول، والبريد للتواصل فقط؛ لتغيير أيٍّ منهما راجع المشرف.
         </AppText>
 
         <Pressable

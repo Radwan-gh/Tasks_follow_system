@@ -6,6 +6,7 @@ import {
   AdminUserSchema,
   AdminUserListSchema,
   BoardMemberSchema,
+  BoardMemberCandidateListSchema,
   BoardSummarySchema,
   BoardDetailSchema,
   BoardOwnerSummarySchema,
@@ -74,6 +75,7 @@ registry.register("User", UserSchema);
 registry.register("AdminUser", AdminUserSchema);
 registry.register("AdminUserList", AdminUserListSchema);
 registry.register("BoardMember", BoardMemberSchema);
+registry.register("BoardMemberCandidateList", BoardMemberCandidateListSchema);
 registry.register("BoardSummary", BoardSummarySchema);
 registry.register("BoardDetail", BoardDetailSchema);
 registry.register("BoardOwnerSummary", BoardOwnerSummarySchema);

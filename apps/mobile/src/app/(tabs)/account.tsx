@@ -90,7 +90,7 @@ export default function AccountScreen() {
               {user?.displayName}
             </AppText>
             <AppText size="small" color={colors.muted}>
-              {user?.email}
+              {user?.username}
             </AppText>
           </View>
           {user?.role === "ADMIN" ? (
@@ -177,6 +177,7 @@ export default function AccountScreen() {
       <EditProfileSheet
         visible={editingProfile}
         displayName={user?.displayName ?? ""}
+        username={user?.username ?? ""}
         email={user?.email ?? ""}
         saving={updateProfile.isPending}
         error={profileError}
