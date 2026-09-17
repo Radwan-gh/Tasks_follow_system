@@ -76,6 +76,7 @@ token. Detailed in [`03-authentication.md`](./03-authentication.md).
 | `tokenHash` | SHA-256 hash of the raw token |
 | `expiresAt` | Expiry time |
 | `revokedAt` | Revocation time (null = still valid) |
+| `remembered` | هل اختير «تذكرني» عند الدخول (افتراضيًا `true`)؟ يحدّد مدة الرمز، ويرثه التدوير — انظر [`03-authentication.md`](./03-authentication.md) |
 
 ### Board
 

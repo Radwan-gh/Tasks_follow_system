@@ -11,10 +11,17 @@ import {
 /**
  * Sign-in credentials. `username`, not email — the server lowercases and trims
  * before looking the account up, so the casing the user types doesn't matter.
+ *
+ * `rememberMe` is the "تذكرني" checkbox on the login screen: it decides how long
+ * the issued refresh token lives (`JWT_REFRESH_TTL` when true, the much shorter
+ * `JWT_REFRESH_TTL_SHORT` when false). It is **optional and defaults to true**
+ * so clients that never send it (the mobile app, older web builds) keep the
+ * long-lived session they have always had.
  */
 export const LoginRequestSchema = z.object({
   username: z.string().min(1).max(50),
   password: z.string().min(1),
+  rememberMe: z.boolean().optional(),
 });
 export type LoginRequest = z.infer<typeof LoginRequestSchema>;
 

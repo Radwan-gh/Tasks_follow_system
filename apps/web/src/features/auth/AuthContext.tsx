@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import type { CurrentUser, LoginRequest } from "@app/types";
 import { api } from "../../lib/api-client";
-import { tokenStore } from "../../lib/token-store";
+import { rememberUsername, setRemembered, tokenStore } from "../../lib/token-store";
 
 interface AuthContextValue {
   user: CurrentUser | null;
@@ -31,8 +31,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   async function login(input: LoginRequest) {
+    // "تذكرني" is decided by the caller and defaults to remembered, matching the
+    // server's reading of an absent `rememberMe`.
+    const remembered = input.rememberMe !== false;
     const tokens = await api.auth.login(input);
+    // Order matters: the flag picks which store `setTokens` writes to.
+    setRemembered(remembered);
     tokenStore.setTokens(tokens.accessToken, tokens.refreshToken);
+    rememberUsername(input.username, remembered);
     setUser(await api.auth.me());
   }
 

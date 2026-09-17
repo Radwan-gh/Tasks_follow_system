@@ -109,6 +109,11 @@ model RefreshToken {
   expiresAt DateTime
   revokedAt DateTime?
   createdAt DateTime  @default(now())
+  /// Whether "تذكرني" was checked at login. Rotation re-reads it so an
+  /// unremembered session keeps its short TTL instead of renewing into a long
+  /// one. Defaults to true so tokens issued before this field keep their
+  /// original long-lived behavior.
+  remembered Boolean  @default(true)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

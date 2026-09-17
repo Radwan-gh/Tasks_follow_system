@@ -50,6 +50,7 @@
 | `JWT_REFRESH_SECRET` | سلسلة عشوائية طويلة **مختلفة** |
 | `JWT_ACCESS_TTL` | `15m` |
 | `JWT_REFRESH_TTL` | `30d` |
+| `JWT_REFRESH_TTL_SHORT` | `12h` (مدة الجلسة عند عدم اختيار «تذكرني») |
 
 > `PORT` توفّره Railway تلقائيًا؛ لا تضبطه يدويًا.
 

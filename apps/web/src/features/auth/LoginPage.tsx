@@ -1,12 +1,16 @@
 import { useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "./AuthContext";
+import { getRememberedPreference, getRememberedUsername } from "../../lib/token-store";
 
 export function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
-  const [username, setUsername] = useState("");
+  // A remembered login leaves the username behind so the next visit only has to
+  // type a password; the checkbox itself starts on the previous choice.
+  const [username, setUsername] = useState(getRememberedUsername);
   const [password, setPassword] = useState("");
+  const [rememberMe, setRememberMe] = useState(getRememberedPreference);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -15,7 +19,7 @@ export function LoginPage() {
     setError(null);
     setSubmitting(true);
     try {
-      await login({ username, password });
+      await login({ username, password, rememberMe });
       navigate("/boards");
     } catch (err) {
       setError(err instanceof Error ? err.message : "فشل تسجيل الدخول");
@@ -46,6 +50,15 @@ export function LoginPage() {
           onChange={(e) => setPassword(e.target.value)}
           className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
         />
+        <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-600">
+          <input
+            type="checkbox"
+            checked={rememberMe}
+            onChange={(e) => setRememberMe(e.target.checked)}
+            className="h-4 w-4 rounded border-slate-300 accent-slate-900"
+          />
+          تذكرني
+        </label>
         <button
           type="submit"
           disabled={submitting}

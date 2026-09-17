@@ -17,6 +17,10 @@ function hashToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
 }
 
+/** Fallbacks when the environment does not set the refresh-token TTLs. */
+const DEFAULT_REFRESH_TTL = "30d";
+const DEFAULT_SHORT_REFRESH_TTL = "12h";
+
 function ttlToMs(ttl: string): number {
   const match = /^(\d+)([smhd])$/.exec(ttl);
   if (!match) return 30 * 24 * 60 * 60 * 1000;
@@ -71,7 +75,9 @@ export class AuthService {
       throw new UnauthorizedException("Invalid credentials");
     }
     if (!user.isActive) throw new ForbiddenException("Account is deactivated");
-    return this.issueTokens(user);
+    // "تذكرني": unchecked keeps the session short-lived. Omitted (mobile, older
+    // web builds) means remembered, so nothing that worked before gets shorter.
+    return this.issueTokens(user, input.rememberMe !== false);
   }
 
   async refresh(refreshToken: string): Promise<AuthResponse> {
@@ -88,7 +94,9 @@ export class AuthService {
 
     // Rotate: revoke the used refresh token so it can't be replayed.
     await this.prisma.refreshToken.update({ where: { id: stored.id }, data: { revokedAt: new Date() } });
-    return this.issueTokens(user);
+    // A rotation inherits the "remember me" choice made at login: an
+    // unremembered session must not turn itself into a 30-day one by refreshing.
+    return this.issueTokens(user, stored.remembered);
   }
 
   async logout(refreshToken: string): Promise<void> {
@@ -164,8 +172,24 @@ export class AuthService {
     }
   }
 
-  private async issueTokens(user: { id: string; username: string; role: string }): Promise<AuthResponse> {
+  /**
+   * How long the refresh token issued for this session lives. A remembered
+   * session gets `JWT_REFRESH_TTL` (30 days by default); an unremembered one —
+   * "تذكرني" left unchecked, typically a shared or public device — gets the much
+   * shorter `JWT_REFRESH_TTL_SHORT`, so an abandoned browser stops being a way
+   * back into the account within hours instead of a month.
+   */
+  private refreshTtl(remembered: boolean): string {
+    if (remembered) return this.config.get<string>("JWT_REFRESH_TTL") ?? DEFAULT_REFRESH_TTL;
+    return this.config.get<string>("JWT_REFRESH_TTL_SHORT") ?? DEFAULT_SHORT_REFRESH_TTL;
+  }
+
+  private async issueTokens(
+    user: { id: string; username: string; role: string },
+    remembered: boolean,
+  ): Promise<AuthResponse> {
     const jti = randomUUID();
+    const refreshTtl = this.refreshTtl(remembered);
     const [accessToken, refreshToken] = await Promise.all([
       this.jwt.signAsync(
         { sub: user.id, username: user.username, role: user.role },
@@ -178,18 +202,18 @@ export class AuthService {
         { sub: user.id, jti },
         {
           secret: this.config.getOrThrow<string>("JWT_REFRESH_SECRET"),
-          expiresIn: this.config.get<string>("JWT_REFRESH_TTL") ?? "30d",
+          expiresIn: refreshTtl,
         },
       ),
     ]);
 
-    const ttlMs = ttlToMs(this.config.get<string>("JWT_REFRESH_TTL") ?? "30d");
     await this.prisma.refreshToken.create({
       data: {
         id: jti,
         userId: user.id,
         tokenHash: hashToken(refreshToken),
-        expiresAt: new Date(Date.now() + ttlMs),
+        remembered,
+        expiresAt: new Date(Date.now() + ttlToMs(refreshTtl)),
       },
     });
 
