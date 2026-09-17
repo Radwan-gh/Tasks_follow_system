@@ -230,8 +230,9 @@ export function createApiClient({ baseUrl, storage, onUnauthorized }: ApiClientO
         const qs = query.toString();
         return request<BoardMemberCandidateList>(`/boards/${id}/member-candidates${qs ? `?${qs}` : ""}`);
       },
-      addMember: (id: string, email: string, role?: Exclude<BoardRole, "OWNER">) =>
-        request<BoardMember>(`/boards/${id}/members`, { method: "POST", body: JSON.stringify({ email, role }) }),
+      /** `userId` comes from a `memberCandidates` row — there is no lookup by a typed-in name. */
+      addMember: (id: string, userId: string, role?: Exclude<BoardRole, "OWNER">) =>
+        request<BoardMember>(`/boards/${id}/members`, { method: "POST", body: JSON.stringify({ userId, role }) }),
       updateMemberRole: (id: string, userId: string, role: Exclude<BoardRole, "OWNER">) =>
         request<BoardMember>(`/boards/${id}/members/${userId}/role`, {
           method: "PATCH",

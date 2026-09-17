@@ -44,7 +44,7 @@ export class UsersController {
   @ApiOperation({ summary: "Provision a new user account (no public self-registration)" })
   @ApiBody({ schema: zodRef("CreateUserRequest") })
   @ApiResponse({ status: 201, schema: zodRef("AdminUser") })
-  @ApiResponse({ status: 400, description: "Email already in use" })
+  @ApiResponse({ status: 400, description: "Username or email already in use" })
   create(@Body(new ZodValidationPipe(CreateUserRequestSchema)) body: CreateUserRequest) {
     return this.users.create(body);
   }

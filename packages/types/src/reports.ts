@@ -82,7 +82,7 @@ export type OverdueTasksReport = z.infer<typeof OverdueTasksReportSchema>;
 export const AssigneeWorkloadSchema = z.object({
   userId: z.string(),
   displayName: z.string(),
-  email: z.string(),
+  username: z.string(),
   openCards: z.number().int(),
   // A disabled user keeps their existing assignments (never silently
   // reassigned) but is flagged "يحتاج إعادة إسناد" wherever workload is shown

@@ -1,8 +1,19 @@
 import { z } from "zod";
-import { CardPriority, DevicePlatform, NotificationPrefsSchema, RecurrenceRuleSchema, UserRole } from "./domain";
+import {
+  CardPriority,
+  DevicePlatform,
+  NotificationPrefsSchema,
+  RecurrenceRuleSchema,
+  UsernameSchema,
+  UserRole,
+} from "./domain";
 
+/**
+ * Sign-in credentials. `username`, not email — the server lowercases and trims
+ * before looking the account up, so the casing the user types doesn't matter.
+ */
 export const LoginRequestSchema = z.object({
-  email: z.string().email(),
+  username: z.string().min(1).max(50),
   password: z.string().min(1),
 });
 export type LoginRequest = z.infer<typeof LoginRequestSchema>;
@@ -53,18 +64,26 @@ export const UpdateBoardRequestSchema = z.object({
 });
 export type UpdateBoardRequest = z.infer<typeof UpdateBoardRequestSchema>;
 
-/** `role` defaults to `MEMBER` server-side when omitted; `OWNER` is never a valid value here (ownership doesn't transfer via this endpoint). */
+/**
+ * `role` defaults to `MEMBER` server-side when omitted; `OWNER` is never a valid
+ * value here (ownership doesn't transfer via this endpoint).
+ *
+ * Identifies the invitee by `userId`, not by an address: both apps pick the
+ * person from the `member-candidates` type-ahead and so already hold the row,
+ * which means the server never has to resolve a human-typed string back to an
+ * account.
+ */
 export const AddBoardMemberRequestSchema = z.object({
-  email: z.string().email(),
+  userId: z.string().min(1),
   role: z.enum(["MEMBER", "VIEWER"]).optional(),
 });
 export type AddBoardMemberRequest = z.infer<typeof AddBoardMemberRequestSchema>;
 
 /**
  * `GET /boards/:id/member-candidates` — owner-only lookup that powers the
- * "add member" search box in both apps. An empty `search` is valid and
- * deliberate: opening the picker shows the first `limit` candidates so a user
- * never has to guess an exact email to get started.
+ * "add member" search box in both apps. Matches on username or display name.
+ * An empty `search` is valid and deliberate: opening the picker shows the first
+ * `limit` candidates so a user never has to guess an exact name to get started.
  */
 export const SearchMemberCandidatesQuerySchema = z.object({
   search: z.string().max(200).optional(),
@@ -84,7 +103,9 @@ export type UpdateBoardMemberRoleRequest = z.infer<typeof UpdateBoardMemberRoleR
  * (optionally) the role. See `POST /admin/users`.
  */
 export const CreateUserRequestSchema = z.object({
-  email: z.string().email(),
+  username: UsernameSchema,
+  /** Optional contact address. Omitted or empty means the account simply has none. */
+  email: z.string().email().nullable().optional(),
   password: z.string().min(8).max(200),
   displayName: z.string().min(1).max(100),
   role: UserRole.optional(),

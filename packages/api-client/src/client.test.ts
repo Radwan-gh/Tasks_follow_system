@@ -140,7 +140,7 @@ describe("createApiClient", () => {
 
     const api = createApiClient({ baseUrl: "https://api.test", storage, onUnauthorized });
 
-    await expect(api.auth.login({ email: "a@b.c", password: "wrong" })).rejects.toMatchObject({
+    await expect(api.auth.login({ username: "someone", password: "wrong" })).rejects.toMatchObject({
       status: 401,
       message: "Invalid credentials",
     });

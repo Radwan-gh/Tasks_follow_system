@@ -9,6 +9,7 @@ type UserWithBoardCount = Prisma.UserGetPayload<{ include: { _count: { select: {
 function serialize(user: UserWithBoardCount): AdminUser {
   return {
     id: user.id,
+    username: user.username,
     email: user.email,
     displayName: user.displayName,
     role: user.role,
@@ -30,8 +31,9 @@ export class UsersService {
     const where: Prisma.UserWhereInput = query.search
       ? {
           OR: [
-            { email: { contains: query.search, mode: "insensitive" } },
+            { username: { contains: query.search, mode: "insensitive" } },
             { displayName: { contains: query.search, mode: "insensitive" } },
+            { email: { contains: query.search, mode: "insensitive" } },
           ],
         }
       : {};
@@ -52,16 +54,27 @@ export class UsersService {
 
   /**
    * Provision a new account. Public self-registration was removed — an admin
-   * sets the initial email, display name, password, and (optionally) role.
+   * sets the initial username, display name, password, and (optionally) role.
+   * `email` is optional and purely contact information.
    */
   async create(input: CreateUserRequest): Promise<AdminUser> {
-    const existing = await this.prisma.user.findUnique({ where: { email: input.email } });
-    if (existing) throw new ConflictException("Email already registered");
+    // Usernames are stored lowercase so that sign-in can be case-insensitive
+    // without a second index.
+    const username = input.username.trim().toLowerCase();
+    const email = input.email?.trim() || null;
+
+    const takenUsername = await this.prisma.user.findUnique({ where: { username } });
+    if (takenUsername) throw new ConflictException("Username already registered");
+    if (email) {
+      const takenEmail = await this.prisma.user.findUnique({ where: { email } });
+      if (takenEmail) throw new ConflictException("Email already registered");
+    }
 
     const passwordHash = await hashPassword(input.password);
     const user = await this.prisma.user.create({
       data: {
-        email: input.email,
+        username,
+        email,
         passwordHash,
         displayName: input.displayName,
         role: input.role ?? "USER",

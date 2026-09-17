@@ -39,7 +39,7 @@ export default function AdminUsersScreen() {
   const [creatingUser, setCreatingUser] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [resettingTarget, setResettingTarget] = useState<AdminUser | null>(null);
-  const [resetResult, setResetResult] = useState<{ email: string; temporaryPassword: string } | null>(null);
+  const [resetResult, setResetResult] = useState<{ username: string; temporaryPassword: string } | null>(null);
   const [confirming, setConfirming] = useState<{ userId: string; action: "role" | "status" } | null>(null);
 
   useEffect(() => {
@@ -65,9 +65,16 @@ export default function AdminUsersScreen() {
   }
 
   const createUser = useMutation({
-    mutationFn: (input: { displayName: string; email: string; password: string; isAdmin: boolean }) =>
+    mutationFn: (input: {
+      displayName: string;
+      username: string;
+      email: string | null;
+      password: string;
+      isAdmin: boolean;
+    }) =>
       api.admin.createUser({
         displayName: input.displayName,
+        username: input.username,
         email: input.email,
         password: input.password,
         role: input.isAdmin ? "ADMIN" : "USER",
@@ -78,14 +85,15 @@ export default function AdminUsersScreen() {
       invalidate();
     },
     // Reported inside the sheet, not on the screen behind it: a rejected
-    // email (already registered) is invisible under an open bottom sheet.
+    // username (already taken) is invisible under an open bottom sheet.
     onError: (err) => setCreateError(err instanceof ApiError ? err.message : "حدث خطأ غير متوقّع"),
   });
 
   const resetPassword = useMutation({
     mutationFn: (id: string) => api.admin.resetPassword(id),
     onSuccess: (result) => {
-      if (resettingTarget) setResetResult({ email: resettingTarget.email, temporaryPassword: result.temporaryPassword });
+      if (resettingTarget)
+        setResetResult({ username: resettingTarget.username, temporaryPassword: result.temporaryPassword });
       setResettingTarget(null);
       invalidate();
     },
@@ -126,7 +134,9 @@ export default function AdminUsersScreen() {
     setCreatingUser(true);
   }
   const searchTerm = search.trim();
-  const searchLooksLikeEmail = searchTerm.includes("@");
+  // A username-shaped term is prefilled as the handle; anything else (spaces,
+  // Arabic letters, capitals) is far likelier to be the person's display name.
+  const searchLooksLikeUsername = /^[a-z0-9._-]+$/.test(searchTerm);
 
   const isMutating = updateRole.isPending || updateStatus.isPending || updatePermissions.isPending;
   const totalPages = users.data ? Math.max(1, Math.ceil(users.data.total / users.data.pageSize)) : 1;
@@ -159,7 +169,7 @@ export default function AdminUsersScreen() {
         <TextInput
           value={search}
           onChangeText={setSearch}
-          placeholder="ابحث بالبريد الإلكتروني أو الاسم"
+          placeholder="ابحث باسم المستخدم أو الاسم"
           placeholderTextColor={colors.muted}
           autoCapitalize="none"
           autoCorrect={false}
@@ -277,7 +287,7 @@ export default function AdminUsersScreen() {
                       ) : null}
                     </AppText>
                     <AppText size="small" color={colors.muted}>
-                      {u.email}
+                      {u.username}
                     </AppText>
                   </View>
                 </View>
@@ -374,8 +384,8 @@ export default function AdminUsersScreen() {
         }}
         onCreate={(input) => createUser.mutate(input)}
         creating={createUser.isPending}
-        initialEmail={searchLooksLikeEmail ? searchTerm : ""}
-        initialName={searchLooksLikeEmail ? "" : searchTerm}
+        initialUsername={searchLooksLikeUsername ? searchTerm : ""}
+        initialName={searchLooksLikeUsername ? "" : searchTerm}
         error={createError}
       />
 
@@ -398,7 +408,7 @@ export default function AdminUsersScreen() {
       <ResetPasswordResultSheet
         visible={!!resetResult}
         onClose={() => setResetResult(null)}
-        email={resetResult?.email ?? null}
+        username={resetResult?.username ?? null}
         temporaryPassword={resetResult?.temporaryPassword ?? null}
       />
     </Screen>

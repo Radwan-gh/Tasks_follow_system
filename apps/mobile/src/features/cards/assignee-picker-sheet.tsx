@@ -48,7 +48,7 @@ export function AssigneePickerSheet({
       term
         ? members.filter(
             (m) =>
-              m.user.displayName.toLowerCase().includes(term) || m.user.email.toLowerCase().includes(term),
+              m.user.displayName.toLowerCase().includes(term) || m.user.username.toLowerCase().includes(term),
           )
         : members,
     [members, term],
@@ -122,7 +122,7 @@ export function AssigneePickerSheet({
             onChangeText={setSearch}
             autoCapitalize="none"
             autoCorrect={false}
-            placeholder="ابحث بالاسم أو البريد الإلكتروني"
+            placeholder="ابحث بالاسم أو اسم المستخدم"
             placeholderTextColor={colors.muted}
             accessibilityLabel="ابحث عن عضو"
             style={{
@@ -192,7 +192,7 @@ export function AssigneePickerSheet({
                   <View style={{ flex: 1 }}>
                     <AppText weight="semibold">{member.user.displayName}</AppText>
                     <AppText size="caption" color={colors.muted}>
-                      {member.user.email}
+                      {member.user.username}
                     </AppText>
                   </View>
                   <View

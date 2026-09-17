@@ -52,7 +52,7 @@ export function BoardFilterSheet({
             (m) =>
               value.memberIds.includes(m.userId) ||
               m.user.displayName.toLowerCase().includes(term) ||
-              m.user.email.toLowerCase().includes(term),
+              m.user.username.toLowerCase().includes(term),
           )
         : members,
     [members, term, value.memberIds],

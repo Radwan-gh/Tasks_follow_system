@@ -184,17 +184,17 @@ export class ReportsService {
           ],
         },
       },
-      select: { userId: true, user: { select: { displayName: true, email: true, isActive: true } } },
+      select: { userId: true, user: { select: { displayName: true, username: true, isActive: true } } },
     });
 
-    const byUser = new Map<string, { displayName: string; email: string; isActive: boolean; openCards: number }>();
+    const byUser = new Map<string, { displayName: string; username: string; isActive: boolean; openCards: number }>();
     for (const a of assignments) {
       const current = byUser.get(a.userId);
       if (current) current.openCards += 1;
       else
         byUser.set(a.userId, {
           displayName: a.user.displayName,
-          email: a.user.email,
+          username: a.user.username,
           isActive: a.user.isActive,
           openCards: 1,
         });

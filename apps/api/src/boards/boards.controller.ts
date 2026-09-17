@@ -102,7 +102,7 @@ export class BoardsController {
   @Get(":id/member-candidates")
   @ApiOperation({ summary: "Search users who can still be added to this board (owner-only)" })
   @ApiParam({ name: "id", description: "Board ID" })
-  @ApiQuery({ name: "search", required: false, description: "Matches email or display name, case-insensitive" })
+  @ApiQuery({ name: "search", required: false, description: "Matches username or display name, case-insensitive" })
   @ApiQuery({ name: "limit", required: false })
   @ApiResponse({ status: 200, schema: zodRef("BoardMemberCandidateList") })
   @ApiResponse({ status: 403, description: "Requires OWNER role" })
@@ -115,17 +115,17 @@ export class BoardsController {
   }
 
   @Post(":id/members")
-  @ApiOperation({ summary: "Add a member to a board by email" })
+  @ApiOperation({ summary: "Add a member to a board by user id" })
   @ApiParam({ name: "id", description: "Board ID" })
   @ApiBody({ schema: zodRef("AddBoardMemberRequest") })
   @ApiResponse({ status: 201, schema: zodRef("BoardMember") })
-  @ApiResponse({ status: 404, description: "No user with this email" })
+  @ApiResponse({ status: 404, description: "No such user" })
   addMember(
     @CurrentUser() user: AuthUser,
     @Param("id") id: string,
     @Body(new ZodValidationPipe(AddBoardMemberRequestSchema)) body: AddBoardMemberRequest,
   ) {
-    return this.boards.addMember(user.id, id, body.email, body.role);
+    return this.boards.addMember(user.id, id, body.userId, body.role);
   }
 
   @Patch(":id/members/:userId/role")

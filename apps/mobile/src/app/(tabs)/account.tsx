@@ -64,7 +64,7 @@ export default function AccountScreen() {
               {user?.displayName}
             </AppText>
             <AppText size="small" color={colors.muted}>
-              {user?.email}
+              {user?.username}
             </AppText>
           </View>
           {user?.role === "ADMIN" ? (

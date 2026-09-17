@@ -18,6 +18,8 @@ export function UsersAdminPage() {
 
   // New-user form state.
   const [newName, setNewName] = useState("");
+  const [newUsername, setNewUsername] = useState("");
+  // Email is contact info, not a credential — the server accepts it as null.
   const [newEmail, setNewEmail] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [newIsAdmin, setNewIsAdmin] = useState(false);
@@ -46,12 +48,18 @@ export function UsersAdminPage() {
   };
 
   const createUser = useMutation({
-    mutationFn: (vars: { email: string; password: string; displayName: string; role: UserRole }) =>
-      api.admin.createUser(vars),
+    mutationFn: (vars: {
+      username: string;
+      email: string | null;
+      password: string;
+      displayName: string;
+      role: UserRole;
+    }) => api.admin.createUser(vars),
     onSuccess: (created) => {
       onMutationSuccess();
-      setNotice(`تم إنشاء الحساب ${created.email}.`);
+      setNotice(`تم إنشاء الحساب ${created.username}.`);
       setNewName("");
+      setNewUsername("");
       setNewEmail("");
       setNewPassword("");
       setNewIsAdmin(false);
@@ -63,7 +71,7 @@ export function UsersAdminPage() {
     mutationFn: ({ id, password }: { id: string; password: string }) => api.admin.setUserPassword(id, password),
     onSuccess: (updated) => {
       onMutationSuccess();
-      setNotice(`تم تغيير كلمة مرور ${updated.email}.`);
+      setNotice(`تم تغيير كلمة مرور ${updated.username}.`);
     },
     onError: onMutationError,
   });
@@ -71,15 +79,18 @@ export function UsersAdminPage() {
   function onCreateUser(e: FormEvent) {
     e.preventDefault();
     createUser.mutate({
-      email: newEmail.trim(),
+      // Usernames are lowercase-only server-side; normalise here so typing a
+      // capital is not rejected as an invalid name.
+      username: newUsername.trim().toLowerCase(),
+      email: newEmail.trim() || null,
       password: newPassword,
       displayName: newName.trim(),
       role: newIsAdmin ? "ADMIN" : "USER",
     });
   }
 
-  function onSetPassword(id: string, email: string) {
-    const password = window.prompt(`أدخل كلمة مرور جديدة لـ ${email} (8 أحرف على الأقل):`);
+  function onSetPassword(id: string, username: string) {
+    const password = window.prompt(`أدخل كلمة مرور جديدة لـ ${username} (8 أحرف على الأقل):`);
     if (password === null) return;
     if (password.length < 8) {
       setNotice(null);
@@ -101,16 +112,16 @@ export function UsersAdminPage() {
     onError: onMutationError,
   });
 
-  function onRoleChange(id: string, email: string, role: UserRole) {
-    const label = role === "ADMIN" ? `منح ${email} صلاحيات المشرف؟` : `إزالة صلاحيات المشرف من ${email}؟`;
+  function onRoleChange(id: string, username: string, role: UserRole) {
+    const label = role === "ADMIN" ? `منح ${username} صلاحيات المشرف؟` : `إزالة صلاحيات المشرف من ${username}؟`;
     if (!window.confirm(label)) return;
     updateRole.mutate({ id, role });
   }
 
-  function onStatusToggle(id: string, email: string, isActive: boolean) {
+  function onStatusToggle(id: string, username: string, isActive: boolean) {
     const label = isActive
-      ? `إعادة تفعيل ${email}؟ سيتمكن من تسجيل الدخول مرة أخرى.`
-      : `إلغاء تفعيل ${email}؟ سيتم تسجيل خروجه ولن يتمكن من تسجيل الدخول. سيتم الاحتفاظ بلوحاته وبطاقاته.`;
+      ? `إعادة تفعيل ${username}؟ سيتمكن من تسجيل الدخول مرة أخرى.`
+      : `إلغاء تفعيل ${username}؟ سيتم تسجيل خروجه ولن يتمكن من تسجيل الدخول. سيتم الاحتفاظ بلوحاته وبطاقاته.`;
     if (!window.confirm(label)) return;
     updateStatus.mutate({ id, isActive });
   }
@@ -140,7 +151,7 @@ export function UsersAdminPage() {
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="ابحث بالبريد الإلكتروني أو الاسم"
+            placeholder="ابحث باسم المستخدم أو الاسم أو البريد الإلكتروني"
             className="w-72 rounded border border-slate-300 px-3 py-2 text-sm"
           />
           {data && (
@@ -164,11 +175,18 @@ export function UsersAdminPage() {
               className="w-40 rounded border border-slate-300 px-3 py-2 text-sm"
             />
             <input
-              type="email"
               required
+              value={newUsername}
+              onChange={(e) => setNewUsername(e.target.value)}
+              placeholder="اسم المستخدم"
+              autoComplete="username"
+              className="w-40 rounded border border-slate-300 px-3 py-2 text-sm"
+            />
+            <input
+              type="email"
               value={newEmail}
               onChange={(e) => setNewEmail(e.target.value)}
-              placeholder="البريد الإلكتروني"
+              placeholder="البريد الإلكتروني (اختياري)"
               className="w-56 rounded border border-slate-300 px-3 py-2 text-sm"
             />
             <input
@@ -203,6 +221,7 @@ export function UsersAdminPage() {
               <thead>
                 <tr className="border-b text-xs uppercase tracking-wide text-slate-500">
                   <th className="px-4 py-3">الاسم</th>
+                  <th className="px-4 py-3">اسم المستخدم</th>
                   <th className="px-4 py-3">البريد الإلكتروني</th>
                   <th className="px-4 py-3">الصلاحية</th>
                   <th className="px-4 py-3">الحالة</th>
@@ -220,7 +239,8 @@ export function UsersAdminPage() {
                         {u.displayName}
                         {isSelf && <span className="ms-2 text-xs text-slate-400">(أنت)</span>}
                       </td>
-                      <td className="px-4 py-3 text-slate-600">{u.email}</td>
+                      <td className="px-4 py-3 text-slate-600">{u.username}</td>
+                      <td className="px-4 py-3 text-slate-600">{u.email ?? "—"}</td>
                       <td className="px-4 py-3">
                         <span
                           className={
@@ -248,21 +268,21 @@ export function UsersAdminPage() {
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
                           <button
-                            onClick={() => onRoleChange(u.id, u.email, u.role === "ADMIN" ? "USER" : "ADMIN")}
+                            onClick={() => onRoleChange(u.id, u.username, u.role === "ADMIN" ? "USER" : "ADMIN")}
                             disabled={isSelf || isMutating}
                             className="rounded border border-slate-300 px-2 py-1 text-xs text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
                           >
                             {u.role === "ADMIN" ? "خفض إلى مستخدم" : "تعيين كمشرف"}
                           </button>
                           <button
-                            onClick={() => onStatusToggle(u.id, u.email, !u.isActive)}
+                            onClick={() => onStatusToggle(u.id, u.username, !u.isActive)}
                             disabled={isSelf || isMutating}
                             className="rounded border border-slate-300 px-2 py-1 text-xs text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
                           >
                             {u.isActive ? "إلغاء التفعيل" : "إعادة التفعيل"}
                           </button>
                           <button
-                            onClick={() => onSetPassword(u.id, u.email)}
+                            onClick={() => onSetPassword(u.id, u.username)}
                             disabled={isMutating}
                             className="rounded border border-slate-300 px-2 py-1 text-xs text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
                           >

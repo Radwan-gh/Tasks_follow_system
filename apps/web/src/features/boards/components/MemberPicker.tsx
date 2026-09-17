@@ -26,11 +26,11 @@ export function initialsOf(displayName: string): string {
     .toUpperCase();
 }
 
-/** Case-insensitive match on display name *or* email — the same rule the server uses for its search. */
-export function matchesUser(user: { displayName: string; email: string }, term: string): boolean {
+/** Case-insensitive match on display name *or* username — the same rule the server uses for its search. */
+export function matchesUser(user: { displayName: string; username: string }, term: string): boolean {
   const needle = term.trim().toLowerCase();
   if (!needle) return true;
-  return user.displayName.toLowerCase().includes(needle) || user.email.toLowerCase().includes(needle);
+  return user.displayName.toLowerCase().includes(needle) || user.username.toLowerCase().includes(needle);
 }
 
 export function UserAvatar({ displayName, dimmed = false }: { displayName: string; dimmed?: boolean }) {
@@ -46,14 +46,14 @@ export function UserAvatar({ displayName, dimmed = false }: { displayName: strin
   );
 }
 
-/** Name + email + an optional "معطَّل" badge — the shared row for any user list. */
+/** Name + username + an optional "معطَّل" badge — the shared row for any user list. */
 export function UserIdentity({
   displayName,
-  email,
+  username,
   isActive = true,
 }: {
   displayName: string;
-  email: string;
+  username: string;
   isActive?: boolean;
 }) {
   return (
@@ -61,7 +61,7 @@ export function UserIdentity({
       <UserAvatar displayName={displayName} dimmed={!isActive} />
       <span className="min-w-0">
         <span className="block truncate text-sm text-slate-700">{displayName}</span>
-        <span className="block truncate text-xs text-slate-400">{email}</span>
+        <span className="block truncate text-xs text-slate-400">{username}</span>
       </span>
       {!isActive && (
         <span className="shrink-0 rounded bg-red-50 px-1.5 py-0.5 text-[10px] font-medium text-red-600">معطَّل</span>
@@ -129,7 +129,7 @@ export function MemberChecklist({
           type="search"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="ابحث بالاسم أو البريد الإلكتروني"
+          placeholder="ابحث بالاسم أو اسم المستخدم"
           aria-label="ابحث عن عضو"
           className="w-full rounded border border-slate-200 px-2 py-1 text-xs"
         />
@@ -152,7 +152,7 @@ export function MemberChecklist({
               />
               <UserIdentity
                 displayName={m.user.displayName}
-                email={m.user.email}
+                username={m.user.username}
                 isActive={m.user.isActive}
               />
             </label>

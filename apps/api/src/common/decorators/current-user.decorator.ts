@@ -3,7 +3,8 @@ import type { UserRole } from "@app/types";
 
 export interface AuthUser {
   id: string;
-  email: string;
+  /** From the JWT claim; empty string on tokens issued before username login. Identify users by `id`. */
+  username: string;
   role: UserRole;
 }
 

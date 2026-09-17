@@ -22,7 +22,7 @@ import { MIN_TOUCH_TARGET, colors, fonts, fontSizes, radii, spacing } from "@/th
 /**
  * `/board/:id/settings` — the design's «إعدادات اللوحة والأعضاء» single
  * screen (`v2-new-style.md` §7.2): rename/description/due-date, add member
- * by email, remove member, archive. All endpoints already exist
+ * by picking them from the directory, remove member, archive. All endpoints already exist
  * (`PATCH /boards/:id`, `POST`/`DELETE .../members`) — this is UI only,
  * mirroring `apps/web`'s `BoardSettingsModal`/`BoardMembersModal`.
  */
@@ -94,8 +94,8 @@ export default function BoardSettingsScreen() {
   });
 
   const addMember = useMutation({
-    mutationFn: (input: { email: string; role: Exclude<BoardRole, "OWNER"> }) =>
-      api.boards.addMember(id, input.email, input.role),
+    mutationFn: (input: { userId: string; role: Exclude<BoardRole, "OWNER"> }) =>
+      api.boards.addMember(id, input.userId, input.role),
     onSuccess: () => {
       setAddingMember(false);
       setError(null);
@@ -147,7 +147,7 @@ export default function BoardSettingsScreen() {
     ? board.data.members.filter(
         (m) =>
           m.user.displayName.toLowerCase().includes(filterTerm) ||
-          m.user.email.toLowerCase().includes(filterTerm),
+          m.user.username.toLowerCase().includes(filterTerm),
       )
     : board.data.members;
 
@@ -251,7 +251,7 @@ export default function BoardSettingsScreen() {
             أعضاء اللوحة
           </AppText>
 
-          {/* Owners add people by searching the directory — no exact email to recall. */}
+          {/* Owners add people by searching the directory — no exact username to recall. */}
           {canArchive ? (
             <Pressable
               accessibilityRole="button"
@@ -278,7 +278,7 @@ export default function BoardSettingsScreen() {
             <TextInput
               value={memberFilter}
               onChangeText={setMemberFilter}
-              placeholder="تصفية الأعضاء بالاسم أو البريد"
+              placeholder="تصفية الأعضاء بالاسم أو اسم المستخدم"
               placeholderTextColor={colors.muted}
               autoCapitalize="none"
               accessibilityLabel="تصفية الأعضاء"
@@ -337,7 +337,7 @@ export default function BoardSettingsScreen() {
                       {member.user.displayName}
                     </AppText>
                     <AppText size="caption" color={colors.muted}>
-                      {member.user.email}
+                      {member.user.username}
                     </AppText>
                   </View>
                   {!member.user.isActive ? (
@@ -451,7 +451,7 @@ export default function BoardSettingsScreen() {
         onClose={() => setAddingMember(false)}
         boardId={id}
         adding={addMember.isPending}
-        onPick={(user: BoardMemberCandidate, role) => addMember.mutate({ email: user.email, role })}
+        onPick={(user: BoardMemberCandidate, role) => addMember.mutate({ userId: user.id, role })}
       />
 
       <DueDateSheet visible={pickingDueDate} onClose={() => setPickingDueDate(false)} onChange={setDueDate} />

@@ -5,7 +5,8 @@ import { ExtractJwt, Strategy } from "passport-jwt";
 
 interface AccessTokenPayload {
   sub: string;
-  email: string;
+  /** Absent on tokens issued before login moved from email to username. */
+  username?: string;
   role?: "USER" | "ADMIN";
 }
 
@@ -20,7 +21,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: AccessTokenPayload) {
-    // Tokens issued before the role claim existed degrade to USER.
-    return { id: payload.sub, email: payload.email, role: payload.role ?? "USER" };
+    // Tokens issued before the role claim existed degrade to USER. An
+    // email-era token has no `username` claim; nothing reads it off the request
+    // (authorization keys off `id`), so those keep working until they expire.
+    return { id: payload.sub, username: payload.username ?? "", role: payload.role ?? "USER" };
   }
 }

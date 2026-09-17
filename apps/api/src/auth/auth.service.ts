@@ -32,7 +32,10 @@ export class AuthService {
   ) {}
 
   async login(input: LoginRequest): Promise<AuthResponse> {
-    const user = await this.prisma.user.findUnique({ where: { email: input.email } });
+    // Usernames are stored lowercase, so sign-in is case-insensitive.
+    const user = await this.prisma.user.findUnique({
+      where: { username: input.username.trim().toLowerCase() },
+    });
     if (!user || !(await bcrypt.compare(input.password, user.passwordHash))) {
       throw new UnauthorizedException("Invalid credentials");
     }
@@ -104,11 +107,11 @@ export class AuthService {
     }
   }
 
-  private async issueTokens(user: { id: string; email: string; role: string }): Promise<AuthResponse> {
+  private async issueTokens(user: { id: string; username: string; role: string }): Promise<AuthResponse> {
     const jti = randomUUID();
     const [accessToken, refreshToken] = await Promise.all([
       this.jwt.signAsync(
-        { sub: user.id, email: user.email, role: user.role },
+        { sub: user.id, username: user.username, role: user.role },
         {
           secret: this.config.getOrThrow<string>("JWT_ACCESS_SECRET"),
           expiresIn: this.config.get<string>("JWT_ACCESS_TTL") ?? "15m",

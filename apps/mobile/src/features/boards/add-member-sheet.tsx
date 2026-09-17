@@ -16,7 +16,7 @@ const SEARCH_DEBOUNCE_MS = 250;
 type AddableRole = Exclude<BoardRole, "OWNER">;
 
 /**
- * «إضافة عضو» — search the user directory instead of typing an exact email.
+ * «إضافة عضو» — search the user directory instead of typing an exact username.
  * Backed by `GET /boards/:id/member-candidates` (owner-only, already-members
  * filtered out server-side), so every row shown is one tap from being added.
  * Opens with the first candidates already listed: an empty search is a valid
@@ -71,7 +71,7 @@ export function AddMemberSheet({
             إضافة عضو
           </AppText>
           <AppText size="small" color={colors.muted}>
-            ابحث بالاسم أو البريد الإلكتروني، ثم اختر الشخص لإضافته.
+            ابحث بالاسم أو اسم المستخدم، ثم اختر الشخص لإضافته.
           </AppText>
         </View>
 
@@ -80,7 +80,7 @@ export function AddMemberSheet({
           onChangeText={setSearch}
           autoCapitalize="none"
           autoCorrect={false}
-          placeholder="ابحث بالاسم أو البريد الإلكتروني"
+          placeholder="ابحث بالاسم أو اسم المستخدم"
           placeholderTextColor={colors.muted}
           accessibilityLabel="ابحث عن مستخدم لإضافته"
           style={{
@@ -188,7 +188,7 @@ export function AddMemberSheet({
                   <View style={{ flex: 1 }}>
                     <AppText weight="semibold">{user.displayName}</AppText>
                     <AppText size="caption" color={colors.muted}>
-                      {user.email}
+                      {user.username}
                     </AppText>
                   </View>
                   {!user.isActive ? (

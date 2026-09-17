@@ -52,9 +52,26 @@ export const NotificationPrefsSchema = z.object({
 });
 export type NotificationPrefs = z.infer<typeof NotificationPrefsSchema>;
 
+/**
+ * Login name rules, shared by account creation and by anything that displays a
+ * username. Lowercase only, so two accounts can never differ by casing alone;
+ * `.` `_` `-` are allowed inside but the name must start and end alphanumeric.
+ */
+export const UsernameSchema = z
+  .string()
+  .min(3)
+  .max(50)
+  .regex(
+    /^[a-z0-9]([a-z0-9._-]*[a-z0-9])?$/,
+    "اسم المستخدم يقبل الأحرف الإنجليزية الصغيرة والأرقام و . _ - فقط، ويجب أن يبدأ وينتهي بحرف أو رقم",
+  );
+
 export const UserSchema = z.object({
   id: z.string(),
-  email: z.string().email(),
+  /** The login credential, and the secondary identity line under `displayName` in user lists. */
+  username: UsernameSchema,
+  /** Contact address only — never a credential, and absent on accounts created without one. */
+  email: z.string().email().nullable(),
   displayName: z.string().min(1).max(100),
   role: UserRole,
   isActive: z.boolean(),
@@ -98,7 +115,7 @@ export const BoardMemberSchema = z.object({
   // `isActive` lets the mobile client fade a disabled member's avatar and
   // badge them "معطَّل" wherever they're shown as an assignee — see
   // `design-prompt-group-3.md` §3b-6.
-  user: UserSchema.pick({ id: true, email: true, displayName: true, isActive: true }),
+  user: UserSchema.pick({ id: true, username: true, displayName: true, isActive: true }),
 });
 export type BoardMember = z.infer<typeof BoardMemberSchema>;
 
@@ -111,7 +128,7 @@ export type BoardMember = z.infer<typeof BoardMemberSchema>;
  */
 export const BoardMemberCandidateSchema = UserSchema.pick({
   id: true,
-  email: true,
+  username: true,
   displayName: true,
   isActive: true,
 });
@@ -233,7 +250,7 @@ export const CardActivitySchema = z.object({
   fromValue: z.string().nullable(),
   toValue: z.string().nullable(),
   createdAt: z.string().datetime(),
-  actor: UserSchema.pick({ id: true, email: true, displayName: true }),
+  actor: UserSchema.pick({ id: true, username: true, displayName: true }),
 });
 export type CardActivity = z.infer<typeof CardActivitySchema>;
 
@@ -285,7 +302,7 @@ export const CommentSchema = z.object({
   cardId: z.string(),
   body: z.string().min(1).max(2000),
   createdAt: z.string().datetime(),
-  author: UserSchema.pick({ id: true, email: true, displayName: true }),
+  author: UserSchema.pick({ id: true, username: true, displayName: true }),
 });
 export type Comment = z.infer<typeof CommentSchema>;
 
@@ -297,7 +314,7 @@ export const AttachmentSchema = z.object({
   mimeType: z.string(),
   sizeBytes: z.number().int(),
   createdAt: z.string().datetime(),
-  uploader: UserSchema.pick({ id: true, email: true, displayName: true }),
+  uploader: UserSchema.pick({ id: true, username: true, displayName: true }),
 });
 export type Attachment = z.infer<typeof AttachmentSchema>;
 
@@ -337,7 +354,7 @@ export const PushDeviceSchema = z.object({
   deviceId: z.string().nullable(),
   platform: DevicePlatform,
   lastSeenAt: z.string().datetime(),
-  user: UserSchema.pick({ id: true, displayName: true, email: true }).nullable(),
+  user: UserSchema.pick({ id: true, displayName: true, username: true }).nullable(),
 });
 export type PushDevice = z.infer<typeof PushDeviceSchema>;
 

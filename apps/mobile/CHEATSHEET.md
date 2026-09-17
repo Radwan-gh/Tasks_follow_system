@@ -13,21 +13,36 @@ pnpm install
 pnpm --filter @app/types build
 pnpm --filter @app/api-client build
 
-cp apps/mobile/.env.example apps/mobile/.env
 ```
 
-Edit `apps/mobile/.env` and set `EXPO_PUBLIC_API_URL` to your machine's **LAN
-IP**, not `localhost` — a phone/emulator can't reach your laptop's localhost:
+There is **no `.env` to copy** — the two environments are committed and picked
+automatically by `NODE_ENV`:
+
+| File | Used by | Points at |
+|---|---|---|
+| `.env.development` | `expo start`, debug builds | `http://10.0.2.2:3000` (local API) |
+| `.env.production` | `assembleRelease`, `expo export`, `publish-update` | the deployed Railway API |
+
+So a dev run can never accidentally ship, and a release APK can never
+accidentally point at your laptop. Verify which one was used — Expo prints it:
 
 ```
-EXPO_PUBLIC_API_URL="http://192.168.1.10:3000"
+env: load .env.development
 ```
 
-Find your LAN IP:
+**On a physical device** `10.0.2.2` is unreachable (it is the *emulator's* alias
+for the host). Override with your LAN IP — in `.env.development.local`, which is
+gitignored and applies to development only:
+
 ```bash
-# Windows
-ipconfig            # look for IPv4 Address
+cp apps/mobile/.env.example apps/mobile/.env.development.local
+ipconfig            # Windows: look for IPv4 Address
 ```
+
+Use `.env.development.local`, **not** `.env.local` — the latter also overrides
+production builds, which is the mistake the split exists to prevent. Precedence,
+highest first: real env var → `.env.development.local` → `.env.local` →
+`.env.development` → `.env`.
 
 Make sure the API is actually running and reachable at that address:
 ```bash
@@ -100,9 +115,14 @@ org.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=2048m
 `android/` is gitignored and regenerated, so this must be re-applied after any
 clean `prebuild` (the GitHub Actions workflow does it with a `sed` step).
 
-`EXPO_PUBLIC_API_URL` from `apps/mobile/.env` is baked into the JS bundle at
-this build step — make sure it points somewhere the APK's users can actually
-reach (not your dev laptop's LAN IP, if handing the APK to someone else).
+`EXPO_PUBLIC_API_URL` is baked into the JS bundle at this build step, and a
+release build reads it from **`.env.production`** — so it points at the deployed
+API by construction, not by remembering to change a file. To aim one build
+somewhere else, set a real env var (it beats every `.env` file):
+
+```bash
+EXPO_PUBLIC_API_URL="http://192.168.1.10:3000" ./gradlew assembleRelease
+```
 
 ## 4. Build an APK via GitHub Actions (no local Android SDK needed)
 
@@ -112,8 +132,10 @@ reach (not your dev laptop's LAN IP, if handing the APK to someone else).
 - Triggers automatically on push to `main` touching `apps/mobile` or
   `packages/{api-client,types,ordering}`, or manually via the **Actions** tab.
 - Reads `EXPO_PUBLIC_API_URL` from the repo's Actions **Variables**
-  (Settings → Secrets and variables → Actions → Variables) — set this once so
-  builds don't ship without a valid API URL.
+  (Settings → Secrets and variables → Actions → Variables). A real env var beats
+  every `.env` file, so this still wins when set — but leaving it unset is now
+  safe: the build falls back to `.env.production` instead of shipping without an
+  API URL.
 - On success: uploads the APK as a workflow-run Artifact, and creates a
   GitHub Release tagged `mobile-v<version>-<run-number>` with the APK
   attached (a stable, shareable download link).
@@ -199,13 +221,15 @@ curl -X POST localhost:3000/push/send \
 
 - **`Cannot find module '@app/api-client'` or `@app/types`**: you skipped
   step 0 — rebuild those packages before running the mobile app.
-- **App can't reach the API from a real phone**: `EXPO_PUBLIC_API_URL` is
-  still `localhost`. Use your LAN IP, and confirm phone + dev machine are on
-  the same network (no VPN splitting them).
+- **App can't reach the API from a real phone**: the development default is the
+  emulator alias `10.0.2.2`, which a physical device cannot reach. Put your LAN
+  IP in `.env.development.local` (§0), and confirm phone + dev machine are on
+  the same network — a VPN (e.g. Mullvad) will split them even on one Wi-Fi.
 - **RTL looks wrong on first Expo Go launch**: expected, see §1. Use a dev
   build (`expo run:android`) if you need to verify RTL exactly.
 - **APK exists but crashes/can't reach API**: the URL was baked in at build
-  time from whatever `.env` said then — rebuild if you change it.
+  time from `.env.production` (or an overriding env var) — rebuild if you change
+  it. Check which file was used in the build log's `env: load ...` line.
 - **`prebuild` fails on a missing `google-services.json`**: see §6 — the file is
   gitignored, so every machine and the CI runner needs its own copy.
 - **`prebuild` fails with `EBUSY: resource busy or locked, rmdir android`**: a

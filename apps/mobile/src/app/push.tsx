@@ -83,7 +83,7 @@ export default function SendPushScreen() {
       !deviceTerm ||
       (device.deviceId ? selected.has(device.deviceId) : false) ||
       (device.user?.displayName ?? "زائر").toLowerCase().includes(deviceTerm) ||
-      (device.user?.email ?? "").toLowerCase().includes(deviceTerm) ||
+      (device.user?.username ?? "").toLowerCase().includes(deviceTerm) ||
       (device.deviceId ?? "").toLowerCase().includes(deviceTerm),
   );
 

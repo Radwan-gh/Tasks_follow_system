@@ -30,8 +30,8 @@ export function BoardMembersModal({ boardId, members, onClose }: BoardMembersMod
   const onError = (err: unknown) => setError(err instanceof ApiError ? err.message : "حدث خطأ غير متوقّع");
 
   const addMember = useMutation({
-    mutationFn: (input: { email: string; role: AddableRole }) =>
-      api.boards.addMember(boardId, input.email, input.role),
+    mutationFn: (input: { userId: string; role: AddableRole }) =>
+      api.boards.addMember(boardId, input.userId, input.role),
     onSuccess: () => {
       setError(null);
       invalidate();
@@ -72,7 +72,7 @@ export function BoardMembersModal({ boardId, members, onClose }: BoardMembersMod
         <AddMemberSearch
           boardId={boardId}
           adding={addMember.isPending}
-          onPick={(user, role) => addMember.mutate({ email: user.email, role })}
+          onPick={(user, role) => addMember.mutate({ userId: user.id, role })}
         />
 
         <div className="space-y-2">
@@ -101,7 +101,7 @@ export function BoardMembersModal({ boardId, members, onClose }: BoardMembersMod
                 <li key={m.userId} className="flex items-center gap-2 py-2">
                   <UserIdentity
                     displayName={m.user.displayName}
-                    email={m.user.email}
+                    username={m.user.username}
                     isActive={m.user.isActive}
                   />
                   <span
@@ -137,7 +137,7 @@ export function BoardMembersModal({ boardId, members, onClose }: BoardMembersMod
 
 /**
  * Type-ahead over `GET /boards/:id/member-candidates` — the owner searches by
- * name *or* email instead of having to recall an exact address. The list opens
+ * name *or* username instead of having to recall an exact handle. The list opens
  * with the first candidates already loaded (empty search is a valid query), and
  * arrow keys + Enter add without touching the mouse.
  */
@@ -209,7 +209,7 @@ function AddMemberSearch({
           onChange={(e) => setSearch(e.target.value)}
           onKeyDown={onKeyDown}
           autoFocus
-          placeholder="ابحث بالاسم أو البريد الإلكتروني لإضافة عضو"
+          placeholder="ابحث بالاسم أو اسم المستخدم لإضافة عضو"
           aria-label="ابحث عن مستخدم لإضافته"
           className="flex-1 rounded border border-slate-300 px-3 py-2 text-sm"
         />
@@ -246,7 +246,7 @@ function AddMemberSearch({
                   index === highlight ? "bg-slate-100" : "hover:bg-slate-50"
                 }`}
               >
-                <UserIdentity displayName={user.displayName} email={user.email} isActive={user.isActive} />
+                <UserIdentity displayName={user.displayName} username={user.username} isActive={user.isActive} />
                 <span className="shrink-0 text-xs font-medium text-slate-500">إضافة +</span>
               </button>
             </li>

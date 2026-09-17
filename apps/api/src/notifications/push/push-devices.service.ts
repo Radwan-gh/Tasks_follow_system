@@ -53,7 +53,7 @@ export class PushDevicesService {
         deviceId: true,
         platform: true,
         lastSeenAt: true,
-        user: { select: { id: true, displayName: true, email: true } },
+        user: { select: { id: true, displayName: true, username: true } },
       },
     });
     return rows.map((row) => ({ ...row, lastSeenAt: row.lastSeenAt.toISOString() }));
