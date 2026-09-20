@@ -21,7 +21,7 @@ automatically by `NODE_ENV`:
 | File | Used by | Points at |
 |---|---|---|
 | `.env.development` | `expo start`, debug builds | `http://10.0.2.2:3000` (local API) |
-| `.env.production` | `assembleRelease`, `expo export`, `publish-update` | the deployed Railway API |
+| `.env.production` | `assembleRelease`, `expo export`, `eoas publish` | the deployed Railway API |
 
 So a dev run can never accidentally ship, and a release APK can never
 accidentally point at your laptop. Verify which one was used — Expo prints it:
@@ -146,29 +146,42 @@ For pure JS/TS changes (no native code change, no version bump), skip
 rebuilding an APK entirely — push to already-installed apps instead:
 
 ```bash
-pnpm --filter @app/mobile publish-update
+EOO_TOKEN=<tms-publish token> npx eoas@3 publish --branch production --platform android
 ```
 
-This runs `expo export --platform all` and copies the bundle into
-`apps/api`'s self-hosted update server (`EXPO_UPDATES_STORAGE_DIR`, see
-`apps/api/src/updates/`). Installed apps pick it up automatically on next
-cold start or return-from-background — no store review, no EAS account.
+Updates are served by the self-hosted **xprem** server at
+`https://ota-production-6c85.up.railway.app` — its own repository, `source/OTA`,
+which documents the deployment. Installed apps pick the update up on next cold
+start or return-from-background: no store review, no Expo or EAS account.
 
-Note: `app.json`'s `updates.url` is **not set yet** — it must point at your
-API's `/updates/manifest` before this does anything:
+`EOO_TOKEN` is **this app's** API token, issued in that server's dashboard
+(`/dashboard/` → API tokens, currently `tms-publish`). It is scoped to TMS and
+can publish nothing else. In CI, add it as a repository secret rather than
+pasting it into a shell.
 
-```json
-"updates": {
-  "enabled": true,
-  "checkAutomatically": "ON_LOAD",
-  "fallbackToCacheTimeout": 0,
-  "url": "http://<your-api-host>/updates/manifest"
-}
-```
+Already wired in `app.json` — do not re-derive these:
 
-A native code change or a bump of `expo.version` in `app.json` requires a new
-APK (section 3/4) — OTA only carries matching `runtimeVersion` (= JS-only
-changes).
+| Field | Value |
+|---|---|
+| `updates.url` | `https://ota-production-6c85.up.railway.app/manifest` |
+| `expo-app-id` | `27127625-df3c-463d-89f6-853045f4c392` — a UUID, **never** the slug |
+| `expo-channel-name` | `production` (set here, not in `eas.json`: this repo builds with `prebuild` + `gradlew`, so `eas.json` channels are never read) |
+| `codeSigningCertificate` | `./certificate.pem` — the public half, committed on purpose; `.gitignore` carries an explicit exception for it |
+
+A native code change, or a bump of `expo.version`, still requires a new APK
+(section 3/4): an update is only delivered when its `runtimeVersion` matches,
+and `runtimeVersion` follows `expo.version` (`policy: "appVersion"`).
+
+> **Every failure mode here is silent.** Expo rejects a bad signature without
+> alarming the user, by design, and expo-updates treats a failed manifest check
+> as "no update available". A wrong app id (404), an APK built without the
+> certificate, and a certificate that does not match the server's private key
+> are therefore indistinguishable from the phone: the app simply never updates
+> and never says why. Verify one real publish against one real device. Do not
+> reason about it.
+
+To roll back, remap the channel to the previous branch in the xprem dashboard —
+two clicks, no redeploy, no rebuild.
 
 ## 6. Push notifications (Firebase / FCM)
 

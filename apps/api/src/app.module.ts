@@ -13,7 +13,6 @@ import { ReportsModule } from "./reports/reports.module";
 import { SettingsModule } from "./settings/settings.module";
 import { SubtasksModule } from "./subtasks/subtasks.module";
 import { TemplatesModule } from "./templates/templates.module";
-import { UpdatesModule } from "./updates/updates.module";
 import { UsersModule } from "./users/users.module";
 
 @Module({
@@ -32,7 +31,6 @@ import { UsersModule } from "./users/users.module";
     MyTasksModule,
     NotificationsModule,
     UsersModule,
-    UpdatesModule,
     TemplatesModule,
     SettingsModule,
   ],

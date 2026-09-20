@@ -70,7 +70,17 @@
     "updates": {
       "enabled": true,
       "checkAutomatically": "ON_LOAD",
-      "fallbackToCacheTimeout": 0
+      "fallbackToCacheTimeout": 0,
+      "url": "https://ota-production-6c85.up.railway.app/manifest",
+      "codeSigningCertificate": "./certificate.pem",
+      "codeSigningMetadata": {
+        "keyid": "main",
+        "alg": "rsa-v1_5-sha256"
+      },
+      "requestHeaders": {
+        "expo-app-id": "27127625-df3c-463d-89f6-853045f4c392",
+        "expo-channel-name": "production"
+      }
     }
   }
 }

@@ -9,8 +9,7 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "typecheck": "tsc --noEmit",
-    "bundle:check": "expo export --platform android --output-dir .expo/export-check",
-    "publish-update": "node scripts/publish-update.mjs"
+    "bundle:check": "expo export --platform android --output-dir .expo/export-check"
   },
   "dependencies": {
     "@app/api-client": "workspace:*",

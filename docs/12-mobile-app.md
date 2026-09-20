@@ -132,7 +132,7 @@ createApiClient({ baseUrl, storage, onUnauthorized })
 | الملفّ | مَن يستعمله | يشير إلى |
 |---|---|---|
 | `.env.development` | `expo start` وبناءات الـ debug | `http://10.0.2.2:3000` (الـ API المحلي) |
-| `.env.production` | `assembleRelease` و`expo export` و`publish-update` | الـ API المنشور |
+| `.env.production` | `assembleRelease` و`expo export` و`eoas publish` | الـ API المنشور |
 
 فلا يمكن لتشغيل تطويري أن يُسلَّم، ولا لـ APK إنتاجي أن يشير إلى جهاز المطوّر.
 يطبع Expo الملفّ المُختار عند الإقلاع: `env: load .env.development`.
@@ -489,50 +489,65 @@ Git)، و**Expo Go لا يستقبل push** منذ SDK 53 — الاختبار �
 إعادة تشغيل صامتة قد تحدث لحظة رجوع المستخدم للتطبيق؛ مقبول لأن الرجوع من
 الخلفية نادرًا ما يحمل حالة تحرير غير محفوظة في الذاكرة فقط.
 
-### خادم التحديثات: مُستضاف ذاتيًا في `apps/api`، لا EAS
+### خادم التحديثات: خادم xprem مُستضاف ذاتيًا، لا EAS
 
 بدل خدمة EAS Update المُدارة من Expo — التي تتطلّب حساب Expo/EAS وتسجيل دخول
-تفاعليًا — `updates.url` يشير إلى خادم مُستضاف ذاتيًا داخل `apps/api` نفسه
-(`src/updates/`)، فيبقى النشر بالكامل داخل هذا المستودع دون خدمة خارجية.
+تفاعليًا — `updates.url` يشير إلى خادم **xprem** مُستضاف ذاتيًا على Railway:
 
-- **`UpdatesController`** (`GET /updates/manifest`, `GET /updates/assets`) ينفّذ
-  الجزء اللازم من بروتوكول [expo-updates v1](https://docs.expo.dev/technical-specs/expo-updates-1/):
-  يقرأ حِزَم مُصدَّرة (`expo export`) من القرص، ويبني رسالة manifest بصيغة
-  `multipart/mixed` تحوي عنوان كل أصل (asset) بروابط إلى `/updates/assets`.
-  غير محمي بمصادقة عمدًا — عميل expo-updates الأصيل يطلبه قبل تشغيل أي كود JS
-  (وبالتالي قبل توفّر جلسة دخول)، وهو لا يخدم أكثر من حزمة JS وأصول ثابتة.
-  خارج النطاق عمدًا: توقيع الكود (code signing) — غير مطلوب ما دام `app.json`
-  لا يضبط شهادة توقيع — وتوجيهات التراجع (rollback directives).
-- **`UpdatesService`** يقرأ الحِزَم من `EXPO_UPDATES_STORAGE_DIR` (افتراضيًا
-  `apps/api/update-bundles/<runtimeVersion>/<timestamp>/`)، ويتحقّق من كل
-  مسار أصل يطلبه العميل كي لا يخرج عن مجلّد الحزمة (منع Path Traversal) — وهي
-  ثغرة موجودة فعليًا في مثال Expo المرجعي الرسمي الذي يُبنى عليه هذا التنفيذ.
-- **النشر**: `pnpm --filter @app/mobile publish-update`
-  (`apps/mobile/scripts/publish-update.mjs`) يُصدِّر الحزمة الحالية
-  (`expo export --platform all`) وينسخها إلى مجلّد التخزين أعلاه، مفتاحةً
-  بـ`runtimeVersion` (= `expo.version` في `app.json`، حسب سياسة
-  `runtimeVersion.policy: "appVersion"`) ثم بختم زمني. أي جهاز يتحقّق من
-  التحديث بعدها (بدء بارد أو رجوع من الخلفية) يلتقطه تلقائيًا.
-
-**الخطوة الوحيدة المتبقية يدويًا:** `app.json` **لا** يضبط `updates.url` —
-وهو عنوان لا يمكن أن يعتمد على متغيّر بيئة وقت التشغيل (بخلاف
-`EXPO_PUBLIC_API_URL` الذي يُقرأ من كود JS) لأنه يُخبَز داخل الثنائي الأصيل
-وقت البناء، ويختلف حتمًا بين جهاز تطوير (عنوان IP على الشبكة المحلية) ونشر
-إنتاجي (نطاق حقيقي). أضِفه إلى `app.json` قبل أي بناء فعلي:
-
-```json
-"updates": {
-  "enabled": true,
-  "checkAutomatically": "ON_LOAD",
-  "fallbackToCacheTimeout": 0,
-  "url": "http://<عنوان-خادم-الـ-API>/updates/manifest"
-}
+```
+https://ota-production-6c85.up.railway.app/manifest
 ```
 
+للخادم مستودعه الخاص (`source/OTA`) وفيه توثيق نشره بالكامل. وهو خادم
+متعدّد التطبيقات: كل تطبيق صفٌّ في قاعدة بياناته، له فروعه وقنواته ورمز API
+ومفتاح توقيع خاص به، ويُعرّف العميل نفسه بترويسة `expo-app-id`. لذلك لا شيء في
+هذا المستودع يخصّ إعداد الخادم نفسه.
+
+**المضبوط في `app.json` — لا يُعاد اشتقاقه:**
+
+| الحقل | القيمة |
+|---|---|
+| `updates.url` | `https://ota-production-6c85.up.railway.app/manifest` |
+| `requestHeaders["expo-app-id"]` | `27127625-df3c-463d-89f6-853045f4c392` — UUID مولّد من الخادم، **وليس** الـ slug |
+| `requestHeaders["expo-channel-name"]` | `production` |
+| `codeSigningCertificate` | `./certificate.pem` |
+| `codeSigningMetadata` | `{ "keyid": "main", "alg": "rsa-v1_5-sha256" }` |
+
+**توقيع الكود (code signing) مُفعَّل الآن** — بخلاف الخادم السابق الذي كان
+يتجاهله عمدًا. يولّد الخادم زوج مفاتيح لكل تطبيق لحظة إنشائه: المفتاح الخاص
+يبقى مختومًا داخل Postgres (بـ AES-GCM تحت `DB_KEYS_MASTER_KEY_B64`) ولا يغادر
+الخادم أبدًا، والشهادة — النصف العام — مُودَعة في `apps/mobile/certificate.pem`
+ومُلتزَمة في git عمدًا، باستثناء صريح في `.gitignore` يتجاوز قاعدة `*.pem`:
+بناء CI يستنسخ المستودع ثم يشغّل `expo prebuild`، وغياب الشهادة يُنتج APK
+يرفض كل تحديث إلى الأبد.
+
+**النشر:**
+
+```bash
+EOO_TOKEN=<رمز tms-publish> npx eoas@3 publish --branch production --platform android
+```
+
+`EOO_TOKEN` رمز API خاص بهذا التطبيق وحده، يُصدَر من لوحة الخادم
+(`/dashboard/` → API tokens). في CI يُضاف كـ repository secret، لا يُكتب في
+سطر أوامر.
+
+**التراجع (rollback):** إعادة ربط القناة بالفرع السابق من لوحة الخادم — نقرتان،
+دون إعادة بناء ودون إعادة نشر. هذا تحديدًا سبب تشغيل الخادم في وضع
+control-plane لا في الوضع عديم الحالة.
+
+> **كل أنماط الفشل هنا صامتة.** يرفض Expo التوقيع غير الصالح دون إشعار
+> المستخدم، عمدًا، ويعامل `expo-updates` فشلَ التحقّق من الـ manifest على أنه
+> "لا يوجد تحديث". فمعرّف تطبيق خاطئ (404)، أو APK بُني دون الشهادة، أو شهادة
+> لا تطابق مفتاح الخادم — كلّها تبدو من الهاتف متطابقة تمامًا: التطبيق لا
+> يتحدّث ولا يشرح السبب. تحقّق بنشرة حقيقية واحدة على جهاز حقيقي، لا
+> بالاستنتاج.
+
 **التبديل لاحقًا إلى EAS Update** يبقى ممكنًا دون تغيير كود التطبيق: `eas
-update:configure` يكتب `extra.eas.projectId` و`updates.url` (مُشيرًا إلى
-خدمة EAS بدل هذا الخادم) — `eas.json` بقنواته الثلاث (`development`/
-`preview`/`production`) موجود مسبقًا لهذا الغرض.
+update:configure` يكتب `extra.eas.projectId` و`updates.url` مُشيرًا إلى خدمة
+EAS بدل هذا الخادم. لكن انتبه أن قنوات `eas.json` الثلاث (`development`/
+`preview`/`production`) **لا تُقرأ اليوم**: البناء هنا يمرّ بـ`prebuild` +
+`gradlew` لا بـ`eas build`، ولذلك تُضبط القناة في `requestHeaders` داخل
+`app.json`.
 
 ## التحقّق في بيئة بلا جهاز
 
@@ -567,6 +582,6 @@ assembleRelease` محليًا داخل المُشغِّل (runner)، تمامً�
   يمكن مشاركته دون العودة لتبويب Actions.
 - **ليس بديلًا لتحديثات OTA أعلاه**: هذا يبني ثنائيًا أصيلًا جديدًا بالكامل
   (لازم عند تغيّر كود أصيل أو رفع `version`)؛ تغييرات JS البحتة بين إصدارين
-  أسرع وأخفّ عبر `publish-update` بدل إعادة بناء APK كامل.
+  أسرع وأخفّ عبر `eoas publish` بدل إعادة بناء APK كامل.
 
 </div>
