@@ -25,7 +25,7 @@ import { MIN_TOUCH_TARGET, colors, fonts, fontSizes, radii, spacing } from "@/th
  * `/boards/:id` — horizontal-scroll Kanban view (design's "اللوحة — تمرير أفقي
  * بين الحالات"). Tapping a card opens `/card/:id` (`app/card/[id].tsx`) for
  * full detail/editing. Creating one is inline and title-only (`QuickAddCard`,
- * in every column and in the bottom bar for the active status); the full
+ * in the bottom bar for the active status only); the full
  * `cards/new` screen is the opt-in path behind «تفاصيل».
  */
 export default function BoardScreen() {
@@ -487,8 +487,6 @@ export default function BoardScreen() {
                     }}
                     onLongPressCard={(cardId) => setMovingCardId(cardId)}
                     onOpenCard={(cardId) => router.push(`/card/${cardId}`)}
-                    onAddCard={(title) => addCard.mutateAsync({ listId: list.id, title })}
-                    onOpenAddDetails={(draft) => router.push(newCardHref(list.id, draft))}
                     showLoadOlder={list.statusCategory === "CLOSED" && !!closedSince}
                     onLoadOlder={() => setClosedSince(undefined)}
                   />
@@ -503,7 +501,6 @@ export default function BoardScreen() {
           {board.data.lists[activeIndex] && !boardReadOnly ? (
             <View style={{ paddingHorizontal: spacing.xl, paddingTop: spacing.md }}>
               <QuickAddCard
-                variant="bar"
                 placeholder={`+ مهمة جديدة في «${board.data.lists[activeIndex]!.name}»`}
                 onAdd={(title) => addCard.mutateAsync({ listId: board.data!.lists[activeIndex]!.id, title })}
                 onOpenDetails={(draft) => router.push(newCardHref(board.data!.lists[activeIndex]!.id, draft))}

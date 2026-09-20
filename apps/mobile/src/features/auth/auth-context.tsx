@@ -23,6 +23,8 @@ interface AuthContextValue {
    * one again, since the user typed it seconds ago to sign in.
    */
   completePasswordReset: (newPassword: string) => Promise<void>;
+  /** Voluntary change from «حسابي» — `POST /auth/change-password`, then a silent re-sign-in (see `rotateSessionAfterPasswordChange`). */
+  changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -99,19 +101,48 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const completePasswordReset = useCallback(
     async (newPassword: string) => {
-      if (!pendingReauthPassword) throw new Error("No pending password reset");
+      if (!pendingReauthPassword || !user) throw new Error("No pending password reset");
       await api.auth.changePassword({ currentPassword: pendingReauthPassword, newPassword });
       setPendingReauthPassword(null);
+      await rotateSessionAfterPasswordChange(user.username, newPassword);
       setUser(await api.auth.me());
     },
-    [pendingReauthPassword],
+    [pendingReauthPassword, user],
+  );
+
+  const changePassword = useCallback(
+    async (currentPassword: string, newPassword: string) => {
+      if (!user) throw new Error("Not signed in");
+      await api.auth.changePassword({ currentPassword, newPassword });
+      await rotateSessionAfterPasswordChange(user.username, newPassword);
+    },
+    [user],
   );
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, logout, clearSession, refreshUser, completePasswordReset }}>
+    <AuthContext.Provider
+      value={{ user, isLoading, login, logout, clearSession, refreshUser, completePasswordReset, changePassword }}
+    >
       {children}
     </AuthContext.Provider>
   );
+}
+
+/**
+ * `POST /auth/change-password` revokes *every* refresh token of the user —
+ * this device's included — so without this the session would silently die the
+ * next time the short-lived access token expires. Signing in again with the new
+ * password swaps in a fresh token pair. If that sign-in fails, the change itself
+ * has still succeeded: the old session just runs out and the user logs in
+ * normally, so it is not reported as a failed change.
+ */
+async function rotateSessionAfterPasswordChange(username: string, newPassword: string) {
+  try {
+    const tokens = await api.auth.login({ username, password: newPassword });
+    await tokenStorage.setTokens(tokens.accessToken, tokens.refreshToken);
+  } catch {
+    // See above — the password is already changed server-side.
+  }
 }
 
 export function useAuth() {

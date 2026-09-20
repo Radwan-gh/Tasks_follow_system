@@ -6,6 +6,7 @@ import { ApiError } from "@app/api-client";
 import { canSendPush } from "@app/types";
 import { Screen } from "@/components/screen";
 import { AppText } from "@/components/text";
+import { ChangePasswordSheet } from "@/features/account/change-password-sheet";
 import { CurrencySettingSection } from "@/features/account/currency-setting-section";
 import { EditProfileSheet } from "@/features/account/edit-profile-sheet";
 import { NotificationPrefsSection } from "@/features/account/notification-prefs-section";
@@ -20,6 +21,8 @@ export default function AccountScreen() {
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [editingProfile, setEditingProfile] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
+  const [changingPassword, setChangingPassword] = useState(false);
+  const [passwordChanged, setPasswordChanged] = useState(false);
 
   // Self-service edit of the user's own display name (`PATCH /auth/me`); the
   // context is re-read afterwards so the header and avatar update at once.
@@ -112,6 +115,34 @@ export default function AccountScreen() {
           </AppText>
         </Pressable>
 
+        {passwordChanged ? (
+          <View style={{ backgroundColor: colors.accentSoft, borderRadius: radii.field, padding: spacing.md }}>
+            <AppText size="small" color={colors.accent}>
+              تم تغيير كلمة المرور بنجاح.
+            </AppText>
+          </View>
+        ) : null}
+
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => {
+            setPasswordChanged(false);
+            setChangingPassword(true);
+          }}
+          style={{
+            minHeight: MIN_TOUCH_TARGET,
+            borderRadius: radii.field,
+            borderWidth: 1,
+            borderColor: colors.line,
+            backgroundColor: colors.surface,
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <AppText weight="semibold">تغيير كلمة المرور</AppText>
+        </Pressable>
+
         <NotificationPrefsSection />
 
         {user?.role === "ADMIN" ? <CurrencySettingSection /> : null}
@@ -186,6 +217,15 @@ export default function AccountScreen() {
           setProfileError(null);
         }}
         onSave={(displayName) => updateProfile.mutate(displayName)}
+      />
+
+      <ChangePasswordSheet
+        visible={changingPassword}
+        onClose={() => setChangingPassword(false)}
+        onChanged={() => {
+          setChangingPassword(false);
+          setPasswordChanged(true);
+        }}
       />
     </Screen>
   );

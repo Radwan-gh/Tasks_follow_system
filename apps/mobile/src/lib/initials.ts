@@ -1,6 +1,6 @@
 /**
  * The design's avatar label: the first letter of each of the first two words,
- * dot-separated — «رضوان غانم» → «ر.غ». Falls back to the first character for
+ * dot-separated — «أحمد سالم» → «أ.س». Falls back to the first character for
  * single-word names, and to «؟» for an empty one.
  */
 export function initials(displayName: string): string {

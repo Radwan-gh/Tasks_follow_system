@@ -4,7 +4,7 @@ import { AppText } from "@/components/text";
 import { MIN_TOUCH_TARGET, colors, fonts, fontSizes, radii, spacing } from "@/theme/tokens";
 
 /**
- * Title-only card creation, inline on the board screen — the fast path.
+ * Title-only card creation in the board screen's bottom bar — the fast path.
  * `title` is the only field the API requires, so the common case needs no
  * navigation at all; the full «إضافة مهمة» screen stays one tap away behind
  * «تفاصيل» for templates, subtasks, assignees and restricted access, carrying
@@ -18,14 +18,11 @@ export function QuickAddCard({
   placeholder,
   onAdd,
   onOpenDetails,
-  variant = "column",
 }: {
   placeholder: string;
   /** Rejects if the card could not be created, so the title can be put back. */
   onAdd: (title: string) => Promise<unknown>;
   onOpenDetails: (draftTitle: string) => void;
-  /** `bar` is the board screen's bottom bar: filled instead of dashed. */
-  variant?: "column" | "bar";
 }) {
   const [title, setTitle] = useState("");
   const [failed, setFailed] = useState(false);
@@ -50,11 +47,10 @@ export function QuickAddCard({
           alignItems: "center",
           gap: spacing.sm,
           paddingHorizontal: spacing.md,
-          borderRadius: variant === "bar" ? radii.field : radii.card,
+          borderRadius: radii.field,
           borderWidth: 1,
-          borderStyle: variant === "bar" ? "solid" : "dashed",
           borderColor: failed ? colors.alert : colors.line,
-          backgroundColor: variant === "bar" ? colors.surface : "transparent",
+          backgroundColor: colors.surface,
         }}
       >
         <TextInput
@@ -69,7 +65,7 @@ export function QuickAddCard({
             flex: 1,
             minHeight: MIN_TOUCH_TARGET,
             fontFamily: fonts.regular,
-            fontSize: variant === "bar" ? fontSizes.body : fontSizes.small,
+            fontSize: fontSizes.body,
             color: colors.ink,
             textAlign: "right",
             writingDirection: "rtl",

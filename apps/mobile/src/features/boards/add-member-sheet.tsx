@@ -64,8 +64,10 @@ export function AddMemberSheet({
   const users = candidates.data?.users ?? [];
 
   return (
-    <BottomSheet visible={visible} onClose={onClose}>
-      <View style={{ paddingHorizontal: spacing.xl, gap: spacing.md, maxHeight: "85%" }}>
+    // `scrollable={false}`: the results list below is the scroller.
+    <BottomSheet visible={visible} onClose={onClose} scrollable={false}>
+      {/* Shrinks to the sheet's max height so the list below can claim the rest. */}
+      <View style={{ paddingHorizontal: spacing.xl, gap: spacing.md, flexShrink: 1 }}>
         <View style={{ gap: spacing.xs }}>
           <AppText weight="bold" size="title">
             إضافة عضو
@@ -145,7 +147,10 @@ export function AddMemberSheet({
           </View>
         ) : (
           <ScrollView
-            style={{ maxHeight: 380 }}
+            // No fixed cap: the only shrinkable child of the sheet, so the list
+            // takes every pixel the header, search, roles and close button leave
+            // — and gives it back when the keyboard pushes them up.
+            style={{ flexShrink: 1 }}
             contentContainerStyle={{ gap: spacing.sm }}
             keyboardShouldPersistTaps="handled"
           >

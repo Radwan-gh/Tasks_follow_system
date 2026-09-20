@@ -75,7 +75,8 @@ export function AssigneePickerSheet({
 
   return (
     <BottomSheet visible={visible} onClose={onClose} scrollable={false}>
-      <View style={{ paddingHorizontal: spacing.xl, gap: spacing.md, maxHeight: "80%" }}>
+      {/* Shrinks to the sheet's max height so the list below can claim the rest. */}
+      <View style={{ paddingHorizontal: spacing.xl, gap: spacing.md, flexShrink: 1 }}>
         <View style={{ gap: spacing.xs }}>
           <AppText weight="bold" size="title">
             {title}
@@ -150,7 +151,10 @@ export function AssigneePickerSheet({
           </AppText>
         ) : (
           <ScrollView
-            style={{ maxHeight: 420 }}
+            // No fixed cap: the only shrinkable child of the sheet, so the list
+            // takes every pixel the header, chips, search and action row leave
+            // — and gives it back when the keyboard pushes them up.
+            style={{ flexShrink: 1 }}
             contentContainerStyle={{ gap: spacing.sm }}
             keyboardShouldPersistTaps="handled"
           >

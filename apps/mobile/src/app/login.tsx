@@ -69,7 +69,7 @@ export default function LoginScreen() {
               autoComplete="username"
               textContentType="username"
               editable={!isSubmitting}
-              placeholder="radwan"
+              placeholder="username"
               placeholderTextColor={colors.muted}
               style={inputStyle}
             />
