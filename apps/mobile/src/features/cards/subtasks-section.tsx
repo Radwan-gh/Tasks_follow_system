@@ -6,8 +6,40 @@ import { AppText } from "@/components/text";
 import { avatarColorFor } from "@/lib/avatar";
 import { initials } from "@/lib/initials";
 import { api } from "@/lib/api";
+import { useAuth } from "@/features/auth/auth-context";
 import { AssigneePickerSheet } from "./assignee-picker-sheet";
 import { MIN_TOUCH_TARGET, colors, fonts, fontSizes, radii, spacing, statusColors } from "@/theme/tokens";
+
+/** Never sent to the server — replaced by the real id once the create request resolves. */
+function makeTempId(): string {
+  return `temp:${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+function toggleSubtaskDone(list: Subtask[], id: string): Subtask[] {
+  return list.map((s) => (s.id === id ? { ...s, isDone: !s.isDone } : s));
+}
+
+function removeSubtaskFromList(list: Subtask[], id: string): Subtask[] {
+  return list.filter((s) => s.id !== id);
+}
+
+function addSubtaskToList(list: Subtask[], subtask: Subtask): Subtask[] {
+  return [...list, subtask];
+}
+
+function makeTempSubtask(input: { id: string; cardId: string; title: string; createdById: string }): Subtask {
+  return {
+    id: input.id,
+    cardId: input.cardId,
+    title: input.title,
+    isDone: false,
+    position: "",
+    createdById: input.createdById,
+    assigneeIds: [],
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+}
 
 export function SubtasksSection({
   cardId,
@@ -19,31 +51,61 @@ export function SubtasksSection({
   readOnly?: boolean;
 }) {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   const [newTitle, setNewTitle] = useState("");
   const [assigningId, setAssigningId] = useState<string | null>(null);
 
-  const subtasks = useQuery({ queryKey: ["subtasks", cardId], queryFn: () => api.subtasks.list(cardId) });
+  const subtasksKey = ["subtasks", cardId] as const;
+  const subtasks = useQuery({ queryKey: subtasksKey, queryFn: () => api.subtasks.list(cardId) });
 
   function invalidate() {
-    void queryClient.invalidateQueries({ queryKey: ["subtasks", cardId] });
+    void queryClient.invalidateQueries({ queryKey: subtasksKey });
   }
 
   const create = useMutation({
     mutationFn: (title: string) => api.subtasks.create(cardId, { title }),
-    onSuccess: () => {
+    onMutate: async (title) => {
       setNewTitle("");
-      invalidate();
+      await queryClient.cancelQueries({ queryKey: subtasksKey });
+      const previous = queryClient.getQueryData<Subtask[]>(subtasksKey);
+      if (previous) {
+        const temp = makeTempSubtask({ id: makeTempId(), cardId, title, createdById: user?.id ?? "" });
+        queryClient.setQueryData(subtasksKey, addSubtaskToList(previous, temp));
+      }
+      return { previous };
     },
+    onError: (_err, _title, context) => {
+      if (context?.previous) queryClient.setQueryData(subtasksKey, context.previous);
+    },
+    onSettled: invalidate,
   });
 
   const toggleDone = useMutation({
     mutationFn: (subtask: Subtask) => api.subtasks.update(subtask.id, { isDone: !subtask.isDone }),
-    onSuccess: invalidate,
+    onMutate: async (subtask) => {
+      await queryClient.cancelQueries({ queryKey: subtasksKey });
+      const previous = queryClient.getQueryData<Subtask[]>(subtasksKey);
+      if (previous) queryClient.setQueryData(subtasksKey, toggleSubtaskDone(previous, subtask.id));
+      return { previous };
+    },
+    onError: (_err, _subtask, context) => {
+      if (context?.previous) queryClient.setQueryData(subtasksKey, context.previous);
+    },
+    onSettled: invalidate,
   });
 
   const remove = useMutation({
     mutationFn: (id: string) => api.subtasks.remove(id),
-    onSuccess: invalidate,
+    onMutate: async (id) => {
+      await queryClient.cancelQueries({ queryKey: subtasksKey });
+      const previous = queryClient.getQueryData<Subtask[]>(subtasksKey);
+      if (previous) queryClient.setQueryData(subtasksKey, removeSubtaskFromList(previous, id));
+      return { previous };
+    },
+    onError: (_err, _id, context) => {
+      if (context?.previous) queryClient.setQueryData(subtasksKey, context.previous);
+    },
+    onSettled: invalidate,
   });
 
   const updateAssignees = useMutation({

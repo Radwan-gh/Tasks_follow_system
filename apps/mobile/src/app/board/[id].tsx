@@ -3,7 +3,7 @@ import { Pressable, ScrollView, TextInput, View, useWindowDimensions } from "rea
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import type { Card } from "@app/types";
+import type { BoardDetail, Card } from "@app/types";
 import { Screen } from "@/components/screen";
 import { AppText } from "@/components/text";
 import { ErrorState } from "@/components/state-views";
@@ -28,6 +28,59 @@ import { MIN_TOUCH_TARGET, colors, fonts, fontSizes, radii, spacing } from "@/th
  * in the bottom bar for the active status only); the full
  * `cards/new` screen is the opt-in path behind «تفاصيل».
  */
+
+/** Never sent to the server — replaced by the real id once the create request resolves. */
+function makeTempId(): string {
+  return `temp:${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+function moveCardInBoard(board: BoardDetail, cardId: string, targetListId: string): BoardDetail {
+  let moved: Card | null = null;
+  const withoutCard = board.lists.map((list) => {
+    const card = list.cards.find((c) => c.id === cardId);
+    if (!card) return list;
+    moved = { ...card, listId: targetListId };
+    return { ...list, cards: list.cards.filter((c) => c.id !== cardId) };
+  });
+  if (!moved) return board;
+  return {
+    ...board,
+    lists: withoutCard.map((list) => (list.id === targetListId ? { ...list, cards: [...list.cards, moved!] } : list)),
+  };
+}
+
+function removeCardFromBoard(board: BoardDetail, cardId: string): BoardDetail {
+  return { ...board, lists: board.lists.map((list) => ({ ...list, cards: list.cards.filter((c) => c.id !== cardId) })) };
+}
+
+function addCardToBoard(board: BoardDetail, listId: string, card: Card): BoardDetail {
+  return { ...board, lists: board.lists.map((list) => (list.id === listId ? { ...list, cards: [...list.cards, card] } : list)) };
+}
+
+function makeTempCard(input: { id: string; listId: string; boardId: string; title: string; createdById: string }): Card {
+  return {
+    id: input.id,
+    listId: input.listId,
+    boardId: input.boardId,
+    title: input.title,
+    description: null,
+    position: "",
+    dueDate: null,
+    dueDateHasTime: false,
+    createdById: input.createdById,
+    isArchived: false,
+    isRestricted: false,
+    memberIds: [],
+    assigneeIds: [],
+    priority: "NORMAL",
+    costAmount: null,
+    costNote: null,
+    recurrence: null,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+}
+
 export default function BoardScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
@@ -46,8 +99,9 @@ export default function BoardScreen() {
   const [closedSince, setClosedSince] = useState<string | undefined>(() =>
     new Date(Date.now() - 30 * 86400000).toISOString(),
   );
+  const boardQueryKey = ["board", id, closedSince ?? "all"] as const;
   const board = useQuery({
-    queryKey: ["board", id, closedSince ?? "all"],
+    queryKey: boardQueryKey,
     queryFn: () => api.boards.get(id, closedSince),
   });
   const [activeIndex, setActiveIndex] = useState(0);
@@ -65,10 +119,17 @@ export default function BoardScreen() {
   const move = useMutation({
     mutationFn: (input: { cardId: string; targetListId: string }) =>
       api.cards.update(input.cardId, { targetListId: input.targetListId }),
-    onSuccess: () => {
+    onMutate: async (input) => {
       setMovingCardId(null);
-      void queryClient.invalidateQueries({ queryKey: ["board", id] });
+      await queryClient.cancelQueries({ queryKey: boardQueryKey });
+      const previous = queryClient.getQueryData<BoardDetail>(boardQueryKey);
+      if (previous) queryClient.setQueryData(boardQueryKey, moveCardInBoard(previous, input.cardId, input.targetListId));
+      return { previous };
     },
+    onError: (_err, _input, context) => {
+      if (context?.previous) queryClient.setQueryData(boardQueryKey, context.previous);
+    },
+    onSettled: () => void queryClient.invalidateQueries({ queryKey: ["board", id] }),
   });
 
   const newCardHref = (listId: string, draftTitle: string) =>
@@ -76,15 +137,40 @@ export default function BoardScreen() {
 
   const addCard = useMutation({
     mutationFn: (input: { listId: string; title: string }) => api.cards.create(input.listId, { title: input.title }),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["board", id] }),
+    onMutate: async (input) => {
+      await queryClient.cancelQueries({ queryKey: boardQueryKey });
+      const previous = queryClient.getQueryData<BoardDetail>(boardQueryKey);
+      if (previous) {
+        const temp = makeTempCard({
+          id: makeTempId(),
+          listId: input.listId,
+          boardId: id,
+          title: input.title,
+          createdById: user?.id ?? "",
+        });
+        queryClient.setQueryData(boardQueryKey, addCardToBoard(previous, input.listId, temp));
+      }
+      return { previous };
+    },
+    onError: (_err, _input, context) => {
+      if (context?.previous) queryClient.setQueryData(boardQueryKey, context.previous);
+    },
+    onSettled: () => void queryClient.invalidateQueries({ queryKey: ["board", id] }),
   });
 
   const remove = useMutation({
     mutationFn: (cardId: string) => api.cards.remove(cardId),
-    onSuccess: () => {
+    onMutate: async (cardId) => {
       setDeletingCardId(null);
-      void queryClient.invalidateQueries({ queryKey: ["board", id] });
+      await queryClient.cancelQueries({ queryKey: boardQueryKey });
+      const previous = queryClient.getQueryData<BoardDetail>(boardQueryKey);
+      if (previous) queryClient.setQueryData(boardQueryKey, removeCardFromBoard(previous, cardId));
+      return { previous };
     },
+    onError: (_err, _cardId, context) => {
+      if (context?.previous) queryClient.setQueryData(boardQueryKey, context.previous);
+    },
+    onSettled: () => void queryClient.invalidateQueries({ queryKey: ["board", id] }),
   });
 
   const restore = useMutation({
@@ -482,11 +568,12 @@ export default function BoardScreen() {
                     canCloseCard={canCloseCard}
                     readOnly={boardReadOnly}
                     onMoveCardNext={(cardId) => {
+                      if (cardId.startsWith("temp:")) return;
                       const nextList = board.data!.lists[index + 1];
                       if (nextList) move.mutate({ cardId, targetListId: nextList.id });
                     }}
-                    onLongPressCard={(cardId) => setMovingCardId(cardId)}
-                    onOpenCard={(cardId) => router.push(`/card/${cardId}`)}
+                    onLongPressCard={(cardId) => (cardId.startsWith("temp:") ? undefined : setMovingCardId(cardId))}
+                    onOpenCard={(cardId) => (cardId.startsWith("temp:") ? undefined : router.push(`/card/${cardId}`))}
                     showLoadOlder={list.statusCategory === "CLOSED" && !!closedSince}
                     onLoadOlder={() => setClosedSince(undefined)}
                   />
