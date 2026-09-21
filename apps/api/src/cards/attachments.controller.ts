@@ -13,24 +13,21 @@ import {
 import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOperation, ApiParam, ApiResponse, ApiTags } from "@nestjs/swagger";
 import { FileInterceptor } from "@nestjs/platform-express";
 import { diskStorage } from "multer";
-import { randomUUID } from "node:crypto";
-import * as path from "node:path";
 import type { Express } from "express";
 import { CurrentUser, type AuthUser } from "../common/decorators/current-user.decorator";
 import { JwtAuthGuard } from "../common/guards/jwt-auth.guard";
-import { ALLOWED_ATTACHMENT_MIME_TYPES, AttachmentsService, MAX_ATTACHMENT_BYTES } from "./attachments.service";
-import { UPLOADS_DIR } from "../common/util/uploads.util";
+import { AttachmentsService, MAX_ATTACHMENT_BYTES } from "./attachments.service";
+import { UPLOADS_DIR, buildStoredFilename } from "../common/util/uploads.util";
 import { zodArrayRef, zodRef } from "../swagger/zod-ref";
 
+// No `fileFilter`: any file type is accepted. Safety comes from how files are
+// named on disk (`buildStoredFilename`) and served (`setUploadHeaders`).
 const upload = FileInterceptor("file", {
   storage: diskStorage({
     destination: UPLOADS_DIR,
-    filename: (_req, file, cb) => cb(null, `${randomUUID()}${path.extname(file.originalname)}`),
+    filename: (_req, file, cb) => cb(null, buildStoredFilename(file.originalname)),
   }),
   limits: { fileSize: MAX_ATTACHMENT_BYTES },
-  fileFilter: (_req, file, cb) => {
-    cb(null, ALLOWED_ATTACHMENT_MIME_TYPES.has(file.mimetype));
-  },
 });
 
 @ApiTags("Card Attachments")
@@ -50,14 +47,15 @@ export class AttachmentsController {
 
   @Post()
   @UseInterceptors(upload)
-  @ApiOperation({ summary: "Upload an image attachment to a card (max 5MB)" })
+  @ApiOperation({ summary: "Upload a file attachment (any type, max 20MB) to a card" })
   @ApiParam({ name: "cardId", description: "Card ID" })
   @ApiConsumes("multipart/form-data")
   @ApiBody({ schema: { type: "object", properties: { file: { type: "string", format: "binary" } } } })
   @ApiResponse({ status: 201, schema: zodRef("Attachment") })
-  @ApiResponse({ status: 400, description: "Missing file, wrong type, or too large" })
+  @ApiResponse({ status: 400, description: "Missing file or too many attachments" })
+  @ApiResponse({ status: 413, description: "File too large" })
   create(@CurrentUser() user: AuthUser, @Param("cardId") cardId: string, @UploadedFile() file?: Express.Multer.File) {
-    if (!file) throw new BadRequestException("Images only, up to 5MB");
+    if (!file) throw new BadRequestException("A file is required");
     return this.attachments.create(user.id, cardId, file);
   }
 

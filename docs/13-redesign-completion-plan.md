@@ -80,6 +80,10 @@
   لكل الحقول، لا استعلام لكل لوحة).
 - `GET /boards/:id?closedSince=` يُرشِّح عمود «انتهى» إلى البطاقات التي
   دخلته حديثًا فقط (يعتمد آخر نشاط `MOVED` بـ`toValue` مطابق لاسم القائمة).
+  الاستجابة تحمل الآن `hiddenClosedCount` = عدد البطاقات التي حذفها المُرشِّح
+  (تُحسب فقط البطاقات التي يحقّ للمستخدم رؤيتها، فلا تُظهر بطاقةٌ مقيَّدة
+  مخفيّة صفّ «عرض الأقدم» زورًا) — يعرض الويب والجوال صفّ «عرض الأقدم» **فقط
+  عندما `hiddenClosedCount > 0`**؛ كان يظهر سابقًا دائمًا تحت عمود «انتهى».
 
 **الجوال:**
 - `BoardCard` مكتمل: شريط تقدّم (منجَز/متبقٍّ — لا تفصيل ثلاثي لعدم توفّره من
@@ -112,7 +116,8 @@
   المواعيد، بإشعار واحد لكل بطاقة لا تذكيرًا يوميًا.
 - `POST/DELETE /cards/:cardId/comments`، حذف مقصور على الكاتب.
 - `POST/DELETE /cards/:cardId/attachments` (`multer` + قرص محلي +
-  `ServeStaticModule` على `/uploads`)، صور فقط · حتى 10 · 5MB.
+  `ServeStaticModule` على `/uploads`)، حتى 10 مرفقات · ~~صور فقط · 5MB~~ صار
+  **أي نوع ملف · 20MB** — انظر [`14-notifications-comments-attachments.md`](./14-notifications-comments-attachments.md).
 - `Card.recurrence` تُكتب فعليًا الآن؛ النقل إلى «انتهى» يولّد النسخة التالية
   في «جديد» عبر `CardsService.spawnNextRecurrence`.
 - `POST /admin/users/:id/reset-password` (كلمة مرور مؤقتة تُولَّد وتُعاد مرة

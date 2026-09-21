@@ -1,8 +1,41 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { NotificationPrefs } from "@app/types";
 import { api, ApiError } from "../../lib/api-client";
 import { useAuth } from "./AuthContext";
+
+const PREF_LABELS: { key: keyof NotificationPrefs; label: string }[] = [
+  { key: "assignmentsAndComments", label: "الإسناد والتعليقات" },
+  { key: "dueDatesAndOverdue", label: "المواعيد والتأخّر" },
+  { key: "myCardsMoved", label: "نقل مهامي إلى «انتهى»" },
+];
+
+/** Three always-on-by-default toggles, saved immediately per switch. */
+function NotificationPrefsSection() {
+  const queryClient = useQueryClient();
+  const { data: prefs } = useQuery({ queryKey: ["notification-prefs"], queryFn: api.me.getNotificationPrefs });
+  const update = useMutation({
+    mutationFn: (patch: Partial<NotificationPrefs>) => api.me.updateNotificationPrefs(patch),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["notification-prefs"] }),
+  });
+
+  return (
+    <div className="space-y-3 rounded-lg bg-white p-6 shadow-sm">
+      <h2 className="text-base font-semibold text-slate-900">تفضيلات الإشعارات</h2>
+      {PREF_LABELS.map(({ key, label }) => (
+        <label key={key} className="flex items-center justify-between gap-3 text-sm text-slate-700">
+          {label}
+          <input
+            type="checkbox"
+            checked={prefs?.[key] ?? true}
+            onChange={(e) => update.mutate({ [key]: e.target.checked })}
+          />
+        </label>
+      ))}
+    </div>
+  );
+}
 
 /** §3c-1 "إعدادات عامة: حقل نصي واحد «رمز العملة»" — admin-only, mirrors the mobile account screen's section. */
 function CurrencySettingSection() {
@@ -142,7 +175,7 @@ function ProfileSection() {
 }
 
 export function AccountPage() {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -174,19 +207,11 @@ export function AccountPage() {
 
   return (
     <div className="min-h-screen bg-slate-100">
-      <header className="flex items-center justify-between border-b bg-white px-6 py-4">
-        <div className="flex items-center gap-4">
-          <h1 className="text-lg font-semibold text-slate-900">حسابي</h1>
-          <Link to="/boards" className="text-sm text-slate-500 underline">
-            العودة إلى اللوحات
-          </Link>
-        </div>
-        <div className="flex items-center gap-3 text-sm text-slate-600">
-          <span>{user?.displayName}</span>
-          <button onClick={logout} className="text-slate-500 underline">
-            تسجيل الخروج
-          </button>
-        </div>
+      <header className="flex items-center gap-4 border-b bg-white px-6 py-4">
+        <h1 className="text-lg font-semibold text-slate-900">حسابي</h1>
+        <Link to="/boards" className="text-sm text-slate-500 underline">
+          العودة إلى اللوحات
+        </Link>
       </header>
 
       <main className="mx-auto max-w-md space-y-6 p-6">
@@ -230,6 +255,8 @@ export function AccountPage() {
             {submitting ? "جارٍ الحفظ..." : "تغيير كلمة المرور"}
           </button>
         </form>
+
+        <NotificationPrefsSection />
 
         {user?.role === "ADMIN" ? <CurrencySettingSection /> : null}
       </main>

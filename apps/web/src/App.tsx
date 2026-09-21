@@ -6,6 +6,9 @@ import { BoardsListPage } from "./features/boards/BoardsListPage";
 import { BoardPage } from "./features/boards/BoardPage";
 import { UsersAdminPage } from "./features/admin/UsersAdminPage";
 import { ReportsPage } from "./features/reports/ReportsPage";
+import { AppShell } from "./app-shell/AppShell";
+import { MyTasksPage } from "./features/my-tasks/MyTasksPage";
+import { ArchivedBoardsPage } from "./features/boards/ArchivedBoardsPage";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
@@ -25,48 +28,66 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
 export function App() {
   return (
     <Routes>
-      <Route path="/login" element={<LoginPage />} />
-      <Route
-        path="/account"
-        element={
-          <ProtectedRoute>
-            <AccountPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/boards"
-        element={
-          <ProtectedRoute>
-            <BoardsListPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/boards/:boardId"
-        element={
-          <ProtectedRoute>
-            <BoardPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/admin/users"
-        element={
-          <AdminRoute>
-            <UsersAdminPage />
-          </AdminRoute>
-        }
-      />
-      <Route
-        path="/reports"
-        element={
-          <AdminRoute>
-            <ReportsPage />
-          </AdminRoute>
-        }
-      />
-      <Route path="*" element={<Navigate to="/boards" replace />} />
+      <Route element={<AppShell />}>
+        <Route path="/login" element={<LoginPage />} />
+        <Route
+          path="/account"
+          element={
+            <ProtectedRoute>
+              <AccountPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/boards"
+          element={
+            <ProtectedRoute>
+              <BoardsListPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/boards/:boardId"
+          element={
+            <ProtectedRoute>
+              <BoardPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/boards/archived"
+          element={
+            <ProtectedRoute>
+              <ArchivedBoardsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/my-tasks"
+          element={
+            <ProtectedRoute>
+              <MyTasksPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/users"
+          element={
+            <AdminRoute>
+              <UsersAdminPage />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="/reports"
+          element={
+            <AdminRoute>
+              <ReportsPage />
+            </AdminRoute>
+          }
+        />
+        <Route path="*" element={<Navigate to="/boards" replace />} />
+      </Route>
     </Routes>
   );
 }

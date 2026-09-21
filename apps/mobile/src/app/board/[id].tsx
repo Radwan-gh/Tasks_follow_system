@@ -574,7 +574,9 @@ export default function BoardScreen() {
                     }}
                     onLongPressCard={(cardId) => (cardId.startsWith("temp:") ? undefined : setMovingCardId(cardId))}
                     onOpenCard={(cardId) => (cardId.startsWith("temp:") ? undefined : router.push(`/card/${cardId}`))}
-                    showLoadOlder={list.statusCategory === "CLOSED" && !!closedSince}
+                    showLoadOlder={
+                      list.statusCategory === "CLOSED" && !!closedSince && (board.data?.hiddenClosedCount ?? 0) > 0
+                    }
                     onLoadOlder={() => setClosedSince(undefined)}
                   />
                 </View>

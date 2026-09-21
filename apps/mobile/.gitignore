@@ -30,6 +30,13 @@ yarn-error.*
 .DS_Store
 *.pem
 
+# ...except the OTA code-signing certificate, which is the PUBLIC half of the
+# pair. It MUST be committed: CI checks out the repo and runs `expo prebuild`,
+# so an absent cert builds an APK that silently rejects every update forever
+# (Expo rejects bad signatures without telling the user, by design).
+# The private key never leaves the OTA server's Postgres.
+!certificate.pem
+
 # local env files
 .env*.local
 

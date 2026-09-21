@@ -9,7 +9,7 @@ import { EditUserModal } from "./EditUserModal";
 const PAGE_SIZE = 20;
 
 export function UsersAdminPage() {
-  const { user: currentUser, logout } = useAuth();
+  const { user: currentUser } = useAuth();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -147,19 +147,11 @@ export function UsersAdminPage() {
 
   return (
     <div className="min-h-screen bg-slate-100">
-      <header className="flex items-center justify-between border-b bg-white px-6 py-4">
-        <div className="flex items-center gap-4">
-          <h1 className="text-lg font-semibold text-slate-900">المستخدمون والصلاحيات</h1>
-          <Link to="/boards" className="text-sm text-slate-500 underline">
-            العودة إلى اللوحات
-          </Link>
-        </div>
-        <div className="flex items-center gap-3 text-sm text-slate-600">
-          <span>{currentUser?.displayName}</span>
-          <button onClick={logout} className="text-slate-500 underline">
-            تسجيل الخروج
-          </button>
-        </div>
+      <header className="flex items-center gap-4 border-b bg-white px-6 py-4">
+        <h1 className="text-lg font-semibold text-slate-900">المستخدمون والصلاحيات</h1>
+        <Link to="/boards" className="text-sm text-slate-500 underline">
+          العودة إلى اللوحات
+        </Link>
       </header>
 
       <main className="mx-auto max-w-5xl p-6">
