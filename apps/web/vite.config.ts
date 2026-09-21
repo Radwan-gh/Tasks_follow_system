@@ -36,6 +36,13 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, ""),
       },
+      // Attachment URLs are server-relative (`/uploads/<file>`), served
+      // directly by the API — proxy them the same way as `/api` so images
+      // load in local dev without configuring `VITE_API_URL`.
+      "/uploads": {
+        target: "http://localhost:3000",
+        changeOrigin: true,
+      },
     },
   },
 });

@@ -1,65 +1,70 @@
-import { useState } from "react";
 import { useDroppable } from "@dnd-kit/core";
-import { SortableContext, verticalListSortingStrategy, useSortable } from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
-import type { List } from "@app/types";
+import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import type { BoardMember, List } from "@app/types";
 import { CardItem } from "./CardItem";
+import { statusDotClass } from "../lib/status-colors";
 
 interface ListColumnProps {
   list: List;
-  onAddCard: (title: string) => void;
+  boardMembers: BoardMember[];
+  /** Archived board or VIEWER role — server already rejects the mutation; this only hides the affordance. */
+  readOnly: boolean;
+  /** Only meaningful for the `CLOSED` list — renders a "عرض الأقدم" row when set (i.e. still 30-day-filtered). */
+  onShowOlderClosed?: () => void;
   onOpenCard: (id: string) => void;
   onDeleteCard: (id: string) => void;
 }
 
-export function ListColumn({ list, onAddCard, onOpenCard, onDeleteCard }: ListColumnProps) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: list.id,
-    data: { type: "list" },
-  });
+/**
+ * Lists have a fixed order and are created only from a board template
+ * (`CreateBoardModal`) — reordering and ad-hoc list creation from the board
+ * screen are intentionally not supported, so this column is not itself a
+ * drag source. Cards still drag freely within and across lists via the
+ * `${list.id}::empty` droppable below, which covers the whole card area.
+ */
+export function ListColumn({
+  list,
+  boardMembers,
+  readOnly,
+  onShowOlderClosed,
+  onOpenCard,
+  onDeleteCard,
+}: ListColumnProps) {
   const { setNodeRef: setDropzoneRef } = useDroppable({
     id: `${list.id}::empty`,
     data: { type: "list-dropzone", listId: list.id },
   });
-  const [title, setTitle] = useState("");
+  const isListCompleted = list.statusCategory === "DONE" || list.statusCategory === "CLOSED";
 
   return (
-    <div
-      ref={setNodeRef}
-      style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 }}
-      className="flex w-64 shrink-0 flex-col rounded-lg bg-slate-200 p-2"
-    >
-      <div {...attributes} {...listeners} className="mb-2 cursor-grab px-2 py-1 text-sm font-semibold text-slate-700">
-        {list.name}
+    <div className="flex w-[260px] shrink-0 flex-col gap-2.5">
+      <div className="flex items-center gap-1.5 px-1">
+        <span aria-hidden className={`h-2 w-2 shrink-0 rounded-full ${statusDotClass(list.statusCategory)}`} />
+        <span className="text-[13px] font-bold text-ink">{list.name}</span>
+        <span className="text-xs text-muted">{list.cards.length}</span>
       </div>
-      <div ref={setDropzoneRef} className="flex min-h-[24px] flex-1 flex-col gap-2">
+
+      <div ref={setDropzoneRef} className="flex min-h-[24px] flex-1 flex-col gap-2.5">
         <SortableContext items={list.cards.map((c) => c.id)} strategy={verticalListSortingStrategy}>
           {list.cards.map((card) => (
             <CardItem
               key={card.id}
               card={card}
+              boardMembers={boardMembers}
+              isListCompleted={isListCompleted}
+              readOnly={readOnly}
               onOpen={() => onOpenCard(card.id)}
               onDelete={() => onDeleteCard(card.id)}
             />
           ))}
         </SortableContext>
       </div>
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (!title.trim()) return;
-          onAddCard(title.trim());
-          setTitle("");
-        }}
-        className="mt-2"
-      >
-        <input
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder="+ إضافة بطاقة"
-          className="w-full rounded border border-slate-300 bg-white px-2 py-1 text-sm"
-        />
-      </form>
+
+      {list.statusCategory === "CLOSED" && onShowOlderClosed && (
+        <button onClick={onShowOlderClosed} className="w-full py-1 text-center text-sm text-accent hover:underline">
+          عرض الأقدم
+        </button>
+      )}
     </div>
   );
 }

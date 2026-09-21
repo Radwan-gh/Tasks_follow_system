@@ -228,10 +228,12 @@ model Comment {
   @@index([cardId, createdAt])
 }
 
-/// An image attached to a card. Files live on local disk under
-/// `apps/api/uploads/`; this row is the metadata + ownership record. Limits
-/// (images only, ≤10/card, ≤5MB/file) are enforced in `AttachmentsService`,
-/// not the schema.
+/// A file (any type) attached to a card. Files live on local disk under
+/// `apps/api/uploads/`; this row is the metadata + ownership record. `filename`
+/// is the on-disk name, `<uuid>__<original name><.ext>` (see
+/// `uploads.util.ts`), so the original name is recoverable without a column.
+/// Limits (≤10/card, ≤20MB/file) are enforced in `AttachmentsService`, not the
+/// schema.
 model Attachment {
   id         String   @id @default(cuid())
   cardId     String

@@ -269,6 +269,10 @@ export type List = z.infer<typeof ListSchema>;
 export const BoardDetailSchema = BoardSummarySchema.extend({
   lists: z.array(ListSchema),
   members: z.array(BoardMemberSchema),
+  // How many `CLOSED`-list cards the `closedSince` filter dropped (0 when no
+  // filter was passed). Lets a client show "عرض الأقدم" only when there is
+  // actually something older to load.
+  hiddenClosedCount: z.number().int(),
 });
 export type BoardDetail = z.infer<typeof BoardDetailSchema>;
 
@@ -306,11 +310,16 @@ export const CommentSchema = z.object({
 });
 export type Comment = z.infer<typeof CommentSchema>;
 
-/** An image attached to a card. `url` is a path the client resolves against the API base URL. */
+/**
+ * A file attached to a card — any type (images render as thumbnails, other
+ * types as a named file row). `url` is a path the client resolves against the
+ * API base URL; `fileName` is the original name to display.
+ */
 export const AttachmentSchema = z.object({
   id: z.string(),
   cardId: z.string(),
   url: z.string(),
+  fileName: z.string(),
   mimeType: z.string(),
   sizeBytes: z.number().int(),
   createdAt: z.string().datetime(),

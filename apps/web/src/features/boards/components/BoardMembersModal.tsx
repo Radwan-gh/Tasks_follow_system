@@ -48,6 +48,16 @@ export function BoardMembersModal({ boardId, members, onClose }: BoardMembersMod
     onError,
   });
 
+  const updateRole = useMutation({
+    mutationFn: (input: { userId: string; role: AddableRole }) =>
+      api.boards.updateMemberRole(boardId, input.userId, input.role),
+    onSuccess: () => {
+      setError(null);
+      invalidate();
+    },
+    onError,
+  });
+
   const [memberFilter, setMemberFilter] = useState("");
   const visibleMembers = useMemo(
     () => (memberFilter.trim() ? members.filter((m) => matchesUser(m.user, memberFilter)) : members),
@@ -104,15 +114,22 @@ export function BoardMembersModal({ boardId, members, onClose }: BoardMembersMod
                     username={m.user.username}
                     isActive={m.user.isActive}
                   />
-                  <span
-                    className={
-                      m.role === "OWNER"
-                        ? "shrink-0 rounded bg-slate-900 px-2 py-0.5 text-xs font-medium text-white"
-                        : "shrink-0 rounded bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600"
-                    }
-                  >
-                    {roleLabel(m.role)}
-                  </span>
+                  {m.role === "OWNER" ? (
+                    <span className="shrink-0 rounded bg-slate-900 px-2 py-0.5 text-xs font-medium text-white">
+                      {roleLabel(m.role)}
+                    </span>
+                  ) : (
+                    <select
+                      value={m.role}
+                      disabled={updateRole.isPending}
+                      onChange={(e) => updateRole.mutate({ userId: m.userId, role: e.target.value as AddableRole })}
+                      className="shrink-0 rounded border border-slate-200 bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-slate-600"
+                      aria-label={`دور ${m.user.displayName}`}
+                    >
+                      <option value="MEMBER">عضو</option>
+                      <option value="VIEWER">مشاهد</option>
+                    </select>
+                  )}
                   {m.role !== "OWNER" && (
                     <button
                       onClick={() => {

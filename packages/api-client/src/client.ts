@@ -316,10 +316,20 @@ export function createApiClient({ baseUrl, storage, onUnauthorized }: ApiClientO
     },
     attachments: {
       list: (cardId: string) => request<Attachment[]>(`/cards/${cardId}/attachments`),
-      /** `file` is the RN `{ uri, name, type }` shape `expo-image-picker` returns. */
-      upload: (cardId: string, file: { uri: string; name: string; type: string }) => {
+      /**
+       * `file` is either a browser `File`/`Blob` (web, from an `<input
+       * type="file">`) or the RN `{ uri, name, type }` shape
+       * `expo-image-picker` returns (mobile) — `FormData` needs a real `Blob`
+       * to actually upload bytes; the RN shape only works via React Native's
+       * own `fetch`/`FormData` polyfill, which special-cases that object.
+       */
+      upload: (cardId: string, file: File | Blob | { uri: string; name: string; type: string }) => {
         const formData = new FormData();
-        formData.append("file", file as unknown as Blob);
+        if (file instanceof Blob) {
+          formData.append("file", file, file instanceof File ? file.name : undefined);
+        } else {
+          formData.append("file", file as unknown as Blob);
+        }
         return request<Attachment>(`/cards/${cardId}/attachments`, { method: "POST", body: formData });
       },
       remove: (cardId: string, attachmentId: string) =>

@@ -193,21 +193,40 @@ POST   /cards/:cardId/attachments     multipart/form-data, حقل "file"
 DELETE /cards/:cardId/attachments/:attachmentId
 ```
 
-- **القيود** (`attachments.service.ts`): صور فقط
-  (`image/jpeg`|`image/png`|`image/webp`|`image/gif`)، حتى 5MB للصورة (يُنفَّذ
-  عبر `multer`'s `fileFilter`/`limits`)، وحتى 10 صور للبطاقة (يُتحقَّق منه في
-  الخدمة بعد الرفع — تُحذف الصورة من القرص فورًا إن تجاوز العدد الحد).
+- **القيود** (`attachments.service.ts`): **أي نوع ملف** (كانت صورًا فقط)، حتى
+  20MB للملف (`MAX_ATTACHMENT_BYTES`، يُنفَّذ عبر `multer`'s `limits` — تجاوزه
+  يُرجع 413)، وحتى 10 مرفقات للبطاقة (يُتحقَّق منه في الخدمة بعد الرفع — يُحذف
+  الملف من القرص فورًا إن تجاوز العدد الحد). لا `fileFilter` بعد الآن.
 - **التخزين**: قرص محلي فقط (`apps/api/uploads/`، مسار قابل للتهيئة عبر
   `UPLOADS_DIR`)، لا تخزين سحابي — يوافق أسلوب المشروع
-  (`docker-compose.yml`/`.env.example`). أسماء الملفات UUID عشوائية
-  (`randomUUID() + امتداد`)، تُخدَّم علنًا بلا مصادقة عبر `ServeStaticModule`
-  على `/uploads/*` (`app.module.ts`) — الأمان بالغموض (اسم غير قابل للتخمين)
-  بدل رمز مصادقة، لتبسيط عرض الصور في `<Image>` على الجوال دون آلية إرفاق
-  ترويسات.
+  (`docker-compose.yml`/`.env.example`). اسم الملف على القرص
+  `<uuid>__<الاسم الأصلي بعد التنقية><.امتداد>` (`buildStoredFilename` في
+  `common/util/uploads.util.ts`): الـUUID يُبقي الرابط غير قابل للتخمين، والاسم
+  الأصلي يُحمَل داخل الاسم نفسه فيُعرَض في الواجهة (`Attachment.fileName`،
+  يُشتقّ بـ`displayNameFromStored`) ويُسمّى به الملف عند التنزيل — **بلا عمود
+  جديد ولا مِهجرة**. تُنقّى الأسماء: تُفكّ ترميزة latin1 التي يفرضها `multer`
+  على أسماء UTF-8 (وإلا تشوّه العربية)، وتُستبدَل المحارف الخطرة (`/ \ : < > | ? * % #`
+  وأحرف التحكم) بـ`_`، ويُقصّ الاسم بالبايت، ويُقيَّد الامتداد بـ`[a-z0-9]`.
+  الملفات القديمة (`<uuid>.<ext>` بلا فاصل) تبقى صالحة. تُخدَّم علنًا بلا
+  مصادقة عبر `ServeStaticModule` على `/uploads/*` (`app.module.ts`) — الأمان
+  بالغموض (اسم غير قابل للتخمين) بدل رمز مصادقة، لتبسيط عرض الصور في `<Image>`
+  على الجوال دون آلية إرفاق ترويسات.
+- **أمان التقديم** (`setUploadHeaders`): لأن أي ملف يمكن رفعه (`.html`/`.svg`
+  مثلًا) ويُخدَّم من أصل الـAPI، تُرسَل كل الأنواع **غير** الصور النقطية
+  (`jpg`/`jpeg`/`png`/`webp`/`gif`) بـ`Content-Disposition: attachment` فتُنزَّل
+  ولا تُنفَّذ في المتصفح، مع `X-Content-Type-Options: nosniff` لكل الملفات.
+  `Attachment.url` الآن مُرمَّز بـ`encodeURIComponent` (الأسماء قد تحوي عربية أو
+  مسافات).
 - **الصلاحية**: الرفع يتطلّب نفس صلاحية فتح البطاقة (`canAccessCard`)؛ الحذف
   مسموح لرافع الصورة **أو** من يملك إدارة البطاقة (`canManageCard`: مالك
   اللوحة أو منشئ البطاقة) — أوسع من التعليقات عمدًا، لأن حذف صورة أقرب لإدارة
   محتوى البطاقة من حذف رأي شخصي.
+- **الواجهات**: الصور القابلة للمعاينة (`jpeg`/`png`/`webp`/`gif` بحسب `mimeType`)
+  تظهر مصغّرات، وكل ما عداها صفّ باسم الملف (`fileName`) وحجمه ورابط تنزيل. الويب:
+  `AttachmentsSection` في `CardDetailPanel.tsx` (حقل ملف بلا `accept`، وفحص الحجم
+  قبل الرفع من `lib/attachment-url.ts`). الجوال: `attachments-section.tsx` (ورقة
+  «الكاميرا / المعرض / ملف»). `packages/api-client`'s `attachments.upload` يقبل
+  `File | Blob` (الويب) أو `{ uri, name, type }` (الجوال).
 
 ## توليد المهمة المتكررة (Recurrence)
 

@@ -13,6 +13,7 @@ interface BoardSettingsModalProps {
 export function BoardSettingsModal({ board, canArchive, onClose, onSave, onArchive }: BoardSettingsModalProps) {
   const [name, setName] = useState(board.name);
   const [description, setDescription] = useState(board.description ?? "");
+  const [dueDate, setDueDate] = useState(board.dueDate ? board.dueDate.slice(0, 10) : "");
   const [saving, setSaving] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -25,7 +26,11 @@ export function BoardSettingsModal({ board, canArchive, onClose, onSave, onArchi
     setSaving(true);
     setError(null);
     try {
-      await onSave({ name: name.trim(), description: description.trim() || null });
+      await onSave({
+        name: name.trim(),
+        description: description.trim() || null,
+        dueDate: dueDate ? new Date(dueDate).toISOString() : null,
+      });
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : "فشل حفظ اللوحة");
@@ -65,6 +70,13 @@ export function BoardSettingsModal({ board, canArchive, onClose, onSave, onArchi
           placeholder="ما الغرض من هذه اللوحة؟"
           rows={4}
           className="w-full rounded border border-slate-300 p-2 text-sm"
+        />
+        <label className="block text-xs font-medium text-slate-500">موعد التسليم (اختياري)</label>
+        <input
+          type="date"
+          value={dueDate}
+          onChange={(e) => setDueDate(e.target.value)}
+          className="rounded border border-slate-300 px-2 py-1 text-sm"
         />
         {error && <p className="text-sm text-red-600">{error}</p>}
         <div className="flex items-center justify-between pt-2">

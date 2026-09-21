@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   DndContext,
@@ -12,15 +12,27 @@ import {
   type DragOverEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
-import { SortableContext, arrayMove, horizontalListSortingStrategy } from "@dnd-kit/sortable";
 import type { Card, List } from "@app/types";
 import { api } from "../../lib/api-client";
 import { useAuth } from "../auth/AuthContext";
 import { CardPreview } from "./components/CardItem";
-import { CardDetailModal } from "./components/CardDetailModal";
+import { CardDetailPanel } from "./components/CardDetailPanel";
 import { BoardSettingsModal } from "./components/BoardSettingsModal";
 import { BoardMembersModal } from "./components/BoardMembersModal";
+import { BoardOwnerSummaryPanel } from "./components/BoardOwnerSummaryPanel";
+import { CreateCardModal } from "./components/CreateCardModal";
+import { FilterPopover } from "./components/FilterPopover";
+import { FilteredBoardView } from "./components/FilteredBoardView";
 import { ListColumn } from "./components/ListColumn";
+import { UserAvatar } from "./components/MemberPicker";
+import { EMPTY_FILTERS, hasActiveFilters, type CardFilters } from "./lib/filter-cards";
+
+/** The closed column's default window (`v2-new-style.md` §4) — a client-chosen default, not server-enforced. */
+function thirtyDaysAgoIso(): string {
+  const d = new Date();
+  d.setDate(d.getDate() - 30);
+  return d.toISOString();
+}
 
 function resolveTargetListId(
   over: { id: string | number; data: { current?: Record<string, unknown> } },
@@ -28,7 +40,6 @@ function resolveTargetListId(
 ): string | undefined {
   const overData = over.data.current;
   if (!overData) return undefined;
-  if (overData.type === "list") return String(over.id);
   if (overData.type === "list-dropzone") return overData.listId as string;
   if (overData.type === "card") return findListOfCard(String(over.id))?.id;
   return undefined;
@@ -37,11 +48,17 @@ function resolveTargetListId(
 export function BoardPage() {
   const { boardId } = useParams<{ boardId: string }>();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const [showAllClosed, setShowAllClosed] = useState(false);
+  // Computed once per mount, not per render — otherwise the query key below
+  // would change on every render and defeat React Query's caching.
+  const closedSinceDefault = useMemo(() => thirtyDaysAgoIso(), []);
+  const closedSince = showAllClosed ? undefined : closedSinceDefault;
   const { data: board, isLoading } = useQuery({
-    queryKey: ["board", boardId],
-    queryFn: () => api.boards.get(boardId!),
+    queryKey: ["board", boardId, closedSince],
+    queryFn: () => api.boards.get(boardId!, closedSince),
     enabled: Boolean(boardId),
   });
 
@@ -49,26 +66,32 @@ export function BoardPage() {
   const [activeCard, setActiveCard] = useState<Card | null>(null);
   const [openCardId, setOpenCardId] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [newListName, setNewListName] = useState("");
   const [membersOpen, setMembersOpen] = useState(false);
+  const [summaryOpen, setSummaryOpen] = useState(false);
+  const [creatingCardOpen, setCreatingCardOpen] = useState(false);
+  const [filters, setFilters] = useState<CardFilters>(EMPTY_FILTERS);
 
   useEffect(() => {
     if (board) setLists(board.lists);
   }, [board]);
 
+  // Deep-link from My Tasks (`/boards/:id?card=:cardId`) — seed the open card
+  // once the board has loaded, then drop the param so it doesn't re-open on
+  // a later reload of the same URL after the card was closed.
+  useEffect(() => {
+    const cardId = searchParams.get("card");
+    if (cardId && board?.lists.some((l) => l.cards.some((c) => c.id === cardId))) {
+      setOpenCardId(cardId);
+      const next = new URLSearchParams(searchParams);
+      next.delete("card");
+      setSearchParams(next, { replace: true });
+    }
+  }, [board, searchParams, setSearchParams]);
+
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ["board", boardId] });
 
-  const createListMutation = useMutation({
-    mutationFn: (name: string) => api.lists.create(boardId!, { name }),
-    onSuccess: invalidate,
-  });
-  const moveListMutation = useMutation({
-    mutationFn: (vars: { listId: string; beforeId: string | null; afterId: string | null }) =>
-      api.lists.update(vars.listId, { move: { beforeId: vars.beforeId, afterId: vars.afterId } }),
-    onError: invalidate,
-  });
   const moveCardMutation = useMutation({
     mutationFn: (vars: { cardId: string; targetListId: string; beforeId: string | null; afterId: string | null }) =>
       api.cards.update(vars.cardId, {
@@ -133,27 +156,6 @@ export function BoardPage() {
     setActiveCard(null);
     if (!over) return;
 
-    if (active.data.current?.type === "list") {
-      const oldIndex = lists.findIndex((l) => l.id === active.id);
-      // `over` may resolve to a card or an empty-list dropzone inside the
-      // target column (closestCorners picks the nearest droppable, and list
-      // columns are full of card droppables) — reconcile it back to a list id
-      // the same way the card branch does, otherwise the drop target is never
-      // recognized and the reorder is silently dropped.
-      const targetListId = resolveTargetListId(over, findListOfCard);
-      const newIndex = targetListId ? lists.findIndex((l) => l.id === targetListId) : -1;
-      if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return;
-
-      const reordered = arrayMove(lists, oldIndex, newIndex);
-      setLists(reordered);
-      moveListMutation.mutate({
-        listId: String(active.id),
-        beforeId: reordered[newIndex - 1]?.id ?? null,
-        afterId: reordered[newIndex + 1]?.id ?? null,
-      });
-      return;
-    }
-
     if (active.data.current?.type === "card") {
       const cardId = String(active.id);
       const targetList = findListOfCard(cardId);
@@ -173,41 +175,117 @@ export function BoardPage() {
   }
 
   const openCard = openCardId ? lists.flatMap((l) => l.cards).find((c) => c.id === openCardId) ?? null : null;
-  const isOwner = board.members.some((m) => m.userId === user?.id && m.role === "OWNER");
+  const currentMembership = board.members.find((m) => m.userId === user?.id);
+  const isOwner = currentMembership?.role === "OWNER";
+  const isViewer = currentMembership?.role === "VIEWER";
+  const readOnly = board.isArchived || isViewer;
+  const previewMembers = board.members.slice(0, 3);
+  const filtersActive = hasActiveFilters(filters);
 
   return (
-    <div className="flex h-screen flex-col bg-slate-100">
-      <header className="flex items-center gap-4 border-b bg-white px-6 py-4">
-        <Link to="/boards" className="text-sm text-slate-500 hover:underline">
-          → اللوحات
-        </Link>
-        <div className="flex min-w-0 items-baseline gap-3">
-          <h1 className="text-lg font-semibold text-slate-900">{board.name}</h1>
-          {board.description && (
-            <p className="truncate text-sm text-slate-500" title={board.description}>
-              {board.description}
-            </p>
+    <div className="flex h-screen flex-col bg-canvas">
+      <header className="flex items-end justify-between gap-4 border-b border-line bg-surface px-6 py-4">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <Link to="/boards" className="text-sm text-muted hover:text-ink">
+              → اللوحات
+            </Link>
+            <h1 className="truncate text-lg font-bold text-ink">{board.name}</h1>
+          </div>
+          <div className="mt-1 flex items-center gap-2">
+            {board.dueDate && (
+              <span className="rounded-full bg-canvas px-2.5 py-1 text-xs font-semibold text-ink/70">
+                ◷ التسليم {new Date(board.dueDate).toLocaleDateString("ar", { dateStyle: "medium" })}
+              </span>
+            )}
+            <span className="text-xs text-muted">
+              {board.cardCount} مهمة · {board.doneCount} مكتملة
+            </span>
+          </div>
+        </div>
+        <div className="flex shrink-0 items-center gap-2.5">
+          <input
+            type="search"
+            value={filters.query}
+            onChange={(e) => setFilters((f) => ({ ...f, query: e.target.value }))}
+            placeholder="⌕ بحث في اللوحة"
+            className="hidden w-[220px] rounded-field border border-line px-3 py-2 text-sm focus:border-accent focus:outline-none sm:block"
+          />
+          <FilterPopover filters={filters} onChange={setFilters} boardMembers={board.members} />
+          {previewMembers.length > 0 && (
+            <div className="flex items-center">
+              {previewMembers.map((m, i) => (
+                <span key={m.userId} className={i > 0 ? "-ms-2" : ""}>
+                  <span className="block rounded-full ring-2 ring-surface">
+                    <UserAvatar displayName={m.user.displayName} dimmed={!m.user.isActive} />
+                  </span>
+                </span>
+              ))}
+            </div>
+          )}
+          {isOwner && (
+            <>
+              <button
+                onClick={() => setMembersOpen(true)}
+                className="min-h-[38px] rounded-field border border-line px-3 text-sm font-semibold text-ink hover:bg-canvas"
+              >
+                الأعضاء
+              </button>
+              <button
+                onClick={() => setSummaryOpen(true)}
+                className="min-h-[38px] rounded-field border border-line px-3 text-sm font-semibold text-ink hover:bg-canvas"
+              >
+                ملخّص
+              </button>
+            </>
+          )}
+          {!readOnly && lists.length > 0 && (
+            <button
+              onClick={() => setCreatingCardOpen(true)}
+              className="min-h-[38px] rounded-field bg-accent px-4 text-sm font-medium text-white hover:opacity-90"
+            >
+              + مهمة
+            </button>
+          )}
+          <button
+            onClick={() => setSettingsOpen(true)}
+            className="min-h-[38px] rounded-field border border-line px-3 text-sm font-semibold text-ink hover:bg-canvas"
+            title="إعدادات اللوحة"
+          >
+            الإعدادات
+          </button>
+        </div>
+      </header>
+
+      {(board.isArchived || isViewer) && (
+        <div className="flex items-center justify-between gap-4 bg-ink px-6 py-2 text-sm text-white">
+          <span>{board.isArchived ? "مؤرشفة — للقراءة فقط" : "للعرض فقط — لا يمكنك التعديل على هذه اللوحة"}</span>
+          {board.isArchived && isOwner && (
+            <button
+              onClick={async () => {
+                await api.boards.update(board.id, { isArchived: false });
+                invalidate();
+                queryClient.invalidateQueries({ queryKey: ["boards"] });
+              }}
+              className="rounded-field bg-white/10 px-3 py-1 text-xs font-semibold hover:bg-white/20"
+            >
+              استعادة
+            </button>
           )}
         </div>
-        <button
-          onClick={() => setSettingsOpen(true)}
-          className="rounded px-2 py-1 text-sm text-slate-500 hover:bg-slate-100"
-          title="إعدادات اللوحة"
-        >
-          تعديل
-        </button>
-        <span className="text-xs text-slate-400">
-          {board.members.length > 1 ? `${board.members.length} أعضاء` : "خاصة"}
-        </span>
-        {isOwner && (
-          <button
-            onClick={() => setMembersOpen(true)}
-            className="ms-auto rounded border border-slate-300 px-3 py-1 text-sm text-slate-700 hover:bg-slate-50"
-          >
-            الأعضاء
-          </button>
-        )}
-      </header>
+      )}
+
+      {filtersActive ? (
+        <div className="flex-1 overflow-y-auto">
+          <FilteredBoardView
+            lists={lists}
+            boardMembers={board.members}
+            currentUserId={user?.id ?? ""}
+            filters={filters}
+            onOpenCard={setOpenCardId}
+          />
+        </div>
+      ) : (
       <div className="flex-1 overflow-x-auto p-6">
         <DndContext
           sensors={sensors}
@@ -216,44 +294,32 @@ export function BoardPage() {
           onDragOver={onDragOver}
           onDragEnd={onDragEnd}
         >
-          <SortableContext items={lists.map((l) => l.id)} strategy={horizontalListSortingStrategy}>
-            <div className="flex gap-4">
-              {lists.map((list) => (
-                <ListColumn
-                  key={list.id}
-                  list={list}
-                  onAddCard={(title) => createCardMutation.mutate({ listId: list.id, title })}
-                  onOpenCard={setOpenCardId}
-                  onDeleteCard={(id) => deleteCardMutation.mutate(id)}
-                />
-              ))}
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  if (!newListName.trim()) return;
-                  createListMutation.mutate(newListName.trim());
-                  setNewListName("");
-                }}
-                className="h-fit w-64 shrink-0 rounded-lg bg-white/60 p-3"
-              >
-                <input
-                  value={newListName}
-                  onChange={(e) => setNewListName(e.target.value)}
-                  placeholder="+ إضافة قائمة"
-                  className="w-full rounded border border-slate-300 px-2 py-1 text-sm"
-                />
-              </form>
-            </div>
-          </SortableContext>
+          <div className="flex items-start gap-4">
+            {lists.map((list) => (
+              <ListColumn
+                key={list.id}
+                list={list}
+                boardMembers={board.members}
+                readOnly={readOnly}
+                onShowOlderClosed={
+                  !showAllClosed && board.hiddenClosedCount > 0 ? () => setShowAllClosed(true) : undefined
+                }
+                onOpenCard={setOpenCardId}
+                onDeleteCard={(id) => deleteCardMutation.mutate(id)}
+              />
+            ))}
+          </div>
           <DragOverlay>{activeCard ? <CardPreview card={activeCard} /> : null}</DragOverlay>
         </DndContext>
       </div>
+      )}
       {openCard && (
-        <CardDetailModal
+        <CardDetailPanel
           card={openCard}
           boardMembers={board.members}
           boardOwnerId={board.ownerId}
           currentUserId={user?.id ?? ""}
+          readOnly={readOnly}
           onClose={() => setOpenCardId(null)}
           onSave={async (updates) => {
             await api.cards.update(openCard.id, updates);
@@ -269,6 +335,21 @@ export function BoardPage() {
           }}
         />
       )}
+      {creatingCardOpen && (
+        <CreateCardModal
+          lists={lists}
+          defaultListId={lists[0]?.id ?? ""}
+          creating={createCardMutation.isPending}
+          onClose={() => setCreatingCardOpen(false)}
+          onCreate={(listId, title) => {
+            createCardMutation.mutate(
+              { listId, title },
+              { onSuccess: () => setCreatingCardOpen(false) },
+            );
+          }}
+        />
+      )}
+      {summaryOpen && <BoardOwnerSummaryPanel boardId={board.id} onClose={() => setSummaryOpen(false)} />}
       {settingsOpen && (
         <BoardSettingsModal
           board={board}

@@ -4,12 +4,11 @@ import * as path from "node:path";
 import type { Attachment } from "@app/types";
 import { PrismaService } from "../prisma/prisma.service";
 import { BoardsService, canAccessCard, canManageCard } from "../boards/boards.service";
-import { UPLOADS_DIR } from "../common/util/uploads.util";
+import { UPLOADS_DIR, displayNameFromStored } from "../common/util/uploads.util";
 
-/** `design-prompt-group-3.md` §3: "صور فقط · حتى 10 صور للبطاقة · 5MB للصورة". */
+/** Any file type may be attached (originally images only, `design-prompt-group-3.md` §3) — the caps below still apply. */
 export const MAX_ATTACHMENTS_PER_CARD = 10;
-export const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
-export const ALLOWED_ATTACHMENT_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
+export const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
 
 function serialize(row: {
   id: string;
@@ -23,7 +22,8 @@ function serialize(row: {
   return {
     id: row.id,
     cardId: row.cardId,
-    url: `/uploads/${row.filename}`,
+    url: `/uploads/${encodeURIComponent(row.filename)}`,
+    fileName: displayNameFromStored(row.filename),
     mimeType: row.mimeType,
     sizeBytes: row.sizeBytes,
     createdAt: row.createdAt.toISOString(),

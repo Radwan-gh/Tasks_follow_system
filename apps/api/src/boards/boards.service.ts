@@ -159,14 +159,15 @@ export class BoardsService {
   /**
    * `closedSince` filters the `CLOSED`-category list to cards that entered it
    * at or after that date — the design's "«انتهى» يعرض آخر 30 يومًا فقط" with
-   * a "عرض الأقدم" expansion (the mobile client re-calls with an earlier or
-   * omitted `closedSince` to load more; there's no separate "how many are
-   * hidden" count, so the button is shown whenever the list is `CLOSED`
-   * rather than computed exactly — a deliberate simplification). "Entered
-   * the list" is the most recent `MOVED` activity whose `toValue` is that
-   * list's name; a card with no such activity (e.g. created directly into an
-   * already-`CLOSED` list) falls back to `updatedAt`. Every other list is
-   * unaffected — this never filters `DONE`, `NEW`, etc.
+   * a "عرض الأقدم" expansion (the client re-calls with an earlier or omitted
+   * `closedSince` to load more). `hiddenClosedCount` reports how many cards
+   * the filter dropped (counting only cards the caller may access, so a
+   * restricted card they can't see never makes the expansion appear), letting
+   * clients show "عرض الأقدم" only when there is actually something older.
+   * "Entered the list" is the most recent `MOVED` activity whose `toValue` is
+   * that list's name; a card with no such activity (e.g. created directly
+   * into an already-`CLOSED` list) falls back to `updatedAt`. Every other
+   * list is unaffected — this never filters `DONE`, `NEW`, etc.
    */
   async getDetail(userId: string, boardId: string, closedSince?: Date) {
     await this.assertMembership(userId, boardId, "VIEWER");
@@ -208,15 +209,16 @@ export class BoardsService {
     const closedList = closedSince ? board.lists.find((l) => l.statusCategory === "CLOSED") : undefined;
     const closedAtByCardId = closedList ? await this.closedAtByCardId(closedList) : null;
 
-    return {
-      ...serializeBoard(board, aggregate),
-      members: board.members.map((m) => ({
-        userId: m.userId,
-        boardId: m.boardId,
-        role: m.role,
-        user: { id: m.user.id, username: m.user.username, displayName: m.user.displayName, isActive: m.user.isActive },
-      })),
-      lists: board.lists.map((list) => ({
+    let hiddenClosedCount = 0;
+    const lists = board.lists.map((list) => {
+      // Restricted cards the requesting user can't access are hidden entirely.
+      const accessible = list.cards.filter((card) => canAccessCard(userId, board.ownerId, card));
+      const visible =
+        list.id === closedList?.id && closedAtByCardId
+          ? accessible.filter((card) => (closedAtByCardId.get(card.id) ?? card.updatedAt) >= closedSince!)
+          : accessible;
+      if (list.id === closedList?.id) hiddenClosedCount = accessible.length - visible.length;
+      return {
         id: list.id,
         boardId: list.boardId,
         name: list.name,
@@ -224,16 +226,20 @@ export class BoardsService {
         isArchived: list.isArchived,
         statusCategory: list.statusCategory,
         createdAt: list.createdAt.toISOString(),
-        cards: list.cards
-          // Restricted cards the requesting user can't access are hidden entirely.
-          .filter((card) => canAccessCard(userId, board.ownerId, card))
-          .filter((card) => {
-            if (list.id !== closedList?.id || !closedAtByCardId) return true;
-            const closedAt = closedAtByCardId.get(card.id) ?? card.updatedAt;
-            return closedAt >= closedSince!;
-          })
-          .map(serializeCard),
+        cards: visible.map(serializeCard),
+      };
+    });
+
+    return {
+      ...serializeBoard(board, aggregate),
+      hiddenClosedCount,
+      members: board.members.map((m) => ({
+        userId: m.userId,
+        boardId: m.boardId,
+        role: m.role,
+        user: { id: m.user.id, username: m.user.username, displayName: m.user.displayName, isActive: m.user.isActive },
       })),
+      lists,
     };
   }
 
