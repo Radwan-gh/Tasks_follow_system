@@ -5,6 +5,7 @@
       "commands": [
         "pnpm install --frozen-lockfile",
         "pnpm --filter @app/types build",
+        "pnpm --filter @app/api-client build",
         "pnpm --filter @app/web build"
       ]
     }
