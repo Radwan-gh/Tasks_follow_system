@@ -14,7 +14,10 @@ export const api = createApiClient({
   baseUrl: API_BASE,
   storage: tokenStore,
   onUnauthorized: () => {
-    window.location.href = "/login";
+    // Only fired once a refresh has failed and the tokens are gone, so the
+    // flag always means "your session expired" — the login screen shows a
+    // notice instead of dumping the user on a bare form with no explanation.
+    window.location.href = "/login?expired=1";
   },
 });
 
