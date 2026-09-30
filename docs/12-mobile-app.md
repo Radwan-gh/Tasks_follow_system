@@ -569,8 +569,12 @@ https://ota-production-6c85.up.railway.app/manifest
 **النشر:**
 
 ```bash
-EOO_TOKEN=<رمز tms-publish> npx eoas@3 publish --branch production --platform android
+EOO_TOKEN=<رمز tms-publish> npx eoas@3.1.3 publish --branch production --platform android
 ```
+
+إصدار `eoas` **مثبَّت على 3.1.3**: الإصدارات 3.2 فما فوق غيّرت بروتوكول رفع الملفات،
+وخادم التحديثات المُستضاف (أقدم من 3.2.0) يرفض الرفع برسالة `No file names provided`.
+يُرفع هذا التثبيت بعد ترقية الخادم إلى 3.2.0 أو أحدث.
 
 `EOO_TOKEN` رمز API خاص بهذا التطبيق وحده، يُصدَر من لوحة الخادم
 (`/dashboard/` → API tokens). في CI يُضاف كـ repository secret، لا يُكتب في

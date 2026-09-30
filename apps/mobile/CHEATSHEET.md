@@ -164,8 +164,12 @@ For pure JS/TS changes (no native code change, no version bump), skip
 rebuilding an APK entirely — push to already-installed apps instead:
 
 ```bash
-EOO_TOKEN=<tms-publish token> npx eoas@3 publish --branch production --platform android
+EOO_TOKEN=<tms-publish token> npx eoas@3.1.3 publish --branch production --platform android
 ```
+
+`eoas` is pinned to 3.1.3: 3.2+ changed the upload protocol and the self-hosted
+server (< 3.2.0) fails the upload with `No file names provided`. Unpin once the
+server is upgraded to 3.2.0 or later.
 
 **Shortcut:** `.claude/skills/publish-ota/scripts/publish-ota.ps1` wraps this
 command, and it is what Claude Code's `publish-ota` skill uses. It reads

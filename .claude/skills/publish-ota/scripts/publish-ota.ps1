@@ -99,8 +99,12 @@ if ($DryRun) {
     Step "Dry run: exporting the bundle only (npx $($cmd -join ' '))"
 } else {
     if (-not $Message) { $Message = ($commit -replace '^\S+\s+', '') }
-    $cmd = @('eoas@3', 'publish', '--branch', 'production', '--platform', 'android',
-             '--nonInteractive', '--emitMetadata', '-m', $Message)
+    # Pinned: eoas 3.2+ uses an upload protocol the self-hosted xprem server
+    # (< 3.2.0) rejects with "No file names provided". Unpin once the server
+    # is upgraded to 3.2.0 or later - and restore '--emitMetadata' then too:
+    # 3.1.x has no such flag, so the update id is not reported until then.
+    $cmd = @('eoas@3.1.3', 'publish', '--branch', 'production', '--platform', 'android',
+             '--nonInteractive', '-m', $Message)
     if ($Rollout) { $cmd += @('--rollout-percentage', "$Rollout") }
     Step "Publishing to branch production (npx $($cmd -join ' '))"
 }
