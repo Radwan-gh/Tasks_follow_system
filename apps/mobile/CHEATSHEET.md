@@ -167,6 +167,13 @@ rebuilding an APK entirely — push to already-installed apps instead:
 EOO_TOKEN=<tms-publish token> npx eoas@3 publish --branch production --platform android
 ```
 
+**On Windows, don't run this bare.** `expo export` writes asset paths into
+`dist/metadata.json` with backslashes (`assets\<hash>`) and the server rejects
+them (`invalid file name: must not contain '\' characters`). The shortcut script
+below passes `--packageRunner eoas-runner`, a wrapper around `pnpm exec` that
+rewrites those paths to forward slashes right after the export. Needs xprem
+server 3.2.0+ (older servers answer eoas 3.2+ with `No file names provided`).
+
 **Shortcut:** `.claude/skills/publish-ota/scripts/publish-ota.ps1` wraps this
 command, and it is what Claude Code's `publish-ota` skill uses. It reads
 `EOO_TOKEN` from the environment (a user variable works), refuses uncommitted

@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useState, type React
 import type { CurrentUser, LoginRequest } from "@app/types";
 import { api } from "@/lib/api";
 import { tokenStorage } from "@/lib/token-storage";
+import { updateSavedPassword } from "@/lib/saved-credentials";
 import { unlinkPushDevice } from "@/features/notifications/use-push-registration";
 
 interface AuthContextValue {
@@ -104,6 +105,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!pendingReauthPassword || !user) throw new Error("No pending password reset");
       await api.auth.changePassword({ currentPassword: pendingReauthPassword, newPassword });
       setPendingReauthPassword(null);
+      await updateSavedPassword(user.username, newPassword).catch(() => undefined);
       await rotateSessionAfterPasswordChange(user.username, newPassword);
       setUser(await api.auth.me());
     },
@@ -114,6 +116,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     async (currentPassword: string, newPassword: string) => {
       if (!user) throw new Error("Not signed in");
       await api.auth.changePassword({ currentPassword, newPassword });
+      // A «تذكّرني» password would otherwise prefill the old one next time.
+      await updateSavedPassword(user.username, newPassword).catch(() => undefined);
       await rotateSessionAfterPasswordChange(user.username, newPassword);
     },
     [user],
