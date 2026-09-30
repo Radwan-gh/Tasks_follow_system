@@ -117,13 +117,22 @@ try {
 } finally { Pop-Location }
 if ($exit -ne 0) { Fail "npx exited with $exit - see $log" }
 
-# The bundle must be built against the production API. A publish can't be
-# undone from here, so if this check fails after a real publish, roll back.
-$envOk = Select-String -Path $log -Pattern 'env: load .*\.env\.production' -Quiet
+# The bundle must be built against the production API. eoas runs the export
+# with EXPO_NO_DOTENV=1, which also silences Expo's 'env: load' line, so the
+# log can't tell us: look for the .env.production URL in the exported Hermes
+# bundle itself. A publish can't be undone from here, so if this check fails
+# after a real publish, roll back.
+$prodLine = Get-Content (Join-Path $mobile '.env.production') |
+    Where-Object { $_ -match '^\s*EXPO_PUBLIC_API_URL\s*=' } | Select-Object -First 1
+$prodUrl = if ($prodLine) { ($prodLine -replace '^[^=]*=\s*', '').Trim().Trim('"', "'") } else { '' }
+$bundles = @(Get-ChildItem (Join-Path $outDir '_expo\static\js\android') -Filter '*.hbc' -ErrorAction SilentlyContinue)
+$envOk = $prodUrl -and $bundles.Count -gt 0 -and
+    (Select-String -Path $bundles.FullName -Pattern $prodUrl -SimpleMatch -Quiet)
 if (-not $envOk) {
-    if ($DryRun) { Fail "The export did not load .env.production (see $log)." }
-    Fail "PUBLISHED, but the log does not show .env.production being loaded (see $log). The update may point at the wrong API: check it on a phone, and roll back in the OTA dashboard if it is wrong."
+    if ($DryRun) { Fail "The exported bundle does not contain the .env.production API URL ($prodUrl)." }
+    Fail "PUBLISHED, but the exported bundle does not contain the .env.production API URL ($prodUrl). The update may point at the wrong API: check it on a phone, and roll back in the OTA dashboard if it is wrong."
 }
+Write-Host "API URL in bundle: $prodUrl (.env.production)"
 
 # --- Report -----------------------------------------------------------------
 $updateId = ''

@@ -68,7 +68,7 @@ The script prints a `FAILED:` line:
   rerun with `-AllowDirty` if the user says so.
 - **`typecheck` / `pnpm ... build`.** Fix the error, or report it. Don't
   publish around it.
-- **`PUBLISHED, but the log does not show .env.production`.** The update is
+- **`PUBLISHED, but the exported bundle does not contain the .env.production API URL`.** The update is
   live but may point at the wrong API. Tell the user right away, and give them
   the rollback steps below.
 
@@ -117,4 +117,9 @@ previous branch. That's two clicks, with no rebuild and no republish.
   version reported would then be wrong.
 - It builds the shared packages and typechecks `apps/mobile` before publishing.
 - It publishes Android only, to branch `production`, non-interactively.
-- It checks the log for `env: load .env.production`.
+- It checks that the exported Hermes bundle contains the `EXPO_PUBLIC_API_URL`
+  from `.env.production`. (Not the log: eoas exports with `EXPO_NO_DOTENV=1`,
+  which also silences Expo's `env: load` line.)
+- It runs eoas with `--packageRunner eoas-runner`, which rewrites the Windows
+  backslash asset paths in `dist/metadata.json` to forward slashes (see
+  `scripts/eoas-runner.js`). Needs xprem server 3.2.0+.
