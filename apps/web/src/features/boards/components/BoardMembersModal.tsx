@@ -207,7 +207,9 @@ function AddMemberSearch({
   }
 
   function pick(user: BoardMemberCandidate | undefined) {
-    if (!user || adding) return;
+    // `member-candidates` already excludes deactivated accounts; this keeps a
+    // stale row from producing a request the server will reject anyway.
+    if (!user || adding || !user.isActive) return;
     onPick(user, role);
     setSearch("");
     setDebounced("");
@@ -258,7 +260,7 @@ function AddMemberSearch({
                 data-highlighted={index === highlight}
                 onMouseEnter={() => setHighlight(index)}
                 onClick={() => pick(user)}
-                disabled={adding}
+                disabled={adding || !user.isActive}
                 className={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-start disabled:opacity-50 ${
                   index === highlight ? "bg-slate-100" : "hover:bg-slate-50"
                 }`}

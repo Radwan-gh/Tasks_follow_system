@@ -161,7 +161,10 @@ export function AddMemberSheet({
                   key={user.id}
                   accessibilityRole="button"
                   accessibilityLabel={`إضافة ${user.displayName}`}
-                  disabled={adding}
+                  // `member-candidates` already excludes deactivated accounts;
+                  // this keeps a stale row from producing a request the server
+                  // will reject anyway.
+                  disabled={adding || !user.isActive}
                   onPress={() => onPick(user, role)}
                   style={{
                     flexDirection: "row",
@@ -173,7 +176,7 @@ export function AddMemberSheet({
                     borderWidth: 1,
                     borderColor: colors.line,
                     backgroundColor: colors.surface,
-                    opacity: adding ? 0.6 : 1,
+                    opacity: adding || !user.isActive ? 0.6 : 1,
                   }}
                 >
                   <View

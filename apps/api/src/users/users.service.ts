@@ -11,9 +11,24 @@ import type { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { generateTemporaryPassword, hashPassword } from "../common/util/password.util";
 
-type UserWithBoardCount = Prisma.UserGetPayload<{ include: { _count: { select: { boardMemberships: true } } } }>;
+type UserWithCounts = Prisma.UserGetPayload<{ include: typeof COUNT_INCLUDE }>;
 
-function serialize(user: UserWithBoardCount): AdminUser {
+/**
+ * Relations whose foreign keys are *restrict*, not cascade: a row here pins the
+ * user in place, so `remove` refuses and `hasContent` warns the UI first. The
+ * cascading relations (memberships, assignments, notifications, sessions,
+ * devices) are deliberately absent — those disappear with the account.
+ */
+const CONTENT_RELATIONS = [
+  "ownedBoards",
+  "createdCards",
+  "cardActivities",
+  "comments",
+  "attachments",
+  "createdSubtasks",
+] as const;
+
+function serialize(user: UserWithCounts): AdminUser {
   return {
     id: user.id,
     username: user.username,
@@ -25,10 +40,23 @@ function serialize(user: UserWithBoardCount): AdminUser {
     canSendNotifications: user.canSendNotifications,
     createdAt: user.createdAt.toISOString(),
     boardCount: user._count.boardMemberships,
+    hasContent: CONTENT_RELATIONS.some((relation) => user._count[relation] > 0),
   };
 }
 
-const BOARD_COUNT_INCLUDE = { _count: { select: { boardMemberships: true } } } as const;
+const COUNT_INCLUDE = {
+  _count: {
+    select: {
+      boardMemberships: true,
+      ownedBoards: true,
+      createdCards: true,
+      cardActivities: true,
+      comments: true,
+      attachments: true,
+      createdSubtasks: true,
+    },
+  },
+} as const;
 
 @Injectable()
 export class UsersService {
@@ -48,7 +76,7 @@ export class UsersService {
     const [users, total] = await this.prisma.$transaction([
       this.prisma.user.findMany({
         where,
-        include: BOARD_COUNT_INCLUDE,
+        include: COUNT_INCLUDE,
         orderBy: { createdAt: "asc" },
         skip: (query.page - 1) * query.pageSize,
         take: query.pageSize,
@@ -86,7 +114,7 @@ export class UsersService {
         displayName: input.displayName,
         role: input.role ?? "USER",
       },
-      include: BOARD_COUNT_INCLUDE,
+      include: COUNT_INCLUDE,
     });
     return serialize(user);
   }
@@ -103,7 +131,7 @@ export class UsersService {
    */
   async update(targetId: string, input: UpdateUserRequest): Promise<AdminUser> {
     return this.prisma.$transaction(async (tx) => {
-      const target = await tx.user.findUnique({ where: { id: targetId }, include: BOARD_COUNT_INCLUDE });
+      const target = await tx.user.findUnique({ where: { id: targetId }, include: COUNT_INCLUDE });
       if (!target) throw new NotFoundException("User not found");
 
       const email = input.email === undefined ? undefined : input.email.trim() || null;
@@ -122,7 +150,7 @@ export class UsersService {
           ...(emailChanged ? { email } : {}),
           ...(nameChanged ? { displayName: input.displayName } : {}),
         },
-        include: BOARD_COUNT_INCLUDE,
+        include: COUNT_INCLUDE,
       });
       return serialize(updated);
     });
@@ -135,14 +163,14 @@ export class UsersService {
    */
   async setPassword(targetId: string, password: string): Promise<AdminUser> {
     return this.prisma.$transaction(async (tx) => {
-      const target = await tx.user.findUnique({ where: { id: targetId }, include: BOARD_COUNT_INCLUDE });
+      const target = await tx.user.findUnique({ where: { id: targetId }, include: COUNT_INCLUDE });
       if (!target) throw new NotFoundException("User not found");
 
       const passwordHash = await hashPassword(password);
       const updated = await tx.user.update({
         where: { id: targetId },
         data: { passwordHash, mustChangePassword: false },
-        include: BOARD_COUNT_INCLUDE,
+        include: COUNT_INCLUDE,
       });
       await this.revokeRefreshTokens(tx, targetId);
       return serialize(updated);
@@ -173,7 +201,7 @@ export class UsersService {
 
   async updateRole(callerId: string, targetId: string, role: UserRole): Promise<AdminUser> {
     return this.prisma.$transaction(async (tx) => {
-      const target = await tx.user.findUnique({ where: { id: targetId }, include: BOARD_COUNT_INCLUDE });
+      const target = await tx.user.findUnique({ where: { id: targetId }, include: COUNT_INCLUDE });
       if (!target) throw new NotFoundException("User not found");
       if (target.role === role) return serialize(target);
 
@@ -190,7 +218,7 @@ export class UsersService {
       const updated = await tx.user.update({
         where: { id: targetId },
         data: { role },
-        include: BOARD_COUNT_INCLUDE,
+        include: COUNT_INCLUDE,
       });
       return serialize(updated);
     });
@@ -198,7 +226,7 @@ export class UsersService {
 
   async updateStatus(callerId: string, targetId: string, isActive: boolean): Promise<AdminUser> {
     return this.prisma.$transaction(async (tx) => {
-      const target = await tx.user.findUnique({ where: { id: targetId }, include: BOARD_COUNT_INCLUDE });
+      const target = await tx.user.findUnique({ where: { id: targetId }, include: COUNT_INCLUDE });
       if (!target) throw new NotFoundException("User not found");
       if (target.isActive === isActive) return serialize(target);
 
@@ -213,7 +241,7 @@ export class UsersService {
       const updated = await tx.user.update({
         where: { id: targetId },
         data: { isActive },
-        include: BOARD_COUNT_INCLUDE,
+        include: COUNT_INCLUDE,
       });
       return serialize(updated);
     });
@@ -230,9 +258,46 @@ export class UsersService {
     const updated = await this.prisma.user.update({
       where: { id: targetId },
       data: { canSendNotifications },
-      include: BOARD_COUNT_INCLUDE,
+      include: COUNT_INCLUDE,
     });
     return serialize(updated);
+  }
+
+  /**
+   * Permanently delete an account. Everything that hangs off the user by a
+   * *cascading* foreign key goes with it — board/task memberships, task and
+   * sub-task assignments, notifications, refresh tokens — and push devices are
+   * detached (`SetNull`) rather than dropped, so the install keeps receiving
+   * anonymous pushes.
+   *
+   * What it deliberately does **not** do is rewrite history. Boards, tasks,
+   * comments, attachments, sub-tasks and activity rows point at their author
+   * with a restrict-level foreign key, so an account that produced any of them
+   * is refused here (`Conflict`) instead of dragging other people's work out
+   * of the database or silently re-attributing it. Deactivation
+   * (`updateStatus`) is the answer for someone who has worked in the system:
+   * it ends their access while leaving the record of what they did intact.
+   */
+  async remove(callerId: string, targetId: string): Promise<void> {
+    await this.prisma.$transaction(async (tx) => {
+      const target = await tx.user.findUnique({ where: { id: targetId }, include: COUNT_INCLUDE });
+      if (!target) throw new NotFoundException("User not found");
+
+      // Same two invariants as demotion/deactivation, and for the same reason:
+      // an admin must not be able to lock everyone (including themselves) out
+      // of administering the system.
+      if (targetId === callerId) throw new ForbiddenException("You cannot delete your own account");
+      await this.assertNotLastActiveAdmin(tx, target);
+
+      const blocking = CONTENT_RELATIONS.filter((relation) => target._count[relation] > 0);
+      if (blocking.length > 0) {
+        throw new ConflictException(
+          `Cannot delete a user who owns boards or created content (${blocking.join(", ")}). Deactivate the account instead.`,
+        );
+      }
+
+      await tx.user.delete({ where: { id: targetId } });
+    });
   }
 
   private async assertNotLastActiveAdmin(tx: Prisma.TransactionClient, target: { id: string; role: string; isActive: boolean }) {

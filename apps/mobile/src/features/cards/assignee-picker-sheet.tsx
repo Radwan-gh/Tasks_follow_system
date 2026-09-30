@@ -15,6 +15,11 @@ import { MIN_TOUCH_TARGET, colors, fonts, fontSizes, radii, spacing } from "@/th
  *
  * Big boards get a search box, and whoever is picked stays visible as a chip
  * above the list, so a search term can never hide the current selection.
+ *
+ * A deactivated member is badged «معطَّل» and cannot be picked — the server
+ * rejects assigning one — but one already picked before being deactivated
+ * stays selected and removable, matching the server's "only new assignments
+ * are blocked" rule.
  */
 
 /** Above this many members, scanning the list is slower than filtering it. */
@@ -160,12 +165,15 @@ export function AssigneePickerSheet({
           >
             {visibleMembers.map((member) => {
               const isSelected = selected.has(member.userId);
+              const locked = !member.user.isActive && !isSelected;
               const palette = avatarColorFor(member.userId);
               return (
                 <Pressable
                   key={member.userId}
                   accessibilityRole="checkbox"
-                  accessibilityState={{ checked: isSelected }}
+                  accessibilityState={{ checked: isSelected, disabled: locked }}
+                  accessibilityHint={locked ? "الحساب معطَّل — لا يمكن إسناد مهام إليه" : undefined}
+                  disabled={locked}
                   onPress={() => toggle(member.userId)}
                   style={{
                     flexDirection: "row",
@@ -177,6 +185,7 @@ export function AssigneePickerSheet({
                     borderColor: isSelected ? "#D6E1F8" : colors.line,
                     backgroundColor: isSelected ? colors.accentSoft : colors.surface,
                     paddingHorizontal: spacing.md,
+                    opacity: locked ? 0.55 : 1,
                   }}
                 >
                   <View
@@ -199,6 +208,20 @@ export function AssigneePickerSheet({
                       {member.user.username}
                     </AppText>
                   </View>
+                  {!member.user.isActive ? (
+                    <View
+                      style={{
+                        borderRadius: radii.chip,
+                        backgroundColor: colors.alertSoft,
+                        paddingHorizontal: spacing.sm,
+                        paddingVertical: 3,
+                      }}
+                    >
+                      <AppText size="caption" weight="semibold" color={colors.alert}>
+                        معطَّل
+                      </AppText>
+                    </View>
+                  ) : null}
                   <View
                     style={{
                       width: 24,

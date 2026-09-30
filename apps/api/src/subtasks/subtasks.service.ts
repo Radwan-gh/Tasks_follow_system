@@ -106,7 +106,11 @@ export class SubtasksService {
     await this.prisma.subtask.delete({ where: { id: subtaskId } });
   }
 
-  /** Replace a subtask's assignee set. Every listed user must be a board member. */
+  /**
+   * Replace a subtask's assignee set. Every listed user must be a board member,
+   * and every *newly* added one must be an active account — same rule as
+   * `CardsService.updateAssignees`.
+   */
   async updateAssignees(userId: string, subtaskId: string, input: UpdateAssigneesRequest) {
     const subtask = await this.loadSubtask(subtaskId);
     const card = await this.assertCardAccess(userId, subtask.cardId);
@@ -117,10 +121,16 @@ export class SubtasksService {
       // §3c-4: viewers never appear in the assignee picker — see `CardsService.updateAssignees`.
       const members = await this.prisma.boardMember.findMany({
         where: { boardId: card.boardId, userId: { in: userIds }, role: { not: "VIEWER" } },
-        select: { userId: true },
+        select: { userId: true, user: { select: { isActive: true } } },
       });
       if (members.length !== userIds.length) {
         throw new BadRequestException("Every assignee must be a member of the board");
+      }
+      // Already-assigned people survive a later deactivation; only additions
+      // have to be active accounts.
+      const before = new Set(subtask.assignees.map((a) => a.userId));
+      if (members.some((m) => !m.user.isActive && !before.has(m.userId))) {
+        throw new BadRequestException("Cannot assign a deactivated user");
       }
     }
 

@@ -74,6 +74,10 @@ export function UserIdentity({
  * A searchable checkbox list of board members. Selected people are always
  * visible as chips above the list, so a search term can never hide who is
  * already picked.
+ *
+ * A deactivated member cannot be *picked* — the server rejects assigning one —
+ * but one who was already picked before being deactivated stays checked and
+ * removable, matching the server's "only new assignments are blocked" rule.
  */
 export function MemberChecklist({
   members,
@@ -139,24 +143,32 @@ export function MemberChecklist({
         {filtered.length === 0 ? (
           <p className="px-1 py-2 text-xs text-slate-400">لا يوجد عضو يطابق «{search.trim()}».</p>
         ) : (
-          filtered.map((m) => (
-            <label
-              key={m.userId}
-              className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 hover:bg-slate-50"
-            >
-              <input
-                type="checkbox"
-                checked={selected.has(m.userId)}
-                onChange={() => onToggle(m.userId)}
-                className="shrink-0"
-              />
-              <UserIdentity
-                displayName={m.user.displayName}
-                username={m.user.username}
-                isActive={m.user.isActive}
-              />
-            </label>
-          ))
+          filtered.map((m) => {
+            const isSelected = selected.has(m.userId);
+            const locked = !m.user.isActive && !isSelected;
+            return (
+              <label
+                key={m.userId}
+                title={locked ? "الحساب معطَّل — لا يمكن إسناد مهام إليه" : undefined}
+                className={`flex items-center gap-2 rounded px-1 py-1 ${
+                  locked ? "cursor-not-allowed opacity-60" : "cursor-pointer hover:bg-slate-50"
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  checked={isSelected}
+                  disabled={locked}
+                  onChange={() => onToggle(m.userId)}
+                  className="shrink-0"
+                />
+                <UserIdentity
+                  displayName={m.user.displayName}
+                  username={m.user.username}
+                  isActive={m.user.isActive}
+                />
+              </label>
+            );
+          })
         )}
       </div>
     </div>
