@@ -100,7 +100,12 @@ if ($DryRun) {
 } else {
     if (-not $Message) { $Message = ($commit -replace '^\S+\s+', '') }
     $cmd = @('eoas@3', 'publish', '--branch', 'production', '--platform', 'android',
-             '--nonInteractive', '--emitMetadata', '-m', $Message)
+             '--nonInteractive', '--emitMetadata', '-m', $Message,
+             '--packageRunner', 'eoas-runner')
+    # eoas-runner.cmd (next to this script) wraps 'pnpm exec' and turns the
+    # backslash asset paths 'expo export' writes on Windows into forward
+    # slashes, which the server requires. See eoas-runner.js.
+    $env:PATH = "$PSScriptRoot;$env:PATH"
     if ($Rollout) { $cmd += @('--rollout-percentage', "$Rollout") }
     Step "Publishing to branch production (npx $($cmd -join ' '))"
 }

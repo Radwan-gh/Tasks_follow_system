@@ -572,6 +572,15 @@ https://ota-production-6c85.up.railway.app/manifest
 EOO_TOKEN=<رمز tms-publish> npx eoas@3 publish --branch production --platform android
 ```
 
+**على Windows لا يُشغَّل هذا الأمر مجرّدًا:** يكتب `expo export` مسارات الأصول في
+`dist/metadata.json` بشرطة مائلة عكسية (`assets\<hash>`)، ويرفضها الخادم
+(`invalid file name: must not contain '\' characters`) — وهذا الملف نفسه هو ما يبني منه
+الخادم الـ manifest الذي تقرؤه الهواتف. لذلك يمرّر سكربت `publish-ota.ps1` الخيار
+`--packageRunner eoas-runner`، وهو غلاف حول `pnpm exec`
+(`.claude/skills/publish-ota/scripts/eoas-runner.js`) يحوّل هذه المسارات إلى شرطة
+مائلة أمامية فور انتهاء التصدير. ويتطلّب خادم xprem بإصدار 3.2.0 أو أحدث؛ فالأقدم
+يردّ على eoas 3.2+ بـ `No file names provided`.
+
 `EOO_TOKEN` رمز API خاص بهذا التطبيق وحده، يُصدَر من لوحة الخادم
 (`/dashboard/` → API tokens). في CI يُضاف كـ repository secret، لا يُكتب في
 سطر أوامر.
