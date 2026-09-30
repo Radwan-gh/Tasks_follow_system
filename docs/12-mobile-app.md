@@ -572,6 +572,12 @@ EOO_TOKEN=<رمز tms-publish> npx eoas@3 publish --branch production --platform
 (`/dashboard/` → API tokens). في CI يُضاف كـ repository secret، لا يُكتب في
 سطر أوامر.
 
+محليًا، يغلّف السكربت `.claude/skills/publish-ota/scripts/publish-ota.ps1` هذا
+الأمر (وتستعمله مهارة `publish-ota` في Claude Code). يقرأ `EOO_TOKEN` من متغيّر
+بيئة المستخدم، ويرفض النشر إن وُجدت تغييرات غير ملتزَمة في `apps/mobile` أو
+`packages/` ما لم يُمرَّر `-AllowDirty`، ويبني الحزم المشتركة ويفحص الأنواع قبل
+النشر، ثم يتحقّق من أن الحزمة بُنيت على `.env.production`.
+
 **التراجع (rollback):** إعادة ربط القناة بالفرع السابق من لوحة الخادم — نقرتان،
 دون إعادة بناء ودون إعادة نشر. هذا تحديدًا سبب تشغيل الخادم في وضع
 control-plane لا في الوضع عديم الحالة.

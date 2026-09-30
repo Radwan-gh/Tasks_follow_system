@@ -13,3 +13,5 @@ apps/api/generated/
 apps/api/uploads/
 apps/api/firebase-service-account.json
 apps/mobile/.expo/
+# OTA publish token for the publish-ota skill - a secret, never commit
+.claude/skills/publish-ota/.eoo-token
