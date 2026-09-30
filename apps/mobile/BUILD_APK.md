@@ -112,6 +112,12 @@ in the same PowerShell window, since it reuses `$name`:
 & "$env:ANDROID_HOME\platform-tools\adb.exe" install -r "..\apk\$name"
 ```
 
+To check the install, open **حسابي** and scroll to the bottom. The footer
+should read «الإصدار {version}» and «يعمل التطبيق بالنسخة المثبَّتة دون
+تحديثات» (or «آخر تحديث …» once an OTA update has been applied). A red
+«التحديثات التلقائية غير مفعّلة في هذه النسخة» means the APK was built without a
+working `updates` config and will never receive OTA updates — rebuild it.
+
 ## Build a smaller APK
 
 The regular APK is about **99 MB** because it carries the native code for four

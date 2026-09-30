@@ -196,7 +196,11 @@ and `runtimeVersion` follows `expo.version` (`policy: "appVersion"`).
 > certificate, and a certificate that does not match the server's private key
 > are therefore indistinguishable from the phone: the app simply never updates
 > and never says why. Verify one real publish against one real device. Do not
-> reason about it.
+> reason about it: bring the app to the foreground after publishing, open
+> **حسابي** and scroll to the footer. `update <first 8 chars>` should match the
+> new update's id in the xprem dashboard and the status line should read
+> «آخر تحديث …»; «يعمل التطبيق بالنسخة المثبَّتة دون تحديثات» means it did not
+> land. **«نسخ التفاصيل»** copies the full id, runtime and any check error.
 
 To roll back, remap the channel to the previous branch in the xprem dashboard —
 two clicks, no redeploy, no rebuild.

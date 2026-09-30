@@ -236,7 +236,7 @@ Three toggles, all on by default:
 - **«إرسال إشعار»** entry (only when permitted).
 - **Admin-only**: **«المستخدمون والصلاحيات»** entry · **«رمز العملة»** setting (text field, default ل.س, applies app-wide).
 - **«تسجيل الخروج»**.
-- App version / update status line (OTA updates apply silently).
+- **Version / update footer** at the very bottom, under logout (quiet and centred, not a card): «الإصدار {version}»; one status line — «آخر تحديث {date}» (running an OTA update), «يعمل التطبيق بالنسخة المثبَّتة دون تحديثات» (running the APK's own bundle) or «جارٍ تنزيل تحديث جديد...», in red only for problems (a downloaded update failed to start, updates disabled in this build, the last check or download failed); `runtime {x}` and `update {first 8 chars of the update id}` for support; a **«نسخ التفاصيل»** link (→ «تم النسخ») copies the full diagnostics. OTA updates themselves still apply silently, with no prompt.
 
 ---
 

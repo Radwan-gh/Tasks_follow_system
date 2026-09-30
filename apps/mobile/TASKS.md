@@ -252,7 +252,10 @@ Blocking, in order:
       changes included). Deploy any API change the new JS depends on to
       Railway first. Make a visible change, background → foreground the app,
       and confirm it lands. The manifest check above should then return an
-      update instead of `noUpdateAvailable`.
+      update instead of `noUpdateAvailable`. On the device, the «حسابي»
+      footer is the proof: `update <first 8 chars>` must match the published
+      update's id in the xprem dashboard, and the status line must change from
+      «يعمل التطبيق بالنسخة المثبَّتة دون تحديثات» to «آخر تحديث …».
 - [ ] **Rehearse a rollback once.** CHEATSHEET §5 and the docs say "remap the
       channel to the previous branch", but every publish goes to the single
       `production` branch, so there is no previous branch to remap to. Find
@@ -262,10 +265,14 @@ Blocking, in order:
 
 Nice to have:
 
-- [ ] **Version / update line in «حسابي»** (`DESIGN_BRIEF.md` §10) — show
-      `expo.version` and `Updates.updateId` (or "embedded" when running the
-      APK's own bundle), so a device can prove which bundle it runs. Makes
-      the publish check above, and later support questions, trivial.
+- [x] **Version / update line in «حسابي»** (`DESIGN_BRIEF.md` §10) — done:
+      `features/account/app-version-section.tsx`, a footer under «تسجيل
+      الخروج» showing `expo.version`, the OTA status (publish date, or
+      "embedded" when running the APK's own bundle; red for an emergency
+      launch, updates disabled, or a failed check/download), `runtime` and
+      the `updateId` prefix. «نسخ التفاصيل» copies the full id, channel and
+      any error text for support. Details: `docs/12-mobile-app.md` («سطر
+      الإصدار في «حسابي»»).
 - [ ] **Manual OTA publish workflow in GitHub Actions** — `workflow_dispatch`
       only, with `EOO_TOKEN` as a repo secret. Not on push: a push that
       changes native code without bumping `expo.version` would publish JS
