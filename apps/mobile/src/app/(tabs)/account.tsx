@@ -6,6 +6,7 @@ import { ApiError } from "@app/api-client";
 import { canSendPush } from "@app/types";
 import { Screen } from "@/components/screen";
 import { AppText } from "@/components/text";
+import { AppVersionSection } from "@/features/account/app-version-section";
 import { ChangePasswordSheet } from "@/features/account/change-password-sheet";
 import { CurrencySettingSection } from "@/features/account/currency-setting-section";
 import { EditProfileSheet } from "@/features/account/edit-profile-sheet";
@@ -203,6 +204,8 @@ export default function AccountScreen() {
             {isLoggingOut ? "جارٍ تسجيل الخروج..." : "تسجيل الخروج"}
           </AppText>
         </Pressable>
+
+        <AppVersionSection />
       </ScrollView>
 
       <EditProfileSheet
