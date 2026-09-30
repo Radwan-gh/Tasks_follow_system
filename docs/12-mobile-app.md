@@ -562,7 +562,7 @@ EAS بدل هذا الخادم. لكن انتبه أن قنوات `eas.json` ا�
 
 ## بناء APK آليًا: GitHub Actions، لا EAS Build
 
-`.github/workflows/mobile-build.yml` يبني APK قابلًا للتثبيت مباشرةً من دفعة
+`.github/workflows/mobile-build.yml` يبني ملفَّي APK قابلَين للتثبيت مباشرةً من دفعة
 (push) إلى `main` تمسّ `apps/mobile` أو الحزم المشتركة (`packages/api-client`،
 `packages/types`، `packages/ordering`)، أو يدويًا عبر تبويب Actions. نفس منطق
 "لا EAS" في قسم تحديثات OTA أعلاه: بدل `eas build` — الذي يتطلّب حساب Expo/EAS
@@ -580,10 +580,21 @@ assembleRelease` محليًا داخل المُشغِّل (runner)، تمامً�
   ويُمرَّر وقت البناء (مثل أي بناء محلي، يُخبَز داخل حزمة JS وقت
   `assembleRelease`، لا وقت التشغيل). دون ضبط هذا المتغيّر يُبنى التطبيق بلا
   عنوان API صالح.
-- **النشر**: كل تشغيل ناجح يرفع الـ APK كـ Artifact على تشغيلة العمل (Actions
+- **ملفّان لا واحد**: كل تشغيل يبني APK مرّتين من مشروع `android/` نفسه —
+  `*-universal.apk` (المعماريات الأربع، بلا تصغير؛ يعمل على أي جهاز) ثم
+  `*-arm64.apk` **الصغير**: معمارية `arm64-v8a` وحدها بدل الأربع التي يضبطها
+  `prebuild` افتراضيًا في `reactNativeArchitectures` (المكتبات الأصلية هي
+  معظم حجم الـ APK)، مع تفعيل R8 وتقليص الموارد
+  (`android.enableMinifyInReleaseBuilds` و`android.enableShrinkResourcesInReleaseBuilds`،
+  وكلاهما مُعطَّل افتراضيًا). تُمرَّر الثلاثة كـ`-P` على سطر أوامر `gradlew`
+  لا كتعديل في `gradle.properties`/`build.gradle`، لأن `android/` يُولَّد من
+  جديد في كل تشغيل. الصغير يعمل على كل أجهزة ARM 64-بت (معظم الهواتف منذ نحو
+  2017)؛ الأجهزة 32-بت فقط تحتاج الشامل. الأمر نفسه يدويًا في
+  `apps/mobile/CHEATSHEET.md` §3.
+- **النشر**: كل تشغيل ناجح يرفع الملفّين كـ Artifacts على تشغيلة العمل (Actions
   run)، وينشئ أيضًا GitHub Release بوسم `mobile-v<الإصدار>-<رقم-التشغيلة>`
-  (الإصدار = `expo.version` في `app.json`) مع إرفاق الملف — رابط تنزيل ثابت
-  يمكن مشاركته دون العودة لتبويب Actions.
+  (الإصدار = `expo.version` في `app.json`) مع إرفاقهما، ووصفٌ يرشد المستخدم
+  إلى أيّهما يثبّت — رابط تنزيل ثابت يمكن مشاركته دون العودة لتبويب Actions.
 - **ليس بديلًا لتحديثات OTA أعلاه**: هذا يبني ثنائيًا أصيلًا جديدًا بالكامل
   (لازم عند تغيّر كود أصيل أو رفع `version`)؛ تغييرات JS البحتة بين إصدارين
   أسرع وأخفّ عبر `eoas publish` بدل إعادة بناء APK كامل.
