@@ -83,7 +83,8 @@ pnpm --filter @app/mobile bundle:check   # expo export --platform android; catch
 ## 3. Build an APK locally (no EAS account needed)
 
 This repo does **not** use `eas build`. Locally you generate the native
-Android project yourself and build with Gradle directly:
+Android project yourself and build with Gradle directly (step-by-step Windows
+walkthrough, including SDK setup: [BUILD_APK.md](BUILD_APK.md)):
 
 ```bash
 cd apps/mobile
