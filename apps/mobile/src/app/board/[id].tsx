@@ -542,6 +542,7 @@ export default function BoardScreen() {
             <ScrollView
               ref={listRef}
               horizontal
+              style={{ flex: 1 }}
               showsHorizontalScrollIndicator={false}
               snapToOffsets={snapOffsets.length > 0 ? snapOffsets : undefined}
               decelerationRate="fast"
@@ -554,9 +555,12 @@ export default function BoardScreen() {
               }}
             >
               {board.data.lists.map((list, index) => (
-                <View
+                <ScrollView
                   key={list.id}
-                  style={{ width, paddingHorizontal: spacing.xl }}
+                  style={{ width }}
+                  contentContainerStyle={{ paddingHorizontal: spacing.xl, paddingBottom: spacing.lg }}
+                  nestedScrollEnabled
+                  showsVerticalScrollIndicator={false}
                   onLayout={(e) => handleColumnLayout(index, e.nativeEvent.layout.x)}
                 >
                   <ListColumn
@@ -579,14 +583,14 @@ export default function BoardScreen() {
                     }
                     onLoadOlder={() => setClosedSince(undefined)}
                   />
-                </View>
+                </ScrollView>
               ))}
             </ScrollView>
           )}
 
-          {/* A column is a plain `View` with no scroll of its own, so a long
-              column pushes its own add row off screen — this bar is the entry
-              point that stays reachable, hence a field rather than a button. */}
+          {/* Each column scrolls vertically on its own (nested in the
+              horizontal pager), so this bar sits below the pager and stays
+              reachable no matter how long the active column is. */}
           {board.data.lists[activeIndex] && !boardReadOnly ? (
             <View style={{ paddingHorizontal: spacing.xl, paddingTop: spacing.md }}>
               <QuickAddCard
