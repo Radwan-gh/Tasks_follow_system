@@ -167,6 +167,13 @@ rebuilding an APK entirely — push to already-installed apps instead:
 EOO_TOKEN=<tms-publish token> npx eoas@3 publish --branch production --platform android
 ```
 
+**Shortcut:** `.claude/skills/publish-ota/scripts/publish-ota.ps1` wraps this
+command, and it is what Claude Code's `publish-ota` skill uses. It reads
+`EOO_TOKEN` from the environment (a user variable works), refuses uncommitted
+changes unless `-AllowDirty` is passed, builds the shared packages, typechecks
+the app, publishes, and checks that `.env.production` was loaded. It also takes
+`-Message`, `-Rollout <1-99>` and `-DryRun`.
+
 Updates are served by the self-hosted **xprem** server at
 `https://ota-production-6c85.up.railway.app` — its own repository, `source/OTA`,
 which documents the deployment. Installed apps pick the update up on next cold

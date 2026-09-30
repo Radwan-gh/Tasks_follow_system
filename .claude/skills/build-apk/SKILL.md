@@ -25,7 +25,7 @@ that can't install it (`INSTALL_FAILED_NO_MATCHING_ABIS`, an old 32-bit phone).
 Add `-Install` only when the user asks to install on a connected phone.
 
 If the user's change is JS-only, point out that an OTA update may be enough
-(`apps/mobile/CHEATSHEET.md` §5). Build anyway if they asked for an APK.
+(the `publish-ota` skill). Build anyway if they asked for an APK.
 
 ## 2. Run the script in the background
 
