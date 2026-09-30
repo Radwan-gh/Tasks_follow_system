@@ -134,6 +134,15 @@ export function UsersAdminPage() {
     updateRole.mutate({ id, role });
   }
 
+  const deleteUser = useMutation({
+    mutationFn: (user: AdminUser) => api.admin.deleteUser(user.id),
+    onSuccess: (_result, user) => {
+      onMutationSuccess();
+      setNotice(`تم حذف الحساب ${user.username} نهائيًا.`);
+    },
+    onError: onMutationError,
+  });
+
   function onStatusToggle(id: string, username: string, isActive: boolean) {
     const label = isActive
       ? `إعادة تفعيل ${username}؟ سيتمكن من تسجيل الدخول مرة أخرى.`
@@ -142,8 +151,22 @@ export function UsersAdminPage() {
     updateStatus.mutate({ id, isActive });
   }
 
+  function onDelete(user: AdminUser) {
+    const label =
+      `حذف الحساب ${user.username} نهائيًا؟ لا يمكن التراجع عن هذا الإجراء. ` +
+      "سيتم حذف عضوياته في اللوحات وإسناداته وإشعاراته وجلساته. " +
+      "إن أردت الاحتفاظ بالحساب مع منع دخوله، استخدم «إلغاء التفعيل» بدلًا من الحذف.";
+    if (!window.confirm(label)) return;
+    deleteUser.mutate(user);
+  }
+
   const totalPages = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1;
-  const isMutating = updateRole.isPending || updateStatus.isPending || setPassword.isPending || updateUser.isPending;
+  const isMutating =
+    updateRole.isPending ||
+    updateStatus.isPending ||
+    setPassword.isPending ||
+    updateUser.isPending ||
+    deleteUser.isPending;
 
   return (
     <div className="min-h-screen bg-slate-100">
@@ -305,6 +328,26 @@ export function UsersAdminPage() {
                             className="rounded border border-slate-300 px-2 py-1 text-xs text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
                           >
                             تغيير كلمة المرور
+                          </button>
+                          {/*
+                            A user who owns boards or authored tasks/comments is
+                            pinned in place by the server (restrict-level FKs),
+                            so the action is disabled up front with the reason
+                            in its tooltip rather than failing on click.
+                          */}
+                          <button
+                            onClick={() => onDelete(u)}
+                            disabled={isSelf || u.hasContent || isMutating}
+                            title={
+                              isSelf
+                                ? "لا يمكنك حذف حسابك"
+                                : u.hasContent
+                                  ? "لا يمكن حذف مستخدم يملك لوحات أو أنشأ مهامّ أو تعليقات — استخدم «إلغاء التفعيل»"
+                                  : undefined
+                            }
+                            className="rounded border border-red-200 px-2 py-1 text-xs text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
+                          >
+                            حذف
                           </button>
                         </div>
                       </td>

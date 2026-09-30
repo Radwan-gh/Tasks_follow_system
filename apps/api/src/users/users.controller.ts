@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from "@nestjs/common";
+import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query, UseGuards } from "@nestjs/common";
 import { ApiBearerAuth, ApiBody, ApiOperation, ApiParam, ApiQuery, ApiResponse, ApiTags } from "@nestjs/swagger";
 import {
   AdminSetPasswordRequestSchema,
@@ -59,6 +59,17 @@ export class UsersController {
   @ApiResponse({ status: 409, description: "Email already in use" })
   update(@Param("id") id: string, @Body(new ZodValidationPipe(UpdateUserRequestSchema)) body: UpdateUserRequest) {
     return this.users.update(id, body);
+  }
+
+  @Delete(":id")
+  @HttpCode(204)
+  @ApiOperation({ summary: "Permanently delete a user account (refused if the user owns boards or created content)" })
+  @ApiParam({ name: "id", description: "User ID" })
+  @ApiResponse({ status: 204, description: "Deleted" })
+  @ApiResponse({ status: 403, description: "You cannot delete your own account" })
+  @ApiResponse({ status: 409, description: "User owns boards/content, or is the last active admin" })
+  async remove(@CurrentUser() user: AuthUser, @Param("id") id: string) {
+    await this.users.remove(user.id, id);
   }
 
   @Patch(":id/password")

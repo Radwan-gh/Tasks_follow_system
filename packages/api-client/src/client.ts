@@ -201,6 +201,12 @@ export function createApiClient({ baseUrl, storage, onUnauthorized }: ApiClientO
         request<AdminUser>("/admin/users", { method: "POST", body: JSON.stringify(body) }),
       updateUser: (id: string, body: UpdateUserRequest) =>
         request<AdminUser>(`/admin/users/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+      /**
+       * Permanent deletion. Rejected with a 409 for an account that owns boards
+       * or authored anything — check `AdminUser.hasContent` before offering it,
+       * and offer deactivation for the rest.
+       */
+      deleteUser: (id: string) => request<void>(`/admin/users/${id}`, { method: "DELETE" }),
       setUserPassword: (id: string, password: string) =>
         request<AdminUser>(`/admin/users/${id}/password`, {
           method: "PATCH",

@@ -72,6 +72,8 @@ export class CardsService {
    * current instance is moved into «انتهى». Carries forward title,
    * description, priority, assignees, and the same recurrence rule (so the
    * chain continues one-in-one-out — never more than one open instance).
+   * The spawned instance is a *new* task, so assignees deactivated since the
+   * previous one was assigned are dropped rather than carried over.
    */
   private async spawnNextRecurrence(
     tx: Tx,
@@ -118,9 +120,15 @@ export class CardsService {
       },
     });
     if (card.assignees.length > 0) {
-      await tx.cardAssignee.createMany({
-        data: card.assignees.map((a) => ({ cardId: created.id, userId: a.userId })),
+      const stillActive = await tx.user.findMany({
+        where: { id: { in: card.assignees.map((a) => a.userId) }, isActive: true },
+        select: { id: true },
       });
+      if (stillActive.length > 0) {
+        await tx.cardAssignee.createMany({
+          data: stillActive.map((u) => ({ cardId: created.id, userId: u.id })),
+        });
+      }
     }
     await this.recordActivity(tx, created.id, card.boardId, card.createdById, {
       type: "CREATED",
@@ -282,10 +290,16 @@ export class CardsService {
       // Every listed user must currently be a member of the card's board.
       const boardMembers = await this.prisma.boardMember.findMany({
         where: { boardId: card.boardId, userId: { in: memberUserIds } },
-        select: { userId: true },
+        select: { userId: true, user: { select: { isActive: true } } },
       });
       if (boardMembers.length !== memberUserIds.length) {
         throw new BadRequestException("Every task member must be a member of the board");
+      }
+      // Same rule as `updateAssignees`: a deactivated account gets no new
+      // grant, but one deactivated after being granted access keeps it.
+      const before = new Set(card.members.map((m) => m.userId));
+      if (boardMembers.some((m) => !m.user.isActive && !before.has(m.userId))) {
+        throw new BadRequestException("Cannot grant task access to a deactivated user");
       }
     }
 
@@ -310,8 +324,9 @@ export class CardsService {
   /**
    * Replace a card's assignee set (several board members allowed). Any board
    * member with access to the card may (re)assign it. Every listed user must be
-   * a member of the card's board. Records an ASSIGNED/UNASSIGNED activity — with
-   * a snapshot of the new assignees' names — only when the set actually changes.
+   * a member of the card's board, and every *newly* added one must be an active
+   * account. Records an ASSIGNED/UNASSIGNED activity — with a snapshot of the
+   * new assignees' names — only when the set actually changes.
    */
   async updateAssignees(userId: string, cardId: string, input: UpdateAssigneesRequest) {
     const card = await this.loadCard(cardId);
@@ -327,7 +342,7 @@ export class CardsService {
     const boardMembers = userIds.length
       ? await this.prisma.boardMember.findMany({
           where: { boardId: card.boardId, userId: { in: userIds }, role: { not: "VIEWER" } },
-          select: { userId: true, user: { select: { displayName: true } } },
+          select: { userId: true, user: { select: { displayName: true, isActive: true } } },
         })
       : [];
     if (boardMembers.length !== userIds.length) {
@@ -335,6 +350,13 @@ export class CardsService {
     }
 
     const before = new Set(card.assignees.map((a) => a.userId));
+    // A deactivated account takes no new work. Someone deactivated *after*
+    // being assigned stays on the card — dropping them silently would rewrite
+    // who owned the task — so only additions are checked.
+    if (boardMembers.some((m) => !m.user.isActive && !before.has(m.userId))) {
+      throw new BadRequestException("Cannot assign a deactivated user");
+    }
+
     const changed = before.size !== userIds.length || userIds.some((id) => !before.has(id));
 
     const updated = await this.prisma.$transaction(async (tx) => {

@@ -97,6 +97,15 @@ export type CurrentUser = z.infer<typeof CurrentUserSchema>;
 /** Row shape for the admin users table. */
 export const AdminUserSchema = UserSchema.extend({
   boardCount: z.number().int(),
+  /**
+   * Whether the account owns boards or authored anything (tasks, comments,
+   * attachments, sub-tasks, history rows). Those references are restrict-level
+   * foreign keys, so such an account can never be deleted: `DELETE
+   * /admin/users/:id` refuses it and the admin deactivates instead. Sent with
+   * the row so the UI can disable the delete action up front rather than let
+   * the admin discover the rule from a failed request.
+   */
+  hasContent: z.boolean(),
 });
 export type AdminUser = z.infer<typeof AdminUserSchema>;
 
