@@ -1,10 +1,11 @@
-import { useState } from "react";
-import { Pressable, ScrollView, TextInput, View } from "react-native";
+import { useEffect, useState } from "react";
+import { Pressable, ScrollView, Switch, TextInput, View } from "react-native";
 import { ApiError } from "@app/api-client";
 import { Screen } from "@/components/screen";
 import { AppText } from "@/components/text";
 import { PrimaryButton } from "@/components/button";
 import { useAuth } from "@/features/auth/auth-context";
+import { clearSavedCredentials, loadSavedCredentials, saveCredentials } from "@/lib/saved-credentials";
 import { MIN_TOUCH_TARGET, colors, fonts, fontSizes, radii, spacing } from "@/theme/tokens";
 
 /**
@@ -25,17 +26,40 @@ export default function LoginScreen() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const canSubmit = username.trim().length > 0 && password.length > 0 && !isSubmitting;
+
+  // Prefill from «تذكّرني». Functional updates so a read that lands after the
+  // user has started typing never clobbers what they typed.
+  useEffect(() => {
+    let cancelled = false;
+    loadSavedCredentials()
+      .then((saved) => {
+        if (cancelled || !saved) return;
+        setUsername((current) => current || saved.username);
+        setPassword((current) => current || saved.password);
+        setRememberMe(true);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   async function onSubmit() {
     if (!canSubmit) return;
     setError(null);
     setIsSubmitting(true);
     try {
-      await login({ username: username.trim(), password });
+      const credentials = { username: username.trim(), password };
+      await login(credentials);
+      // Only a successful sign-in is worth remembering; switching it off
+      // forgets whatever an earlier sign-in saved. A storage failure must not
+      // surface as a login error — the user is already in.
+      await (rememberMe ? saveCredentials(credentials) : clearSavedCredentials()).catch(() => undefined);
       // On success the root navigator swaps to the tabs — no navigation here.
     } catch (err) {
       setError(messageFor(err));
@@ -105,6 +129,24 @@ export default function LoginScreen() {
               </Pressable>
             </View>
           </Field>
+
+          <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md }}>
+            <View style={{ flex: 1, gap: 2 }}>
+              <AppText weight="semibold" size="small">
+                تذكّرني
+              </AppText>
+              <AppText size="caption" color={colors.muted}>
+                حفظ اسم المستخدم وكلمة المرور على هذا الجهاز
+              </AppText>
+            </View>
+            <Switch
+              value={rememberMe}
+              onValueChange={setRememberMe}
+              disabled={isSubmitting}
+              trackColor={{ true: colors.accent, false: colors.line }}
+              accessibilityLabel="تذكّرني"
+            />
+          </View>
 
           {error ? (
             <View
