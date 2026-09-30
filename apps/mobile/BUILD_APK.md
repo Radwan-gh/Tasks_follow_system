@@ -6,6 +6,14 @@ from the repo root.
 
 For the CI build, OTA updates and push setup, see [CHEATSHEET.md](CHEATSHEET.md).
 
+**Shortcut:** `.claude/skills/build-apk/scripts/build-apk.ps1` runs all the build
+steps below in one go, and it is what Claude Code's `build-apk` skill uses. It
+takes `-Variant arm64|universal|arm32-64|arm64-min` (default `arm64`) and
+optional `-Install`.
+It names the APK `tasks_{app_version}_{runtime_version}.apk`, e.g.
+`tasks_1.1.0_1.1.0.apk`, and adds the variant for non-universal builds, e.g.
+`tasks_1.1.0_1.1.0_arm64.apk`. The one-time machine setup is still manual.
+
 ## One-time machine setup
 
 1. **JDK 17** (e.g. Eclipse Temurin 17). `java -version` should print `17`.
