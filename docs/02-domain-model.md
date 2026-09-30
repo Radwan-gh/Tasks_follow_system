@@ -163,8 +163,14 @@ represent **responsibility for the work**, not visibility.
 
 - **Cascade delete:** deleting a board deletes its lists, cards, and
   memberships; deleting a list deletes its cards; deleting a user deletes
-  their refresh tokens and memberships. (Defined via `onDelete: Cascade` in
-  the schema.)
+  their refresh tokens, memberships, assignments and notifications, and
+  detaches their push devices (`SetNull`). (Defined via `onDelete` in the
+  schema.)
+- **Restrict على المؤلِّف:** بالمقابل، `Board.owner` و`Card.createdBy` و
+  `CardActivity.actor` و`Comment.author` و`Attachment.uploader` و
+  `Subtask.createdBy` بلا `onDelete`، أي **مقيِّدة**: لا يُحذف مستخدم أنتج أيًّا
+  منها. هذا ما يجعل `DELETE /admin/users/:id` يرفض مثل هذا الحساب ويترك
+  التعطيل بديلًا — انظر [`07-admin.md`](./07-admin.md).
 - **Indexes:** indexes exist on `(boardId, position)` for lists and
   `(listId, position)` for cards to speed up ordered fetches, and on
   `(boardId, isArchived)` for cards.

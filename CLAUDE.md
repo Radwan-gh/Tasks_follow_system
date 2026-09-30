@@ -108,6 +108,17 @@ Currently: NestJS API + React web app + an Expo/React Native app under
 construction in `apps/mobile`. Realtime (Socket.IO) is still unbuilt — see
 README's Roadmap.
 
+### UI/frontend work: load the `frontend-design` skill first
+
+Before building or reshaping UI in `apps/web` or `apps/mobile` — new screens,
+component redesigns, layout or visual changes — invoke the
+`frontend-design:frontend-design` skill first. It governs aesthetic
+direction, typography and layout choices so changes don't read as
+templated defaults. This is in addition to, not instead of, this repo's own
+conventions (`src/theme/tokens.ts` + `src/components/text.tsx` on mobile,
+the dnd-kit patterns in `BoardPage.tsx` on web) — the skill covers taste,
+this file covers structure; both apply together.
+
 ### Mobile app (`apps/mobile`)
 
 Expo SDK 57 + expo-router, implementing the Arabic mobile design. RTL is the

@@ -1,7 +1,8 @@
 name: Mobile app - build & publish APK
 
-# Builds an Android APK for apps/mobile via a local Gradle build (expo
-# prebuild generates the native android/ project, which is gitignored — see
+# Builds two Android APKs for apps/mobile via a local Gradle build — a
+# universal one (all ABIs) and a small one (arm64-v8a only, R8-minified) —
+# from one expo prebuild (the native android/ project is gitignored — see
 # apps/mobile/.gitignore and docs/12-mobile-app.md). No EAS account/token is
 # needed: the release build type is signed with the RN template's debug
 # keystore, same as running `expo prebuild && ./gradlew assembleRelease`
@@ -107,32 +108,62 @@ jobs:
           restore-keys: |
             gradle-${{ runner.os }}-
 
-      - name: Build release APK
+      - name: Name APKs
+        id: apk
+        run: |
+          BASE="tasks-follow-system-v${{ steps.app-version.outputs.version }}-${{ github.run_number }}"
+          echo "universal=$BASE-universal.apk" >> "$GITHUB_OUTPUT"
+          echo "arm64=$BASE-arm64.apk" >> "$GITHUB_OUTPUT"
+
+      # Two APKs from the one android/ project. Both builds write the same
+      # app-release.apk, so each is copied out under its final name before the
+      # next build overwrites it. The second build reuses most of the first
+      # build's work (the arm64 native libs are already compiled).
+      - name: Build universal APK (all ABIs, no minification)
         working-directory: apps/mobile/android
         run: |
           chmod +x gradlew
           ./gradlew assembleRelease --no-daemon
+          cp app/build/outputs/apk/release/app-release.apk "../${{ steps.apk.outputs.universal }}"
         env:
           EXPO_PUBLIC_API_URL: ${{ vars.EXPO_PUBLIC_API_URL }}
 
-      - name: Rename APK
-        id: apk
+      # The small APK: one ABI instead of the four prebuild defaults to in
+      # reactNativeArchitectures (native libs dominate APK size), plus R8 and
+      # resource shrinking, which prebuild leaves off. Passed as -P overrides
+      # rather than edits to gradle.properties / app/build.gradle because
+      # android/ is regenerated on every run. arm64-v8a covers every 64-bit
+      # ARM device; 32-bit-only phones need the universal APK.
+      - name: Build small APK (arm64-v8a, R8 + resource shrinking)
+        working-directory: apps/mobile/android
         run: |
-          SRC="android/app/build/outputs/apk/release/app-release.apk"
-          DEST="tasks-follow-system-v${{ steps.app-version.outputs.version }}-${{ github.run_number }}.apk"
-          cp "$SRC" "$DEST"
-          echo "path=apps/mobile/$DEST" >> "$GITHUB_OUTPUT"
-          echo "name=$DEST" >> "$GITHUB_OUTPUT"
+          ./gradlew assembleRelease --no-daemon \
+            -PreactNativeArchitectures=arm64-v8a \
+            -Pandroid.enableMinifyInReleaseBuilds=true \
+            -Pandroid.enableShrinkResourcesInReleaseBuilds=true
+          cp app/build/outputs/apk/release/app-release.apk "../${{ steps.apk.outputs.arm64 }}"
+        env:
+          EXPO_PUBLIC_API_URL: ${{ vars.EXPO_PUBLIC_API_URL }}
 
       - uses: actions/upload-artifact@v4
         with:
-          name: ${{ steps.apk.outputs.name }}
-          path: ${{ steps.apk.outputs.path }}
+          name: ${{ steps.apk.outputs.universal }}
+          path: apps/mobile/${{ steps.apk.outputs.universal }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.apk.outputs.arm64 }}
+          path: apps/mobile/${{ steps.apk.outputs.arm64 }}
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: mobile-v${{ steps.app-version.outputs.version }}-${{ github.run_number }}
           name: Mobile v${{ steps.app-version.outputs.version }} (build ${{ github.run_number }})
-          files: ${{ steps.apk.outputs.path }}
+          files: |
+            apps/mobile/${{ steps.apk.outputs.universal }}
+            apps/mobile/${{ steps.apk.outputs.arm64 }}
+          body: |
+            - `*-arm64.apk` — الأصغر حجمًا؛ يعمل على كل أجهزة ARM 64-بت (معظم الهواتف منذ نحو 2017). جرّب هذا أولًا.
+            - `*-universal.apk` — كل المعماريات؛ للأجهزة القديمة 32-بت التي يرفض الملف الأول التثبيت عليها.
           generate_release_notes: false

@@ -289,8 +289,8 @@ export class BoardsService {
    * `userId`, which the caller gets from these rows.
    *
    * Already-members are excluded so every row returned is actually addable,
-   * and deactivated users are kept (badged "معطَّل" in the UI) to match what
-   * `addMember` accepts.
+   * and so are deactivated users — `addMember` rejects them, so offering one
+   * could only produce a failed request.
    */
   async listMemberCandidates(
     userId: string,
@@ -301,6 +301,7 @@ export class BoardsService {
 
     const term = search?.trim();
     const where: Prisma.UserWhereInput = {
+      isActive: true,
       boardMemberships: { none: { boardId } },
       ...(term
         ? {
@@ -317,7 +318,7 @@ export class BoardsService {
     const rows = await this.prisma.user.findMany({
       where,
       select: { id: true, username: true, displayName: true, isActive: true },
-      orderBy: [{ isActive: "desc" }, { displayName: "asc" }],
+      orderBy: { displayName: "asc" },
       take: limit + 1,
     });
 
@@ -329,6 +330,10 @@ export class BoardsService {
 
     const target = await this.prisma.user.findUnique({ where: { id: targetUserId } });
     if (!target) throw new NotFoundException("No such user");
+    // A deactivated account can neither sign in nor be given work, so it never
+    // joins a board. Memberships that predate a deactivation are left alone —
+    // only new ones are blocked.
+    if (!target.isActive) throw new BadRequestException("Cannot add a deactivated user to a board");
 
     const existing = await this.prisma.boardMember.findUnique({
       where: { boardId_userId: { boardId, userId: target.id } },

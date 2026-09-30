@@ -44,6 +44,9 @@ export default function AdminUsersScreen() {
   const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
   const [editError, setEditError] = useState<string | null>(null);
   const [resettingTarget, setResettingTarget] = useState<AdminUser | null>(null);
+  // Deletion is irreversible, so it gets a full sheet with its consequence
+  // spelled out rather than the inline "tap twice" used for role/status.
+  const [deletingTarget, setDeletingTarget] = useState<AdminUser | null>(null);
   const [resetResult, setResetResult] = useState<{ username: string; temporaryPassword: string } | null>(null);
   const [confirming, setConfirming] = useState<{ userId: string; action: "role" | "status" } | null>(null);
 
@@ -136,6 +139,18 @@ export default function AdminUsersScreen() {
     onError: reportError,
   });
 
+  const deleteUser = useMutation({
+    mutationFn: (id: string) => api.admin.deleteUser(id),
+    onSuccess: () => {
+      setDeletingTarget(null);
+      invalidate();
+    },
+    onError: (err) => {
+      setDeletingTarget(null);
+      reportError(err);
+    },
+  });
+
   const updatePermissions = useMutation({
     mutationFn: (input: { id: string; canSendNotifications: boolean }) =>
       api.admin.updateUserPermissions(input.id, { canSendNotifications: input.canSendNotifications }),
@@ -154,7 +169,11 @@ export default function AdminUsersScreen() {
   const searchLooksLikeUsername = /^[a-z0-9._-]+$/.test(searchTerm);
 
   const isMutating =
-    updateRole.isPending || updateStatus.isPending || updatePermissions.isPending || updateUser.isPending;
+    updateRole.isPending ||
+    updateStatus.isPending ||
+    updatePermissions.isPending ||
+    updateUser.isPending ||
+    deleteUser.isPending;
   const totalPages = users.data ? Math.max(1, Math.ceil(users.data.total / users.data.pageSize)) : 1;
 
   return (
@@ -357,6 +376,15 @@ export default function AdminUsersScreen() {
                     }}
                   />
                   <ActionButton label="إعادة تعيين كلمة المرور" onPress={() => setResettingTarget(u)} />
+                  {/*
+                    Only offered where it can succeed: the server refuses to
+                    delete yourself, or anyone who owns boards or authored
+                    tasks/comments (`hasContent`). Hidden rather than disabled —
+                    there is no tooltip on a phone to explain a dead button.
+                  */}
+                  {!isSelf && !u.hasContent ? (
+                    <ActionButton label="حذف الحساب" danger disabled={isMutating} onPress={() => setDeletingTarget(u)} />
+                  ) : null}
                   {/* Admins can always send, so the grant only means something for USER rows. */}
                   {u.role !== "ADMIN" ? (
                     <ActionButton
@@ -439,6 +467,22 @@ export default function AdminUsersScreen() {
         confirming={resetPassword.isPending}
         onConfirm={() => {
           if (resettingTarget) resetPassword.mutate(resettingTarget.id);
+        }}
+      />
+
+      <ConfirmSheet
+        visible={!!deletingTarget}
+        onClose={() => setDeletingTarget(null)}
+        title="حذف الحساب"
+        consequence={
+          deletingTarget
+            ? `سيُحذف حساب «${deletingTarget.displayName}» نهائيًا مع عضوياته وإسناداته وإشعاراته. لا يمكن التراجع. للاحتفاظ بالحساب مع منع دخوله استخدم «إلغاء التفعيل».`
+            : ""
+        }
+        confirmLabel="حذف نهائيًا"
+        confirming={deleteUser.isPending}
+        onConfirm={() => {
+          if (deletingTarget) deleteUser.mutate(deletingTarget.id);
         }}
       />
 

@@ -209,6 +209,68 @@ Full detail in `docs/05-boards-lists-cards.md`, `docs/04-authorization.md`,
       yet — deferred, needs a lightweight time-input design that doesn't pull
       in a new native picker dependency
 
+## OTA updates — remaining work
+
+Setup and rationale: CHEATSHEET §5, `docs/12-mobile-app.md` («تحديثات OTA»).
+
+State as of 2026-09-29 (checked by hand, not assumed): the xprem server
+answers `/manifest` for this app's id + `production` channel with `200` and a
+signed `{"type":"noUpdateAvailable"}`, and that signature verifies
+(`openssl dgst -sha256 -verify`) against the committed `certificate.pem` — so
+the certificate/private-key pair matches and the `app.json` wiring is right.
+What has **not** happened yet: CI has never produced an APK, and nothing has
+ever been published. Re-run this check any time (it is what a 1.1.0 install
+sends):
+
+```bash
+curl -sS -H "expo-protocol-version: 1" -H "expo-platform: android" \
+  -H "expo-runtime-version: 1.1.0" \
+  -H "expo-app-id: 27127625-df3c-463d-89f6-853045f4c392" \
+  -H "expo-channel-name: production" \
+  -H "accept: multipart/mixed,application/expo+json,application/json" \
+  -H 'expo-expect-signature: sig, keyid="main", alg="rsa-v1_5-sha256"' \
+  https://ota-production-6c85.up.railway.app/manifest
+```
+
+Blocking, in order:
+
+- [ ] **Fix the CI APK build.** No `mobile-build.yml` run has ever succeeded
+      (zero GitHub Releases): each one fails at "Write Firebase config"
+      because the `GOOGLE_SERVICES_JSON` repo secret is not set. Either add
+      the secret, or make the step fall back to
+      `apps/mobile/google-services.json`, which *is* committed (`ba03f81`) and
+      not ignored — even though CHEATSHEET §6 and the docs say it is
+      gitignored. Decide which is intended and make the workflow,
+      `.gitignore` and docs agree. Meanwhile a local
+      `gradlew assembleRelease` in the existing `android/` works — it already
+      carries the OTA meta-data.
+- [ ] **Get a 1.1.0 APK onto every device, once.** APKs built before
+      `da38903` are `1.0.0` with no `updates.url` and no certificate, so they
+      can never receive an OTA update and must be reinstalled.
+- [ ] **First real publish, verified on a real device.** Publish from a clean
+      working tree (`eoas publish` bundles whatever is on disk, uncommitted
+      changes included). Deploy any API change the new JS depends on to
+      Railway first. Make a visible change, background → foreground the app,
+      and confirm it lands. The manifest check above should then return an
+      update instead of `noUpdateAvailable`.
+- [ ] **Rehearse a rollback once.** CHEATSHEET §5 and the docs say "remap the
+      channel to the previous branch", but every publish goes to the single
+      `production` branch, so there is no previous branch to remap to. Find
+      the real rollback path in the xprem dashboard (per-update rollback, or a
+      branch-per-release scheme), then fix CHEATSHEET §5 and
+      `docs/12-mobile-app.md` to match.
+
+Nice to have:
+
+- [ ] **Version / update line in «حسابي»** (`DESIGN_BRIEF.md` §10) — show
+      `expo.version` and `Updates.updateId` (or "embedded" when running the
+      APK's own bundle), so a device can prove which bundle it runs. Makes
+      the publish check above, and later support questions, trivial.
+- [ ] **Manual OTA publish workflow in GitHub Actions** — `workflow_dispatch`
+      only, with `EOO_TOKEN` as a repo secret. Not on push: a push that
+      changes native code without bumping `expo.version` would publish JS
+      that crashes every installed APK on the same runtime.
+
 ## Verification notes
 
 - `pnpm --filter @app/mobile bundle:check` proves the app still bundles
