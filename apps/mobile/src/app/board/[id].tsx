@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Pressable, ScrollView, TextInput, View, useWindowDimensions } from "react-native";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { Pressable, RefreshControl, ScrollView, TextInput, View, useWindowDimensions } from "react-native";
+import { useIsFocused, useLocalSearchParams, useRouter } from "expo-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import type { BoardDetail, Card } from "@app/types";
@@ -19,6 +19,7 @@ import { BoardFilterSheet, EMPTY_BOARD_FILTER, isFilterActive, type BoardFilter 
 import { useAuth } from "@/features/auth/auth-context";
 import { EmptyState } from "@/components/state-views";
 import { api } from "@/lib/api";
+import { LIVE_REFETCH_MS, boardDetailKey, recentClosedSince, useOpenCard } from "@/lib/board-cache";
 import { MIN_TOUCH_TARGET, colors, fonts, fontSizes, radii, spacing } from "@/theme/tokens";
 
 /**
@@ -96,14 +97,29 @@ export default function BoardScreen() {
   // يومًا"); tapping "عرض الأقدم" clears this to load everything. Included in
   // the query key (not just passed to queryFn) so switching it triggers a
   // real refetch instead of serving the previous, differently-filtered cache.
-  const [closedSince, setClosedSince] = useState<string | undefined>(() =>
-    new Date(Date.now() - 30 * 86400000).toISOString(),
-  );
-  const boardQueryKey = ["board", id, closedSince ?? "all"] as const;
+  const [closedSince, setClosedSince] = useState<string | undefined>(recentClosedSince);
+  // Stable key (no timestamp) shared with `/card/:id`, so opening a task reuses
+  // this board instead of fetching it again — see `lib/board-cache.ts`.
+  const boardQueryKey = boardDetailKey(id, closedSince ? "recent" : "all");
+  // Poll for other users' edits only while this screen is the one on top —
+  // the card modal polls the same board itself while it covers this screen.
+  const isFocused = useIsFocused();
   const board = useQuery({
     queryKey: boardQueryKey,
     queryFn: () => api.boards.get(id, closedSince),
+    refetchInterval: isFocused ? LIVE_REFETCH_MS : false,
   });
+  const openCard = useOpenCard();
+  // Own flag rather than `board.isRefetching`, so background polls don't flash the spinner.
+  const [pullRefreshing, setPullRefreshing] = useState(false);
+  async function pullToRefresh() {
+    setPullRefreshing(true);
+    try {
+      await board.refetch();
+    } finally {
+      setPullRefreshing(false);
+    }
+  }
   const [activeIndex, setActiveIndex] = useState(0);
   const [movingCardId, setMovingCardId] = useState<string | null>(null);
   const [deletingCardId, setDeletingCardId] = useState<string | null>(null);
@@ -464,7 +480,10 @@ export default function BoardScreen() {
             </View>
           ) : null}
 
-          <ScrollView contentContainerStyle={{ paddingHorizontal: spacing.xl, paddingBottom: spacing.xxl, gap: spacing.lg }}>
+          <ScrollView
+            contentContainerStyle={{ paddingHorizontal: spacing.xl, paddingBottom: spacing.xxl, gap: spacing.lg }}
+            refreshControl={<RefreshControl refreshing={pullRefreshing} onRefresh={() => void pullToRefresh()} />}
+          >
             {searchResults.length === 0 ? (
               <EmptyState
                 icon="search-outline"
@@ -486,7 +505,7 @@ export default function BoardScreen() {
                         hasNext={false}
                         onMoveNext={() => {}}
                         onLongPress={() => !boardReadOnly && setMovingCardId(card.id)}
-                        onOpen={() => router.push(`/card/${card.id}`)}
+                        onOpen={() => openCard(card.id, id)}
                         highlightQuery={trimmedSearch}
                       />
                     ))}
@@ -561,6 +580,7 @@ export default function BoardScreen() {
                   contentContainerStyle={{ paddingHorizontal: spacing.xl, paddingBottom: spacing.lg }}
                   nestedScrollEnabled
                   showsVerticalScrollIndicator={false}
+                  refreshControl={<RefreshControl refreshing={pullRefreshing} onRefresh={() => void pullToRefresh()} />}
                   onLayout={(e) => handleColumnLayout(index, e.nativeEvent.layout.x)}
                 >
                   <ListColumn
@@ -577,7 +597,7 @@ export default function BoardScreen() {
                       if (nextList) move.mutate({ cardId, targetListId: nextList.id });
                     }}
                     onLongPressCard={(cardId) => (cardId.startsWith("temp:") ? undefined : setMovingCardId(cardId))}
-                    onOpenCard={(cardId) => (cardId.startsWith("temp:") ? undefined : router.push(`/card/${cardId}`))}
+                    onOpenCard={(cardId) => openCard(cardId, id)}
                     showLoadOlder={
                       list.statusCategory === "CLOSED" && !!closedSince && (board.data?.hiddenClosedCount ?? 0) > 0
                     }

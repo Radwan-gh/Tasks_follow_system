@@ -1,10 +1,10 @@
 import { useEffect, useSyncExternalStore } from "react";
 import { AppState } from "react-native";
-import { useRouter } from "expo-router";
 import * as Notifications from "expo-notifications";
 import { useQueryClient } from "@tanstack/react-query";
 import { ApiError } from "@app/api-client";
 import { api } from "@/lib/api";
+import { useOpenCard } from "@/lib/board-cache";
 import { getDeviceId } from "@/lib/device-id";
 import { registerForPush } from "@/lib/push";
 
@@ -94,7 +94,7 @@ export function syncPushDevice(): Promise<void> {
  * returns from the background, and whenever FCM rotates the token.
  */
 export function usePushRegistration(userId: string | undefined): void {
-  const router = useRouter();
+  const openCard = useOpenCard();
   const queryClient = useQueryClient();
 
   useEffect(() => {
@@ -114,10 +114,21 @@ export function usePushRegistration(userId: string | undefined): void {
   }, []);
 
   // A push arriving while the app is open should update the bell badge now,
-  // rather than waiting out the remainder of its 30s poll interval.
+  // rather than waiting out the remainder of its 30s poll interval — and the
+  // card/board it's about, so another user's change shows up immediately on
+  // whichever of them is on screen instead of at the next poll.
   useEffect(() => {
-    const received = Notifications.addNotificationReceivedListener(() => {
+    const received = Notifications.addNotificationReceivedListener((notification) => {
       void queryClient.invalidateQueries({ queryKey: ["notifications"] });
+      const { cardId, boardId } = notification.request.content.data ?? {};
+      if (typeof cardId === "string" && cardId.length > 0) {
+        for (const key of ["card", "cardHistory", "cardComments"]) {
+          void queryClient.invalidateQueries({ queryKey: [key, cardId] });
+        }
+      }
+      if (typeof boardId === "string" && boardId.length > 0) {
+        void queryClient.invalidateQueries({ queryKey: ["board", boardId] });
+      }
     });
     return () => received.remove();
   }, [queryClient]);
@@ -125,8 +136,10 @@ export function usePushRegistration(userId: string | undefined): void {
   // Tapping a notification opens the card it refers to.
   useEffect(() => {
     const openFromResponse = (response: Notifications.NotificationResponse | null) => {
-      const cardId = response?.notification.request.content.data?.cardId;
-      if (typeof cardId === "string" && cardId.length > 0) router.push(`/card/${cardId}`);
+      const data = response?.notification.request.content.data;
+      const cardId = data?.cardId;
+      const boardId = typeof data?.boardId === "string" ? data.boardId : undefined;
+      if (typeof cardId === "string" && cardId.length > 0) openCard(cardId, boardId);
     };
 
     // Covers the cold-start case: the tap that launched the app has already
@@ -135,7 +148,7 @@ export function usePushRegistration(userId: string | undefined): void {
 
     const subscription = Notifications.addNotificationResponseReceivedListener(openFromResponse);
     return () => subscription.remove();
-  }, [router]);
+  }, [openCard]);
 }
 
 /**

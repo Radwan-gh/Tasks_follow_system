@@ -1,5 +1,4 @@
 import { ScrollView, View } from "react-native";
-import { useRouter } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import type { MyTaskItem } from "@app/types";
 import { Screen } from "@/components/screen";
@@ -9,6 +8,7 @@ import { EmptyState, ErrorState } from "@/components/state-views";
 import { TaskRow } from "@/features/my-tasks/task-row";
 import { NotificationBell } from "@/features/notifications/notification-bell";
 import { api } from "@/lib/api";
+import { useOpenCard } from "@/lib/board-cache";
 import { isOverdue } from "@/lib/date";
 import { colors, spacing } from "@/theme/tokens";
 
@@ -18,7 +18,7 @@ import { colors, spacing } from "@/theme/tokens";
  * board), then the rest grouped by board.
  */
 export default function MyTasksScreen() {
-  const router = useRouter();
+  const openCard = useOpenCard();
   const myTasks = useQuery({ queryKey: ["my-tasks"], queryFn: () => api.myTasks.list() });
 
   const overdue = sortByUrgency(myTasks.data?.items.filter((item) => item.dueDate && isOverdue(item.dueDate)) ?? []);
@@ -67,7 +67,7 @@ export default function MyTasksScreen() {
                 </AppText>
                 <View style={{ gap: spacing.sm }}>
                   {overdue.map((item) => (
-                    <TaskRow key={`${item.kind}-${item.id}`} item={item} onPress={() => router.push(`/card/${item.cardId}`)} />
+                    <TaskRow key={`${item.kind}-${item.id}`} item={item} onPress={() => openCard(item.cardId, item.boardId)} />
                   ))}
                 </View>
               </View>
@@ -80,7 +80,7 @@ export default function MyTasksScreen() {
                 </AppText>
                 <View style={{ gap: spacing.sm }}>
                   {group.items.map((item) => (
-                    <TaskRow key={`${item.kind}-${item.id}`} item={item} onPress={() => router.push(`/card/${item.cardId}`)} />
+                    <TaskRow key={`${item.kind}-${item.id}`} item={item} onPress={() => openCard(item.cardId, item.boardId)} />
                   ))}
                 </View>
               </View>

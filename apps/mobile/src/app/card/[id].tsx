@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Pressable, ScrollView, TextInput, View } from "react-native";
+import { Pressable, RefreshControl, ScrollView, TextInput, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -25,7 +25,27 @@ import { useCurrencySymbol } from "@/lib/currency";
 import { formatDueDate, isOverdue } from "@/lib/date";
 import { formatHijri } from "@/lib/hijri";
 import { api } from "@/lib/api";
+import { LIVE_REFETCH_MS, boardDetailKey, findCachedBoard, findCachedCard, recentClosedSince } from "@/lib/board-cache";
 import { MIN_TOUCH_TARGET, colors, fonts, fontSizes, radii, spacing, statusColors } from "@/theme/tokens";
+
+/** The fields «حفظ» / the access toggle edit locally before committing. */
+interface FormFields {
+  title: string;
+  description: string;
+  dueDate: string | null;
+  recurrence: RecurrenceRule | null;
+  restricted: boolean;
+}
+
+function sameFormFields(a: FormFields, b: FormFields): boolean {
+  return (
+    a.title === b.title &&
+    a.description === b.description &&
+    a.dueDate === b.dueDate &&
+    a.restricted === b.restricted &&
+    JSON.stringify(a.recurrence) === JSON.stringify(b.recurrence)
+  );
+}
 
 /**
  * `/card/:id` — presented as a native modal over the board screen, matching
@@ -35,17 +55,48 @@ import { MIN_TOUCH_TARGET, colors, fonts, fontSizes, radii, spacing, statusColor
  * restricted-access each commit immediately from their own picker sheet.
  */
 export default function CardDetailScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const params = useLocalSearchParams<{ id: string; boardId?: string }>();
+  const id = params.id;
   const router = useRouter();
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
-  const card = useQuery({ queryKey: ["card", id], queryFn: () => api.cards.get(id) });
-  const board = useQuery({
-    queryKey: ["board", card.data?.boardId],
-    queryFn: () => api.boards.get(card.data!.boardId),
-    enabled: !!card.data,
+  // Usually already seeded by `useOpenCard` from the board on screen; the
+  // cached data paints the first frame and, being stamped with the board's
+  // fetch time, is still refetched in the background (`lib/board-cache.ts`).
+  // Polled so other users' edits show up while the card stays open.
+  const card = useQuery({
+    queryKey: ["card", id],
+    queryFn: () => api.cards.get(id),
+    initialData: () => findCachedCard(queryClient, id, params.boardId)?.card,
+    initialDataUpdatedAt: () => findCachedCard(queryClient, id, params.boardId)?.updatedAt,
+    refetchInterval: LIVE_REFETCH_MS,
   });
+  // `boardId` comes in the URL from every entry point, so this no longer waits
+  // for the card request — both start together when nothing is cached.
+  const boardId = params.boardId || card.data?.boardId;
+  const board = useQuery({
+    queryKey: boardDetailKey(boardId ?? "", "recent"),
+    queryFn: () => api.boards.get(boardId!, recentClosedSince()),
+    enabled: !!boardId,
+    initialData: () => (boardId ? findCachedBoard(queryClient, boardId)?.data : undefined),
+    initialDataUpdatedAt: () => (boardId ? findCachedBoard(queryClient, boardId)?.updatedAt : undefined),
+    refetchInterval: LIVE_REFETCH_MS,
+  });
+
+  const [pullRefreshing, setPullRefreshing] = useState(false);
+  async function pullToRefresh() {
+    setPullRefreshing(true);
+    try {
+      await Promise.all(
+        [["card", id], ["board", boardId ?? ""], ["subtasks", id], ["cardAttachments", id], ["cardHistory", id], ["cardComments", id]].map(
+          (queryKey) => queryClient.refetchQueries({ queryKey, type: "active" }),
+        ),
+      );
+    } finally {
+      setPullRefreshing(false);
+    }
+  }
 
   const currencySymbol = useCurrencySymbol();
 
@@ -53,7 +104,8 @@ export default function CardDetailScreen() {
   const [description, setDescription] = useState("");
   const [dueDate, setDueDate] = useState<string | null>(null);
   const [recurrence, setRecurrence] = useState<RecurrenceRule | null>(null);
-  const [seeded, setSeeded] = useState(false);
+  /** The server values the form fields were last seeded from. */
+  const [seeded, setSeeded] = useState<FormFields | null>(null);
   const [pickingDueDate, setPickingDueDate] = useState(false);
   const [pickingRecurrence, setPickingRecurrence] = useState(false);
   const [pickingAssignees, setPickingAssignees] = useState(false);
@@ -63,16 +115,27 @@ export default function CardDetailScreen() {
   const [menuVisible, setMenuVisible] = useState(false);
   const [savingAsTemplate, setSavingAsTemplate] = useState(false);
 
+  // The first render may come from cache and background refetches/polls bring
+  // other users' edits, so the form re-seeds whenever the server's values
+  // change — per field, and only for fields the user hasn't edited, so a
+  // refresh never overwrites what they're typing.
   useEffect(() => {
-    if (card.data && !seeded) {
-      setTitle(card.data.title);
-      setDescription(card.data.description ?? "");
-      setDueDate(card.data.dueDate);
-      setRecurrence(card.data.recurrence);
-      setRestricted(card.data.isRestricted);
-      setSeeded(true);
-    }
-  }, [card.data, seeded]);
+    if (!card.data) return;
+    const server: FormFields = {
+      title: card.data.title,
+      description: card.data.description ?? "",
+      dueDate: card.data.dueDate,
+      recurrence: card.data.recurrence,
+      restricted: card.data.isRestricted,
+    };
+    if (seeded && sameFormFields(seeded, server)) return;
+    if (!seeded || title === seeded.title) setTitle(server.title);
+    if (!seeded || description === seeded.description) setDescription(server.description);
+    if (!seeded || dueDate === seeded.dueDate) setDueDate(server.dueDate);
+    if (!seeded || JSON.stringify(recurrence) === JSON.stringify(seeded.recurrence)) setRecurrence(server.recurrence);
+    if (!seeded || restricted === seeded.restricted) setRestricted(server.restricted);
+    setSeeded(server);
+  }, [card.data, seeded, title, description, dueDate, recurrence, restricted]);
 
   function invalidateCard() {
     void queryClient.invalidateQueries({ queryKey: ["card", id] });
@@ -262,7 +325,11 @@ export default function CardDetailScreen() {
         </View>
       ) : null}
 
-      <ScrollView contentContainerStyle={{ padding: spacing.xl, gap: spacing.xl }} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        contentContainerStyle={{ padding: spacing.xl, gap: spacing.xl }}
+        keyboardShouldPersistTaps="handled"
+        refreshControl={<RefreshControl refreshing={pullRefreshing} onRefresh={() => void pullToRefresh()} />}
+      >
         <View style={{ gap: spacing.md }}>
           <TextInput
             value={title}

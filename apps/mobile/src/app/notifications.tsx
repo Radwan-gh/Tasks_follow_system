@@ -7,6 +7,7 @@ import { AppText } from "@/components/text";
 import { Skeleton } from "@/components/skeleton";
 import { EmptyState, ErrorState } from "@/components/state-views";
 import { api } from "@/lib/api";
+import { useOpenCard } from "@/lib/board-cache";
 import { colors, spacing } from "@/theme/tokens";
 
 const ICONS: Record<NotificationType, string> = {
@@ -24,6 +25,7 @@ const ICONS: Record<NotificationType, string> = {
 export default function NotificationsScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const openCard = useOpenCard();
   const notifications = useQuery({ queryKey: ["notifications"], queryFn: () => api.notifications.list() });
 
   function invalidate() {
@@ -35,7 +37,7 @@ export default function NotificationsScreen() {
 
   function open(notification: Notification) {
     if (!notification.readAt) markRead.mutate(notification.id);
-    if (notification.cardId) router.push(`/card/${notification.cardId}`);
+    if (notification.cardId) openCard(notification.cardId, notification.boardId);
   }
 
   const groups = notifications.data ? groupByRecency(notifications.data.items) : null;
