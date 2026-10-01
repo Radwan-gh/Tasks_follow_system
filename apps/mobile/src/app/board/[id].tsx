@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Pressable, RefreshControl, ScrollView, TextInput, View, useWindowDimensions } from "react-native";
+import { I18nManager, Pressable, RefreshControl, ScrollView, TextInput, View, useWindowDimensions } from "react-native";
 import { useIsFocused, useLocalSearchParams, useRouter } from "expo-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -20,6 +20,7 @@ import { useAuth } from "@/features/auth/auth-context";
 import { EmptyState } from "@/components/state-views";
 import { api } from "@/lib/api";
 import { LIVE_REFETCH_MS, boardDetailKey, recentClosedSince, useOpenCard } from "@/lib/board-cache";
+import { indexFromOffset, resolveColumnOffsets, snapOffsetsFor } from "@/lib/status-pager";
 import { MIN_TOUCH_TARGET, colors, fonts, fontSizes, radii, spacing } from "@/theme/tokens";
 
 /**
@@ -270,40 +271,42 @@ export default function BoardScreen() {
   // offset that shows it. Those measured offsets drive the snap points, the
   // chip-tap jumps and the active-column lookup alike, so the pager is correct
   // whichever way the platform decides to lay it out.
-  const columnOffsets = useRef<number[]>([]);
-  const [snapOffsets, setSnapOffsets] = useState<number[]>([]);
+  //
+  // The measuring view must be the page itself — a plain `View`, never the
+  // column `ScrollView`: on Android a `ScrollView` with a `refreshControl` is
+  // wrapped in the refresh layout, and its own `onLayout` then reports `x = 0`
+  // relative to that wrapper, which collapsed every status onto one snap
+  // point. `resolveColumnOffsets` (`lib/status-pager.ts`) also refuses such
+  // collapsed measurements and falls back to `width`-based offsets.
+  const measuredOffsets = useRef<number[]>([]);
+  const [columnOffsets, setColumnOffsets] = useState<number[]>([]);
+  const snapOffsets = useMemo(() => snapOffsetsFor(columnOffsets), [columnOffsets]);
 
   function handleColumnLayout(index: number, x: number) {
-    if (columnOffsets.current[index] === x) return;
-    columnOffsets.current[index] = x;
-    const measured = columnOffsets.current.filter((value) => value != null);
-    if (measured.length === board.data?.lists.length) {
-      setSnapOffsets([...measured].sort((a, b) => a - b));
-    }
-  }
-
-  function indexFromOffset(offsetX: number) {
-    let closest = activeIndex;
-    let smallestGap = Infinity;
-    columnOffsets.current.forEach((offset, index) => {
-      const gap = Math.abs(offset - offsetX);
-      if (gap < smallestGap) {
-        smallestGap = gap;
-        closest = index;
-      }
-    });
-    return closest;
+    if (measuredOffsets.current[index] === x) return;
+    measuredOffsets.current[index] = x;
+    const resolved = resolveColumnOffsets(measuredOffsets.current, board.data?.lists.length ?? 0, width, I18nManager.isRTL);
+    if (resolved) setColumnOffsets(resolved);
   }
 
   function scrollToColumn(index: number, animated = true) {
-    const offset = columnOffsets.current[index];
+    const offset = columnOffsets[index];
     if (offset != null) listRef.current?.scrollTo({ x: offset, animated });
   }
 
   // Android already parks an RTL scroll view at its reading start, which is
   // this same column — but the opening position is set explicitly, once,
-  // rather than relied on.
+  // rather than relied on. It runs as soon as the offsets are known: tying it
+  // to `onContentSizeChange` instead deferred it (the first size change comes
+  // before the pages are measured) until the next one — the keyboard opening
+  // for the quick-add — which jumped back to «جديد» and added the task there.
   const didInitialScroll = useRef(false);
+  useEffect(() => {
+    if (didInitialScroll.current || columnOffsets.length === 0) return;
+    didInitialScroll.current = true;
+    scrollToColumn(0, false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, on the first resolved offsets
+  }, [columnOffsets]);
 
   // The chip strip is narrower than the list of statuses, so the active chip
   // can sit off-screen (it did for «انتهى» on a five-status board) and the
@@ -527,6 +530,9 @@ export default function BoardScreen() {
             {board.data.lists.map((list, index) => (
               <Pressable
                 key={list.id}
+                testID={`status-chip-${index}`}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: index === activeIndex }}
                 onPress={() => scrollToColumn(index)}
                 onLayout={(e) => {
                   const { x, width: chipWidth } = e.nativeEvent.layout;
@@ -560,50 +566,51 @@ export default function BoardScreen() {
           ) : (
             <ScrollView
               ref={listRef}
+              testID="status-pager"
               horizontal
               style={{ flex: 1 }}
               showsHorizontalScrollIndicator={false}
               snapToOffsets={snapOffsets.length > 0 ? snapOffsets : undefined}
               decelerationRate="fast"
               scrollEventThrottle={16}
-              onScroll={(e) => setActiveIndex(indexFromOffset(e.nativeEvent.contentOffset.x))}
-              onContentSizeChange={() => {
-                if (didInitialScroll.current || snapOffsets.length === 0) return;
-                didInitialScroll.current = true;
-                scrollToColumn(0, false);
-              }}
+              onScroll={(e) => setActiveIndex(indexFromOffset(columnOffsets, e.nativeEvent.contentOffset.x, activeIndex))}
             >
               {board.data.lists.map((list, index) => (
-                <ScrollView
+                <View
                   key={list.id}
+                  testID={`status-page-${index}`}
                   style={{ width }}
-                  contentContainerStyle={{ paddingHorizontal: spacing.xl, paddingBottom: spacing.lg }}
-                  nestedScrollEnabled
-                  showsVerticalScrollIndicator={false}
-                  refreshControl={<RefreshControl refreshing={pullRefreshing} onRefresh={() => void pullToRefresh()} />}
                   onLayout={(e) => handleColumnLayout(index, e.nativeEvent.layout.x)}
                 >
-                  <ListColumn
-                    list={list}
-                    width={columnWidth}
-                    resolveAssignees={resolveAssignees}
-                    hasNext={index < board.data!.lists.length - 1}
-                    nextListIsClosed={board.data!.lists[index + 1]?.statusCategory === "CLOSED"}
-                    canCloseCard={canCloseCard}
-                    readOnly={boardReadOnly}
-                    onMoveCardNext={(cardId) => {
-                      if (cardId.startsWith("temp:")) return;
-                      const nextList = board.data!.lists[index + 1];
-                      if (nextList) move.mutate({ cardId, targetListId: nextList.id });
-                    }}
-                    onLongPressCard={(cardId) => (cardId.startsWith("temp:") ? undefined : setMovingCardId(cardId))}
-                    onOpenCard={(cardId) => openCard(cardId, id)}
-                    showLoadOlder={
-                      list.statusCategory === "CLOSED" && !!closedSince && (board.data?.hiddenClosedCount ?? 0) > 0
-                    }
-                    onLoadOlder={() => setClosedSince(undefined)}
-                  />
-                </ScrollView>
+                  <ScrollView
+                    style={{ flex: 1 }}
+                    contentContainerStyle={{ paddingHorizontal: spacing.xl, paddingBottom: spacing.lg }}
+                    nestedScrollEnabled
+                    showsVerticalScrollIndicator={false}
+                    refreshControl={<RefreshControl refreshing={pullRefreshing} onRefresh={() => void pullToRefresh()} />}
+                  >
+                    <ListColumn
+                      list={list}
+                      width={columnWidth}
+                      resolveAssignees={resolveAssignees}
+                      hasNext={index < board.data!.lists.length - 1}
+                      nextListIsClosed={board.data!.lists[index + 1]?.statusCategory === "CLOSED"}
+                      canCloseCard={canCloseCard}
+                      readOnly={boardReadOnly}
+                      onMoveCardNext={(cardId) => {
+                        if (cardId.startsWith("temp:")) return;
+                        const nextList = board.data!.lists[index + 1];
+                        if (nextList) move.mutate({ cardId, targetListId: nextList.id });
+                      }}
+                      onLongPressCard={(cardId) => (cardId.startsWith("temp:") ? undefined : setMovingCardId(cardId))}
+                      onOpenCard={(cardId) => openCard(cardId, id)}
+                      showLoadOlder={
+                        list.statusCategory === "CLOSED" && !!closedSince && (board.data?.hiddenClosedCount ?? 0) > 0
+                      }
+                      onLoadOlder={() => setClosedSince(undefined)}
+                    />
+                  </ScrollView>
+                </View>
               ))}
             </ScrollView>
           )}
