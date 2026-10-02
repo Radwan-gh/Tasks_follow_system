@@ -1,4 +1,4 @@
-import { useRef, useState, type ChangeEvent } from "react";
+import { useMemo, useRef, useState, type ChangeEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
   Attachment,
@@ -21,8 +21,9 @@ import {
   isPreviewableImage,
 } from "../../../lib/attachment-url";
 import { useCurrencySymbol } from "../../../lib/use-app-settings";
+import { useAutoSavedIds } from "../../../lib/use-auto-saved-ids";
 import { useDismissableLayer } from "../../../lib/use-dismissable-layer";
-import { MemberChecklist } from "./MemberPicker";
+import { UserTypeahead } from "./MemberPicker";
 
 interface CardDetailPanelProps {
   card: Card;
@@ -84,11 +85,12 @@ export function CardDetailPanel({
 
   const canManageAccess = !readOnly && (boardOwnerId === currentUserId || card.createdById === currentUserId);
   const [restricted, setRestricted] = useState(card.isRestricted);
-  const [memberIds, setMemberIds] = useState<Set<string>>(new Set(card.memberIds));
-  const [savingAccess, setSavingAccess] = useState(false);
-
-  const [assigneeIds, setAssigneeIds] = useState<Set<string>>(new Set(card.assigneeIds));
-  const [savingAssignees, setSavingAssignees] = useState(false);
+  const [accessFailed, setAccessFailed] = useState(false);
+  // People pickers save on every add/remove — no save buttons.
+  const access = useAutoSavedIds(card.memberIds, (memberUserIds) => onSaveAccess({ isRestricted: true, memberUserIds }));
+  const assignees = useAutoSavedIds(card.assigneeIds, (userIds) => onSaveAssignees({ userIds }));
+  // VIEWERs are read-only and the server refuses to assign them, so they are never suggested.
+  const assignableMembers = useMemo(() => boardMembers.filter((m) => m.role !== "VIEWER"), [boardMembers]);
 
   const dirty =
     title !== card.title ||
@@ -131,32 +133,24 @@ export function CardDetailPanel({
     }
   }
 
-  function toggleMember(userId: string) {
-    setMemberIds((prev) => toggled(prev, userId));
-  }
-
   function toggleWeekday(day: number) {
     setWeekdays((prev) => (prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day].sort()));
   }
 
-  async function handleSaveAccess() {
-    setSavingAccess(true);
+  /**
+   * Turning restriction off saves at once (and clears the list — the access
+   * request is a full replace). Turning it on saves nothing until the first
+   * person is added, so a stray click can't hide the card from everyone.
+   */
+  async function toggleRestricted(next: boolean) {
+    setRestricted(next);
+    setAccessFailed(false);
+    if (next || !card.isRestricted) return;
     try {
-      await onSaveAccess({
-        isRestricted: restricted,
-        memberUserIds: restricted ? Array.from(memberIds) : [],
-      });
-    } finally {
-      setSavingAccess(false);
-    }
-  }
-
-  async function handleSaveAssignees() {
-    setSavingAssignees(true);
-    try {
-      await onSaveAssignees({ userIds: Array.from(assigneeIds) });
-    } finally {
-      setSavingAssignees(false);
+      await onSaveAccess({ isRestricted: false, memberUserIds: [] });
+    } catch {
+      setRestricted(true);
+      setAccessFailed(true);
     }
   }
 
@@ -344,40 +338,31 @@ export function CardDetailPanel({
           {readOnly ? (
             <p className="text-sm text-ink/70">
               {boardMembers
-                .filter((m) => assigneeIds.has(m.userId))
+                .filter((m) => assignees.ids.includes(m.userId))
                 .map((m) => m.user.displayName)
                 .join("، ") || "لا يوجد مسؤولون."}
             </p>
           ) : (
-            <>
-              <MemberChecklist
-                members={boardMembers}
-                selected={assigneeIds}
-                onToggle={(id) => setAssigneeIds((prev) => toggled(prev, id))}
-                onClear={() => setAssigneeIds(new Set())}
-                emptyHint="لا يوجد أعضاء في اللوحة لإسنادها إليهم."
-              />
-              <div className="flex justify-end">
-                <button
-                  onClick={handleSaveAssignees}
-                  disabled={savingAssignees}
-                  className="rounded-field border border-line px-3 py-1 text-xs text-ink/70 hover:bg-canvas disabled:opacity-50"
-                >
-                  {savingAssignees ? "جارٍ الحفظ..." : "حفظ المسؤولين"}
-                </button>
-              </div>
-            </>
+            <UserTypeahead
+              members={assignableMembers}
+              selectedIds={assignees.ids}
+              onChange={assignees.change}
+              saving={assignees.saving}
+              failed={assignees.failed}
+              label="أضف مسؤولًا عن المهمة"
+              emptyHint="لا يوجد أعضاء في اللوحة لإسنادها إليهم."
+            />
           )}
         </div>
 
         {/* Subtasks */}
-        <SubtasksSection card={card} boardMembers={boardMembers} readOnly={readOnly} />
+        <SubtasksSection card={card} boardMembers={assignableMembers} readOnly={readOnly} />
 
         {/* Access control */}
         {canManageAccess ? (
           <div className="space-y-2 border-t border-line pt-3">
             <label className="flex items-center gap-2 text-sm font-semibold text-ink">
-              <input type="checkbox" checked={restricted} onChange={(e) => setRestricted(e.target.checked)} />
+              <input type="checkbox" checked={restricted} onChange={(e) => void toggleRestricted(e.target.checked)} />
               تقييد الوصول لأشخاص محددين
             </label>
             {restricted && (
@@ -385,26 +370,24 @@ export function CardDetailPanel({
                 <p className="text-xs text-muted">
                   مالك اللوحة وأنت (المُنشئ) تملكان الوصول دائمًا. اختر من يمكنه أيضًا رؤية هذه المهمة:
                 </p>
-                <MemberChecklist
+                <UserTypeahead
                   members={boardMembers.filter(
                     (m) => m.userId !== boardOwnerId && m.userId !== card.createdById,
                   )}
-                  selected={memberIds}
-                  onToggle={toggleMember}
-                  onClear={() => setMemberIds(new Set())}
+                  selectedIds={access.ids}
+                  onChange={access.change}
+                  saving={access.saving}
+                  failed={access.failed}
+                  label="أضف شخصًا يملك الوصول"
                   emptyHint="لا يوجد أعضاء آخرون في اللوحة."
                 />
               </div>
             )}
-            <div className="flex justify-end">
-              <button
-                onClick={handleSaveAccess}
-                disabled={savingAccess}
-                className="rounded-field border border-line px-3 py-1 text-xs text-ink/70 hover:bg-canvas disabled:opacity-50"
-              >
-                {savingAccess ? "جارٍ التحديث..." : "تحديث الوصول"}
-              </button>
-            </div>
+            {accessFailed && (
+              <p role="alert" className="text-[11px] text-alert">
+                تعذّر إلغاء التقييد، فبقيت المهمة مقيّدة.
+              </p>
+            )}
           </div>
         ) : (
           card.isRestricted && (
@@ -500,8 +483,10 @@ function SubtaskRow({
   onChanged: () => void;
 }) {
   const [showAssign, setShowAssign] = useState(false);
-  const [assigneeIds, setAssigneeIds] = useState<Set<string>>(new Set(subtask.assigneeIds));
-  const [saving, setSaving] = useState(false);
+  const assignees = useAutoSavedIds(subtask.assigneeIds, async (userIds) => {
+    await api.subtasks.updateAssignees(subtask.id, { userIds });
+    onChanged();
+  });
 
   async function toggleDone() {
     await api.subtasks.update(subtask.id, { isDone: !subtask.isDone });
@@ -511,17 +496,6 @@ function SubtaskRow({
   async function remove() {
     await api.subtasks.remove(subtask.id);
     onChanged();
-  }
-
-  async function saveAssignees() {
-    setSaving(true);
-    try {
-      await api.subtasks.updateAssignees(subtask.id, { userIds: Array.from(assigneeIds) });
-      setShowAssign(false);
-      onChanged();
-    } finally {
-      setSaving(false);
-    }
   }
 
   return (
@@ -548,35 +522,20 @@ function SubtaskRow({
         )}
       </div>
       {!readOnly && showAssign && (
-        <div className="mt-1 space-y-1">
-          <MemberChecklist
+        <div className="mt-1.5 pb-1">
+          <UserTypeahead
             members={boardMembers}
-            selected={assigneeIds}
-            onToggle={(id) => setAssigneeIds((prev) => toggled(prev, id))}
-            onClear={() => setAssigneeIds(new Set())}
+            selectedIds={assignees.ids}
+            onChange={assignees.change}
+            saving={assignees.saving}
+            failed={assignees.failed}
+            label={`أضف مسؤولًا عن «${subtask.title}»`}
             emptyHint="لا يوجد أعضاء لإسنادها إليهم."
           />
-          <div className="flex justify-end">
-            <button
-              onClick={saveAssignees}
-              disabled={saving}
-              className="rounded-field border border-line px-2 py-0.5 text-xs text-ink/70 hover:bg-canvas disabled:opacity-50"
-            >
-              {saving ? "..." : "حفظ"}
-            </button>
-          </div>
         </div>
       )}
     </li>
   );
-}
-
-/** Immutable toggle of a value in a Set (returns a new Set). */
-function toggled(prev: Set<string>, value: string): Set<string> {
-  const next = new Set(prev);
-  if (next.has(value)) next.delete(value);
-  else next.add(value);
-  return next;
 }
 
 type TimelineEntry = { kind: "activity"; createdAt: string; activity: CardActivity } | { kind: "comment"; createdAt: string; comment: Comment };

@@ -21,6 +21,7 @@ import { HistorySection } from "@/features/cards/history-section";
 import { useAuth } from "@/features/auth/auth-context";
 import { avatarColorFor } from "@/lib/avatar";
 import { initials } from "@/lib/initials";
+import { useAutoSavedIds } from "@/lib/use-auto-saved-ids";
 import { useCurrencySymbol } from "@/lib/currency";
 import { formatDueDate, isOverdue } from "@/lib/date";
 import { formatHijri } from "@/lib/hijri";
@@ -47,12 +48,15 @@ function sameFormFields(a: FormFields, b: FormFields): boolean {
   );
 }
 
+/** Stable fallback while the card loads, so `useAutoSavedIds` sees one empty list, not a new one per render. */
+const NO_IDS: string[] = [];
+
 /**
  * `/card/:id` — presented as a native modal over the board screen, matching
  * the design's full-height bottom sheet ("تفاصيل البطاقة"). Three
  * independent saves, same split as `apps/web`'s `CardDetailModal.tsx`: the
  * header's «حفظ» commits title/description/due-date; assignees and
- * restricted-access each commit immediately from their own picker sheet.
+ * restricted-access save on every add/remove in their type-ahead sheet.
  */
 export default function CardDetailScreen() {
   const params = useLocalSearchParams<{ id: string; boardId?: string }>();
@@ -150,20 +154,22 @@ export default function CardDetailScreen() {
     },
   });
 
-  const updateAssignees = useMutation({
-    mutationFn: (userIds: string[]) => api.cards.updateAssignees(id, { userIds }),
-    onSuccess: () => {
-      setPickingAssignees(false);
-      invalidateCard();
-    },
+  // The people pickers save on every add/remove, so the sheets stay open
+  // while the user keeps adding names.
+  const assigneeSelection = useAutoSavedIds(card.data?.assigneeIds ?? NO_IDS, async (userIds) => {
+    await api.cards.updateAssignees(id, { userIds });
+    invalidateCard();
   });
 
-  const updateAccess = useMutation({
-    mutationFn: (memberUserIds: string[]) => api.cards.updateAccess(id, { isRestricted: restricted, memberUserIds }),
-    onSuccess: () => {
-      setPickingRestrictedMembers(false);
-      invalidateCard();
-    },
+  const accessSelection = useAutoSavedIds(card.data?.memberIds ?? NO_IDS, async (memberUserIds) => {
+    await api.cards.updateAccess(id, { isRestricted: true, memberUserIds });
+    invalidateCard();
+  });
+
+  const unrestrict = useMutation({
+    mutationFn: () => api.cards.updateAccess(id, { isRestricted: false, memberUserIds: [] }),
+    onSuccess: invalidateCard,
+    onError: () => setRestricted(true),
   });
 
   const updatePriority = useMutation({
@@ -204,7 +210,7 @@ export default function CardDetailScreen() {
 
   const list = board.data.lists.find((l) => l.id === card.data.listId);
   const creator = board.data.members.find((m) => m.userId === card.data.createdById);
-  const assignees = card.data.assigneeIds
+  const assignees = assigneeSelection.ids
     .map((uid) => board.data!.members.find((m) => m.userId === uid))
     .filter((m): m is NonNullable<typeof m> => !!m);
   const nonImplicitMembers = board.data.members.filter(
@@ -524,7 +530,7 @@ export default function CardDetailScreen() {
                 // Toggling off clears the access list immediately (matches
                 // `UpdateCardAccessRequest`'s full-replace semantics); toggling
                 // on doesn't save until members are actually picked.
-                if (!next) updateAccess.mutate([]);
+                if (!next && card.data.isRestricted) unrestrict.mutate();
               }}
               style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}
             >
@@ -564,7 +570,7 @@ export default function CardDetailScreen() {
                 }}
               >
                 <AppText size="small" color={colors.accent}>
-                  اختيار الأعضاء ({card.data.memberIds.length})
+                  اختيار الأعضاء ({accessSelection.ids.length})
                 </AppText>
               </Pressable>
             ) : null}
@@ -628,9 +634,10 @@ export default function CardDetailScreen() {
         title="المسؤولون"
         subtitle={`${title} — يمكن اختيار أكثر من شخص، ويجب أن يكون عضوًا في اللوحة.`}
         members={assignableMembers}
-        selectedIds={card.data.assigneeIds}
-        onSave={(userIds) => updateAssignees.mutate(userIds)}
-        saveLabel="حفظ المسؤولين"
+        selectedIds={assigneeSelection.ids}
+        onChange={assigneeSelection.change}
+        saving={assigneeSelection.saving}
+        failed={assigneeSelection.failed}
       />
 
       <AssigneePickerSheet
@@ -639,9 +646,10 @@ export default function CardDetailScreen() {
         title="من يملك الوصول"
         subtitle="مالك اللوحة ومُنشئ المهمة يملكان الوصول دائمًا."
         members={nonImplicitMembers}
-        selectedIds={card.data.memberIds}
-        onSave={(userIds) => updateAccess.mutate(userIds)}
-        saveLabel="تحديث الوصول"
+        selectedIds={accessSelection.ids}
+        onChange={accessSelection.change}
+        saving={accessSelection.saving}
+        failed={accessSelection.failed}
       />
     </Screen>
   );

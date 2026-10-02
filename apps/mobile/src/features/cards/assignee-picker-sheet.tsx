@@ -5,26 +5,30 @@ import { BottomSheet } from "@/components/bottom-sheet";
 import { AppText } from "@/components/text";
 import { avatarColorFor } from "@/lib/avatar";
 import { initials } from "@/lib/initials";
+import { topMatches } from "@/lib/match-users";
 import { MIN_TOUCH_TARGET, colors, fonts, fontSizes, radii, spacing } from "@/theme/tokens";
 
 /**
- * Generic member-picker sheet — reused for card assignees, subtask
+ * Generic people type-ahead sheet — reused for card assignees, subtask
  * assignees, and restricted-access members (`v2-new-style.md` §5's
- * `AssigneePickerSheet`). Manages its own selection state, seeded fresh from
- * `selectedIds` each time it opens, and only commits on "حفظ".
+ * `AssigneePickerSheet`). Type a few letters, get the top three matching
+ * members (`topMatches`); the return key adds the first one, a tap adds any
+ * of them, and every pick lands as a chip under the box, which clears for the
+ * next name.
  *
- * Big boards get a search box, and whoever is picked stays visible as a chip
- * above the list, so a search term can never hide the current selection.
+ * Controlled: the parent owns the selection and gets the whole new set from
+ * `onChange` on every add/remove — the card screens save it straight away
+ * (`useAutoSavedIds`), the new-card screen keeps it until the card exists. So
+ * there is no save button, only «تم».
  *
- * A deactivated member is badged «معطَّل» and cannot be picked — the server
- * rejects assigning one — but one already picked before being deactivated
- * stays selected and removable, matching the server's "only new assignments
- * are blocked" rule.
+ * It lives in a sheet rather than inline on the card screen because the
+ * sheet already lifts itself above the keyboard; an inline box mid-screen
+ * would put its suggestions under the IME on Android.
+ *
+ * A member picked before being deactivated stays as a chip, badged «معطَّل»,
+ * and can still be removed — matching the server's "only new assignments are
+ * blocked" rule — but is never suggested.
  */
-
-/** Above this many members, scanning the list is slower than filtering it. */
-const SEARCH_THRESHOLD = 6;
-
 export function AssigneePickerSheet({
   visible,
   onClose,
@@ -32,8 +36,9 @@ export function AssigneePickerSheet({
   subtitle,
   members,
   selectedIds,
-  onSave,
-  saveLabel = "حفظ",
+  onChange,
+  saving = false,
+  failed = false,
 }: {
   visible: boolean;
   onClose: () => void;
@@ -41,46 +46,35 @@ export function AssigneePickerSheet({
   subtitle?: string;
   members: BoardMember[];
   selectedIds: string[];
-  onSave: (userIds: string[]) => void;
-  saveLabel?: string;
+  onChange: (userIds: string[]) => void;
+  saving?: boolean;
+  failed?: boolean;
 }) {
-  const [selected, setSelected] = useState<Set<string>>(new Set(selectedIds));
   const [search, setSearch] = useState("");
 
-  const term = search.trim().toLowerCase();
-  const visibleMembers = useMemo(
+  const selected = useMemo(() => new Set(selectedIds), [selectedIds]);
+  const matches = useMemo(() => topMatches(members, search, selected), [members, search, selected]);
+  const chosen = useMemo(
     () =>
-      term
-        ? members.filter(
-            (m) =>
-              m.user.displayName.toLowerCase().includes(term) || m.user.username.toLowerCase().includes(term),
-          )
-        : members,
-    [members, term],
+      selectedIds
+        .map((id) => members.find((m) => m.userId === id))
+        .filter((m): m is BoardMember => !!m),
+    [members, selectedIds],
   );
-  const chosen = useMemo(() => members.filter((m) => selected.has(m.userId)), [members, selected]);
+  const typed = search.trim();
 
   useEffect(() => {
-    if (visible) {
-      setSelected(new Set(selectedIds));
-      setSearch("");
-    }
-    // Re-seed only when the sheet opens, not on every parent re-render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (visible) setSearch("");
   }, [visible]);
 
-  function toggle(userId: string) {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(userId)) next.delete(userId);
-      else next.add(userId);
-      return next;
-    });
+  function add(member: BoardMember | undefined) {
+    if (!member) return;
+    onChange([...selectedIds, member.userId]);
+    setSearch("");
   }
 
   return (
     <BottomSheet visible={visible} onClose={onClose} scrollable={false}>
-      {/* Shrinks to the sheet's max height so the list below can claim the rest. */}
       <View style={{ paddingHorizontal: spacing.xl, gap: spacing.md, flexShrink: 1 }}>
         <View style={{ gap: spacing.xs }}>
           <AppText weight="bold" size="title">
@@ -93,194 +87,215 @@ export function AssigneePickerSheet({
           ) : null}
         </View>
 
-        {chosen.length > 0 ? (
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.xs }}>
-            {chosen.map((member) => (
-              <Pressable
-                key={member.userId}
-                accessibilityRole="button"
-                accessibilityLabel={`إزالة ${member.user.displayName}`}
-                onPress={() => toggle(member.userId)}
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: spacing.xs,
-                  borderRadius: radii.chip,
-                  backgroundColor: colors.accentSoft,
-                  paddingHorizontal: spacing.md,
-                  paddingVertical: 6,
-                }}
-              >
-                <AppText size="caption" weight="semibold" color={colors.accent}>
-                  {member.user.displayName}
-                </AppText>
-                <AppText size="caption" color={colors.accent}>
-                  ✕
-                </AppText>
-              </Pressable>
-            ))}
-          </View>
-        ) : null}
-
-        {members.length >= SEARCH_THRESHOLD ? (
-          <TextInput
-            value={search}
-            onChangeText={setSearch}
-            autoCapitalize="none"
-            autoCorrect={false}
-            placeholder="ابحث بالاسم أو اسم المستخدم"
-            placeholderTextColor={colors.muted}
-            accessibilityLabel="ابحث عن عضو"
-            style={{
-              minHeight: MIN_TOUCH_TARGET,
-              borderWidth: 1,
-              borderColor: colors.line,
-              borderRadius: radii.field,
-              paddingHorizontal: spacing.lg,
-              fontFamily: fonts.regular,
-              fontSize: fontSizes.body,
-              color: colors.ink,
-              textAlign: "right",
-              writingDirection: "rtl",
-            }}
-          />
-        ) : null}
-
         {members.length === 0 ? (
           <AppText size="small" color={colors.muted}>
             لا يوجد أعضاء في اللوحة لإسنادها إليهم.
           </AppText>
-        ) : visibleMembers.length === 0 ? (
-          <AppText size="small" color={colors.muted} style={{ paddingVertical: spacing.md }}>
-            لا يوجد عضو يطابق «{search.trim()}».
-          </AppText>
         ) : (
-          <ScrollView
-            // No fixed cap: the only shrinkable child of the sheet, so the list
-            // takes every pixel the header, chips, search and action row leave
-            // — and gives it back when the keyboard pushes them up.
-            style={{ flexShrink: 1 }}
-            contentContainerStyle={{ gap: spacing.sm }}
-            keyboardShouldPersistTaps="handled"
-          >
-            {visibleMembers.map((member) => {
-              const isSelected = selected.has(member.userId);
-              const locked = !member.user.isActive && !isSelected;
-              const palette = avatarColorFor(member.userId);
-              return (
-                <Pressable
-                  key={member.userId}
-                  accessibilityRole="checkbox"
-                  accessibilityState={{ checked: isSelected, disabled: locked }}
-                  accessibilityHint={locked ? "الحساب معطَّل — لا يمكن إسناد مهام إليه" : undefined}
-                  disabled={locked}
-                  onPress={() => toggle(member.userId)}
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: spacing.md,
-                    minHeight: MIN_TOUCH_TARGET,
-                    borderRadius: radii.card,
-                    borderWidth: 1,
-                    borderColor: isSelected ? "#D6E1F8" : colors.line,
-                    backgroundColor: isSelected ? colors.accentSoft : colors.surface,
-                    paddingHorizontal: spacing.md,
-                    opacity: locked ? 0.55 : 1,
-                  }}
-                >
-                  <View
-                    style={{
-                      width: 38,
-                      height: 38,
-                      borderRadius: 999,
-                      backgroundColor: colors.surface,
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <AppText weight="bold" color={palette.fg} style={{ fontSize: 12 }}>
-                      {initials(member.user.displayName)}
-                    </AppText>
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <AppText weight="semibold">{member.user.displayName}</AppText>
-                    <AppText size="caption" color={colors.muted}>
-                      {member.user.username}
-                    </AppText>
-                  </View>
-                  {!member.user.isActive ? (
-                    <View
-                      style={{
-                        borderRadius: radii.chip,
-                        backgroundColor: colors.alertSoft,
-                        paddingHorizontal: spacing.sm,
-                        paddingVertical: 3,
-                      }}
-                    >
-                      <AppText size="caption" weight="semibold" color={colors.alert}>
-                        معطَّل
-                      </AppText>
-                    </View>
-                  ) : null}
-                  <View
-                    style={{
-                      width: 24,
-                      height: 24,
-                      borderRadius: 999,
-                      alignItems: "center",
-                      justifyContent: "center",
-                      backgroundColor: isSelected ? colors.accent : "transparent",
-                      borderWidth: isSelected ? 0 : 1.5,
-                      borderColor: colors.line,
-                    }}
-                  >
-                    {isSelected ? (
-                      <AppText size="caption" color={colors.surface}>
-                        ✓
-                      </AppText>
-                    ) : null}
-                  </View>
-                </Pressable>
-              );
-            })}
+          <ScrollView style={{ flexShrink: 1 }} contentContainerStyle={{ gap: spacing.md }} keyboardShouldPersistTaps="handled">
+            <TextInput
+              value={search}
+              onChangeText={setSearch}
+              onSubmitEditing={() => add(matches[0])}
+              // Keep the keyboard up after a pick so the next name can be typed straight away.
+              blurOnSubmit={false}
+              returnKeyType="done"
+              autoFocus
+              autoCapitalize="none"
+              autoCorrect={false}
+              placeholder="اكتب اسمًا أو اسم مستخدم"
+              placeholderTextColor={colors.muted}
+              accessibilityLabel={`ابحث عن عضو — ${title}`}
+              style={{
+                minHeight: MIN_TOUCH_TARGET,
+                borderWidth: 1,
+                borderColor: typed ? colors.accent : colors.line,
+                borderRadius: radii.field,
+                paddingHorizontal: spacing.lg,
+                fontFamily: fonts.regular,
+                fontSize: fontSizes.body,
+                color: colors.ink,
+                textAlign: "right",
+                writingDirection: "rtl",
+              }}
+            />
+
+            {typed ? (
+              matches.length === 0 ? (
+                <AppText size="small" color={colors.muted}>
+                  لا يوجد عضو يطابق «{typed}».
+                </AppText>
+              ) : (
+                <View style={{ gap: spacing.xs }}>
+                  {matches.map((member, index) => (
+                    <SuggestionRow
+                      key={member.userId}
+                      member={member}
+                      term={typed}
+                      // The first row is what the keyboard's return key adds.
+                      primary={index === 0}
+                      onPress={() => add(member)}
+                    />
+                  ))}
+                </View>
+              )
+            ) : null}
+
+            {chosen.length > 0 ? (
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.xs }}>
+                {chosen.map((member) => (
+                  <SelectedChip
+                    key={member.userId}
+                    member={member}
+                    onRemove={() => onChange(selectedIds.filter((id) => id !== member.userId))}
+                  />
+                ))}
+              </View>
+            ) : null}
+
+            {saving ? (
+              <AppText size="caption" color={colors.muted}>
+                جارٍ الحفظ…
+              </AppText>
+            ) : failed ? (
+              <AppText size="caption" color={colors.alert} accessibilityRole="alert">
+                تعذّر الحفظ، فأُعيدت القائمة إلى آخر حالة محفوظة.
+              </AppText>
+            ) : null}
           </ScrollView>
         )}
 
-        <View style={{ flexDirection: "row", gap: spacing.sm, paddingBottom: spacing.sm }}>
-          <Pressable
-            accessibilityRole="button"
-            onPress={onClose}
-            style={{
-              flex: 0,
-              minHeight: MIN_TOUCH_TARGET,
-              paddingHorizontal: spacing.xl,
-              borderRadius: radii.field,
-              borderWidth: 1,
-              borderColor: colors.line,
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <AppText color={colors.muted}>إلغاء</AppText>
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => onSave([...selected])}
-            style={{
-              flex: 1,
-              minHeight: MIN_TOUCH_TARGET,
-              borderRadius: radii.field,
-              backgroundColor: colors.accent,
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <AppText weight="semibold" color={colors.surface}>
-              {saveLabel}
-            </AppText>
-          </Pressable>
-        </View>
+        <Pressable
+          accessibilityRole="button"
+          onPress={onClose}
+          style={{
+            minHeight: MIN_TOUCH_TARGET,
+            borderRadius: radii.field,
+            backgroundColor: colors.accent,
+            alignItems: "center",
+            justifyContent: "center",
+            marginBottom: spacing.sm,
+          }}
+        >
+          <AppText weight="semibold" color={colors.surface}>
+            تم
+          </AppText>
+        </Pressable>
       </View>
     </BottomSheet>
+  );
+}
+
+function Avatar({ member, size }: { member: BoardMember; size: number }) {
+  const palette = avatarColorFor(member.userId);
+  return (
+    <View
+      style={{
+        width: size,
+        height: size,
+        borderRadius: 999,
+        backgroundColor: palette.bg,
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      <AppText weight="bold" color={palette.fg} style={{ fontSize: size > 30 ? 12 : 10 }}>
+        {initials(member.user.displayName)}
+      </AppText>
+    </View>
+  );
+}
+
+/** `text` with the first case-insensitive occurrence of `term` emphasised — shows *why* a row matched. */
+function MatchedText({ text, term, size, color }: { text: string; term: string; size?: "caption"; color?: string }) {
+  const at = text.toLowerCase().indexOf(term.toLowerCase());
+  if (at < 0) {
+    return (
+      <AppText size={size} color={color}>
+        {text}
+      </AppText>
+    );
+  }
+  return (
+    <AppText size={size} color={color}>
+      {text.slice(0, at)}
+      <AppText size={size} weight="bold" color={colors.accent}>
+        {text.slice(at, at + term.length)}
+      </AppText>
+      {text.slice(at + term.length)}
+    </AppText>
+  );
+}
+
+function SuggestionRow({
+  member,
+  term,
+  primary,
+  onPress,
+}: {
+  member: BoardMember;
+  term: string;
+  primary: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`إضافة ${member.user.displayName}`}
+      onPress={onPress}
+      style={({ pressed }) => ({
+        flexDirection: "row",
+        alignItems: "center",
+        gap: spacing.md,
+        minHeight: MIN_TOUCH_TARGET + 8,
+        borderRadius: radii.field,
+        paddingHorizontal: spacing.md,
+        backgroundColor: primary || pressed ? colors.accentSoft : colors.surface,
+      })}
+    >
+      <Avatar member={member} size={38} />
+      <View style={{ flex: 1 }}>
+        <MatchedText text={member.user.displayName} term={term} />
+        <MatchedText text={member.user.username} term={term} size="caption" color={colors.muted} />
+      </View>
+      <AppText size="caption" weight="semibold" color={primary ? colors.accent : colors.muted}>
+        إضافة +
+      </AppText>
+    </Pressable>
+  );
+}
+
+function SelectedChip({ member, onRemove }: { member: BoardMember; onRemove: () => void }) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`إزالة ${member.user.displayName}`}
+      onPress={onRemove}
+      hitSlop={4}
+      style={{
+        flexDirection: "row",
+        alignItems: "center",
+        gap: spacing.xs,
+        borderRadius: radii.chip,
+        backgroundColor: colors.canvas,
+        borderWidth: 1,
+        borderColor: colors.line,
+        paddingVertical: 4,
+        paddingStart: 4,
+        paddingEnd: spacing.md,
+        opacity: member.user.isActive ? 1 : 0.6,
+      }}
+    >
+      <Avatar member={member} size={26} />
+      <AppText size="small">{member.user.displayName}</AppText>
+      {!member.user.isActive ? (
+        <AppText size="caption" weight="semibold" color={colors.alert}>
+          معطَّل
+        </AppText>
+      ) : null}
+      <AppText size="caption" color={colors.muted}>
+        ✕
+      </AppText>
+    </Pressable>
   );
 }

@@ -6,9 +6,13 @@ import { AppText } from "@/components/text";
 import { avatarColorFor } from "@/lib/avatar";
 import { initials } from "@/lib/initials";
 import { api } from "@/lib/api";
+import { useAutoSavedIds } from "@/lib/use-auto-saved-ids";
 import { useAuth } from "@/features/auth/auth-context";
 import { AssigneePickerSheet } from "./assignee-picker-sheet";
 import { MIN_TOUCH_TARGET, colors, fonts, fontSizes, radii, spacing, statusColors } from "@/theme/tokens";
+
+/** Stable "nobody" for `useAutoSavedIds` while no subtask's sheet is open. */
+const NO_IDS: string[] = [];
 
 /** Never sent to the server — replaced by the real id once the create request resolves. */
 function makeTempId(): string {
@@ -108,18 +112,16 @@ export function SubtasksSection({
     onSettled: invalidate,
   });
 
-  const updateAssignees = useMutation({
-    mutationFn: (input: { id: string; userIds: string[] }) =>
-      api.subtasks.updateAssignees(input.id, { userIds: input.userIds }),
-    onSuccess: () => {
-      setAssigningId(null);
-      invalidate();
-    },
-  });
-
   const list = subtasks.data ?? [];
   const doneCount = list.filter((s) => s.isDone).length;
   const assigningSubtask = list.find((s) => s.id === assigningId) ?? null;
+
+  // Saves on every add/remove while the sheet stays open for the next name.
+  const assigneeSelection = useAutoSavedIds(assigningSubtask?.assigneeIds ?? NO_IDS, async (userIds) => {
+    if (!assigningId) return;
+    await api.subtasks.updateAssignees(assigningId, { userIds });
+    invalidate();
+  });
 
   return (
     <View style={{ gap: spacing.md }}>
@@ -274,10 +276,10 @@ export function SubtasksSection({
         title={assigningSubtask?.title ?? ""}
         subtitle="يمكن اختيار أكثر من شخص، ويجب أن يكون عضوًا في اللوحة."
         members={boardMembers}
-        selectedIds={assigningSubtask?.assigneeIds ?? []}
-        onSave={(userIds) => {
-          if (assigningSubtask) updateAssignees.mutate({ id: assigningSubtask.id, userIds });
-        }}
+        selectedIds={assigneeSelection.ids}
+        onChange={assigneeSelection.change}
+        saving={assigneeSelection.saving}
+        failed={assigneeSelection.failed}
       />
     </View>
   );

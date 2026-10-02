@@ -1,19 +1,19 @@
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState, type KeyboardEvent } from "react";
 import type { BoardMember } from "@app/types";
 
 /**
  * The one place the web app renders "pick people" UI — card assignees,
  * subtask assignees and the restricted-access list all go through
- * `MemberChecklist`, so searching, the selected chips and the empty states
+ * `UserTypeahead`, so matching, the selected chips and the empty states
  * behave identically everywhere a user is chosen.
  *
  * Board *membership* itself is added from `BoardMembersModal`, which searches
  * the user directory (`GET /boards/:id/member-candidates`) instead of this
- * in-memory list, but reuses `UserAvatar`/`matchesUser` from here.
+ * in-memory list, but reuses `UserIdentity`/`matchesUser` from here.
  */
 
-/** Longer lists get a search box; below this a plain list is faster to scan than to filter. */
-const SEARCH_THRESHOLD = 6;
+/** How many suggestions the type-ahead shows — enough to disambiguate, few enough to read at a glance. */
+const SUGGESTION_LIMIT = 3;
 
 /** First letter of each of the first two words — same rule as the mobile app's `initials()`. */
 export function initialsOf(displayName: string): string {
@@ -31,6 +31,38 @@ export function matchesUser(user: { displayName: string; username: string }, ter
   const needle = term.trim().toLowerCase();
   if (!needle) return true;
   return user.displayName.toLowerCase().includes(needle) || user.username.toLowerCase().includes(needle);
+}
+
+/** A name or username that *starts* with the term (or has a word that does) beats a mid-word hit. */
+function isPrefixMatch(user: { displayName: string; username: string }, needle: string): boolean {
+  const name = user.displayName.toLowerCase();
+  return (
+    name.startsWith(needle) ||
+    user.username.toLowerCase().startsWith(needle) ||
+    name.split(/\s+/).some((word) => word.startsWith(needle))
+  );
+}
+
+/**
+ * The type-ahead's suggestions: members not already picked, still active
+ * (the server rejects *newly* assigning a deactivated account), matching the
+ * typed text — prefix hits first, then alphabetical — capped at `limit`.
+ * An empty term suggests nobody: the list only opens once the user types.
+ */
+export function topMatches(
+  members: BoardMember[],
+  term: string,
+  selectedIds: ReadonlySet<string>,
+  limit = SUGGESTION_LIMIT,
+): BoardMember[] {
+  const needle = term.trim().toLowerCase();
+  if (!needle) return [];
+  return members
+    .filter((m) => !selectedIds.has(m.userId) && m.user.isActive && matchesUser(m.user, needle))
+    .map((m) => ({ m, prefix: isPrefixMatch(m.user, needle) }))
+    .sort((a, b) => Number(b.prefix) - Number(a.prefix) || a.m.user.displayName.localeCompare(b.m.user.displayName, "ar"))
+    .slice(0, limit)
+    .map(({ m }) => m);
 }
 
 export function UserAvatar({ displayName, dimmed = false }: { displayName: string; dimmed?: boolean }) {
@@ -70,107 +102,205 @@ export function UserIdentity({
   );
 }
 
+/** `text` with the first case-insensitive occurrence of `term` emphasised — shows *why* a row matched. */
+function MatchedText({ text, term }: { text: string; term: string }) {
+  const needle = term.trim().toLowerCase();
+  const at = needle ? text.toLowerCase().indexOf(needle) : -1;
+  if (at < 0) return <>{text}</>;
+  return (
+    <>
+      {text.slice(0, at)}
+      <span className="rounded-sm bg-accent-soft font-bold text-accent">{text.slice(at, at + needle.length)}</span>
+      {text.slice(at + needle.length)}
+    </>
+  );
+}
+
 /**
- * A searchable checkbox list of board members. Selected people are always
- * visible as chips above the list, so a search term can never hide who is
- * already picked.
+ * Type a few letters, get the top {@link SUGGESTION_LIMIT} matching members;
+ * Enter (or a click) adds the highlighted one as a chip under the box, and the
+ * box clears for the next name. Every add/remove calls `onChange` with the
+ * whole new set — callers save it straight away (`useAutoSavedIds`).
  *
- * A deactivated member cannot be *picked* — the server rejects assigning one —
- * but one who was already picked before being deactivated stays checked and
- * removable, matching the server's "only new assignments are blocked" rule.
+ * A member who was picked before being deactivated stays as a chip and can be
+ * removed, matching the server's "only new assignments are blocked" rule.
  */
-export function MemberChecklist({
+export function UserTypeahead({
   members,
-  selected,
-  onToggle,
-  onClear,
+  selectedIds,
+  onChange,
+  label,
+  placeholder = "اكتب اسمًا أو اسم مستخدم",
   emptyHint,
+  saving = false,
+  failed = false,
 }: {
   members: BoardMember[];
-  selected: Set<string>;
-  onToggle: (userId: string) => void;
-  onClear?: () => void;
+  selectedIds: string[];
+  onChange: (userIds: string[]) => void;
+  /** Accessible name of the input, e.g. «أضف مسؤولًا». */
+  label: string;
+  placeholder?: string;
+  /** Shown instead of the box when there is nobody to pick at all. */
   emptyHint: string;
+  saving?: boolean;
+  failed?: boolean;
 }) {
-  const [search, setSearch] = useState("");
+  const listId = useId();
+  const [term, setTerm] = useState("");
+  const [focused, setFocused] = useState(false);
+  const [highlight, setHighlight] = useState(0);
 
-  const filtered = useMemo(
-    () => (search.trim() ? members.filter((m) => matchesUser(m.user, search)) : members),
-    [members, search],
+  const selected = useMemo(() => new Set(selectedIds), [selectedIds]);
+  const matches = useMemo(() => topMatches(members, term, selected), [members, term, selected]);
+  const chosen = useMemo(
+    () =>
+      selectedIds
+        .map((id) => members.find((m) => m.userId === id))
+        .filter((m): m is BoardMember => !!m),
+    [members, selectedIds],
   );
-  const chosen = useMemo(() => members.filter((m) => selected.has(m.userId)), [members, selected]);
 
-  if (members.length === 0) return <p className="text-xs text-slate-400">{emptyHint}</p>;
+  const open = focused && term.trim().length > 0;
+  const active = Math.min(highlight, Math.max(matches.length - 1, 0));
+
+  if (members.length === 0) return <p className="text-xs text-muted">{emptyHint}</p>;
+
+  function add(member: BoardMember | undefined) {
+    if (!member) return;
+    onChange([...selectedIds, member.userId]);
+    setTerm("");
+    setHighlight(0);
+  }
+
+  function onKeyDown(e: KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "ArrowDown" && matches.length > 0) {
+      e.preventDefault();
+      setHighlight(Math.min(active + 1, matches.length - 1));
+    } else if (e.key === "ArrowUp" && matches.length > 0) {
+      e.preventDefault();
+      setHighlight(Math.max(active - 1, 0));
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      if (open) add(matches[active]);
+    } else if (e.key === "Escape" && term) {
+      // Clear the text only — don't let this Escape also close the card panel.
+      e.stopPropagation();
+      setTerm("");
+    }
+  }
 
   return (
-    <div className="space-y-2 rounded border border-slate-200 p-2">
-      {chosen.length > 0 && (
-        <div className="flex flex-wrap items-center gap-1">
+    <div className="space-y-2">
+      <div className="relative">
+        <input
+          type="text"
+          role="combobox"
+          aria-label={label}
+          aria-expanded={open}
+          aria-controls={listId}
+          aria-autocomplete="list"
+          aria-activedescendant={open && matches.length > 0 ? `${listId}-${active}` : undefined}
+          autoComplete="off"
+          value={term}
+          onChange={(e) => {
+            setTerm(e.target.value);
+            setHighlight(0);
+          }}
+          onKeyDown={onKeyDown}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+          placeholder={placeholder}
+          className="w-full rounded-field border border-line bg-surface px-3 py-2 text-sm text-ink placeholder:text-muted focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent-soft"
+        />
+        {open && (
+          <ul
+            id={listId}
+            role="listbox"
+            aria-label={label}
+            className="absolute inset-x-0 top-full z-10 mt-1 overflow-hidden rounded-field border border-line bg-surface p-1 shadow-lg"
+          >
+            {matches.length === 0 ? (
+              <li className="px-3 py-2 text-xs text-muted">لا يوجد عضو يطابق «{term.trim()}».</li>
+            ) : (
+              matches.map((m, index) => (
+                <li
+                  key={m.userId}
+                  id={`${listId}-${index}`}
+                  role="option"
+                  aria-selected={index === active}
+                  // Keep focus in the input so the next name can be typed straight away.
+                  onMouseDown={(e) => e.preventDefault()}
+                  onMouseEnter={() => setHighlight(index)}
+                  onClick={() => add(m)}
+                  className={`flex cursor-pointer items-center gap-2 rounded-[12px] px-2 py-1.5 ${
+                    index === active ? "bg-canvas" : ""
+                  }`}
+                >
+                  <ChipAvatar displayName={m.user.displayName} large />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm text-ink">
+                      <MatchedText text={m.user.displayName} term={term} />
+                    </span>
+                    <span className="block truncate text-right text-xs text-muted" dir="ltr">
+                      <MatchedText text={m.user.username} term={term} />
+                    </span>
+                  </span>
+                  {index === active && (
+                    <kbd className="shrink-0 rounded border border-line bg-surface px-1.5 py-0.5 font-sans text-[10px] text-muted">
+                      Enter
+                    </kbd>
+                  )}
+                </li>
+              ))
+            )}
+          </ul>
+        )}
+      </div>
+
+      {(chosen.length > 0 || saving || failed) && (
+        <div className="flex flex-wrap items-center gap-1.5">
           {chosen.map((m) => (
-            <button
+            <span
               key={m.userId}
-              type="button"
-              onClick={() => onToggle(m.userId)}
-              title={`إزالة ${m.user.displayName}`}
-              className="flex items-center gap-1 rounded-full bg-slate-100 py-0.5 pe-1.5 ps-2 text-xs text-slate-700 hover:bg-slate-200"
+              className={`inline-flex max-w-full items-center gap-1.5 rounded-full bg-accent-soft py-0.5 pe-0.5 ps-1 text-xs text-ink ${
+                m.user.isActive ? "" : "opacity-60"
+              }`}
             >
+              <ChipAvatar displayName={m.user.displayName} />
               <span className="max-w-[10rem] truncate">{m.user.displayName}</span>
-              <span aria-hidden className="text-slate-400">
-                ✕
-              </span>
-            </button>
+              {!m.user.isActive && <span className="text-[10px] font-medium text-alert">معطَّل</span>}
+              <button
+                type="button"
+                onClick={() => onChange(selectedIds.filter((id) => id !== m.userId))}
+                aria-label={`إزالة ${m.user.displayName}`}
+                className="flex h-5 w-5 items-center justify-center rounded-full text-muted hover:bg-surface hover:text-alert focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+              >
+                <span aria-hidden>✕</span>
+              </button>
+            </span>
           ))}
-          {onClear && chosen.length > 1 && (
-            <button type="button" onClick={onClear} className="text-xs text-slate-500 hover:underline">
-              مسح الكل
-            </button>
+          {saving && <span className="text-[11px] text-muted">جارٍ الحفظ…</span>}
+          {failed && !saving && (
+            <span role="alert" className="text-[11px] text-alert">
+              تعذّر الحفظ، فأُعيدت القائمة إلى آخر حالة محفوظة.
+            </span>
           )}
         </div>
       )}
-
-      {members.length >= SEARCH_THRESHOLD && (
-        <input
-          type="search"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="ابحث بالاسم أو اسم المستخدم"
-          aria-label="ابحث عن عضو"
-          className="w-full rounded border border-slate-200 px-2 py-1 text-xs"
-        />
-      )}
-
-      <div className="max-h-56 space-y-1 overflow-y-auto">
-        {filtered.length === 0 ? (
-          <p className="px-1 py-2 text-xs text-slate-400">لا يوجد عضو يطابق «{search.trim()}».</p>
-        ) : (
-          filtered.map((m) => {
-            const isSelected = selected.has(m.userId);
-            const locked = !m.user.isActive && !isSelected;
-            return (
-              <label
-                key={m.userId}
-                title={locked ? "الحساب معطَّل — لا يمكن إسناد مهام إليه" : undefined}
-                className={`flex items-center gap-2 rounded px-1 py-1 ${
-                  locked ? "cursor-not-allowed opacity-60" : "cursor-pointer hover:bg-slate-50"
-                }`}
-              >
-                <input
-                  type="checkbox"
-                  checked={isSelected}
-                  disabled={locked}
-                  onChange={() => onToggle(m.userId)}
-                  className="shrink-0"
-                />
-                <UserIdentity
-                  displayName={m.user.displayName}
-                  username={m.user.username}
-                  isActive={m.user.isActive}
-                />
-              </label>
-            );
-          })
-        )}
-      </div>
     </div>
+  );
+}
+
+function ChipAvatar({ displayName, large = false }: { displayName: string; large?: boolean }) {
+  return (
+    <span
+      aria-hidden
+      className={`flex shrink-0 items-center justify-center rounded-full bg-surface font-semibold text-accent ${
+        large ? "h-7 w-7 border border-line text-[10px]" : "h-5 w-5 text-[9px]"
+      }`}
+    >
+      {initialsOf(displayName)}
+    </span>
   );
 }
