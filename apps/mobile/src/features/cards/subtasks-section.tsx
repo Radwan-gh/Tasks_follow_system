@@ -8,10 +8,10 @@ import { initials } from "@/lib/initials";
 import { api } from "@/lib/api";
 import { useAutoSavedIds } from "@/lib/use-auto-saved-ids";
 import { useAuth } from "@/features/auth/auth-context";
-import { AssigneePickerSheet } from "./assignee-picker-sheet";
+import { PeopleField } from "./people-field";
 import { MIN_TOUCH_TARGET, colors, fonts, fontSizes, radii, spacing, statusColors } from "@/theme/tokens";
 
-/** Stable "nobody" for `useAutoSavedIds` while no subtask's sheet is open. */
+/** Stable "nobody" for `useAutoSavedIds` while no subtask's people field is open. */
 const NO_IDS: string[] = [];
 
 /** Never sent to the server — replaced by the real id once the create request resolves. */
@@ -116,7 +116,7 @@ export function SubtasksSection({
   const doneCount = list.filter((s) => s.isDone).length;
   const assigningSubtask = list.find((s) => s.id === assigningId) ?? null;
 
-  // Saves on every add/remove while the sheet stays open for the next name.
+  // Saves on every add/remove while the field stays open for the next name.
   const assigneeSelection = useAutoSavedIds(assigningSubtask?.assigneeIds ?? NO_IDS, async (userIds) => {
     if (!assigningId) return;
     await api.subtasks.updateAssignees(assigningId, { userIds });
@@ -153,88 +153,111 @@ export function SubtasksSection({
           const assignees = subtask.assigneeIds
             .map((id) => boardMembers.find((m) => m.userId === id))
             .filter((m): m is BoardMember => !!m);
+          const assigning = subtask.id === assigningId;
+          // A subtask still being created has no server id to assign against yet.
+          const pending = subtask.id.startsWith("temp:");
           return (
             <View
               key={subtask.id}
               style={{
-                flexDirection: "row",
-                alignItems: "center",
                 gap: spacing.md,
                 backgroundColor: subtask.isDone ? colors.canvas : colors.surface,
-                borderWidth: subtask.isDone ? 0 : 1,
-                borderColor: colors.line,
+                borderWidth: subtask.isDone && !assigning ? 0 : 1,
+                borderColor: assigning ? colors.accent : colors.line,
                 borderRadius: radii.field,
                 padding: spacing.md,
               }}
             >
-              <Pressable
-                accessibilityRole="checkbox"
-                accessibilityState={{ checked: subtask.isDone }}
-                disabled={readOnly}
-                onPress={() => toggleDone.mutate(subtask)}
-                style={{
-                  width: 22,
-                  height: 22,
-                  borderRadius: 8,
-                  backgroundColor: subtask.isDone ? "#59B08A" : "transparent",
-                  borderWidth: subtask.isDone ? 0 : 1.5,
-                  borderColor: colors.line,
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                {subtask.isDone ? (
-                  <AppText size="caption" color={colors.surface}>
-                    ✓
-                  </AppText>
-                ) : null}
-              </Pressable>
-
-              <AppText
-                style={{ flex: 1, textDecorationLine: subtask.isDone ? "line-through" : "none" }}
-                color={subtask.isDone ? colors.muted : colors.ink}
-              >
-                {subtask.title}
-              </AppText>
-
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="المسؤولون عن المهمة الفرعية"
-                disabled={readOnly}
-                onPress={() => setAssigningId(subtask.id)}
-                hitSlop={8}
-              >
-                {assignees.length > 0 ? (
-                  <View
-                    style={{
-                      width: 24,
-                      height: 24,
-                      borderRadius: 999,
-                      backgroundColor: avatarColorFor(assignees[0]!.userId).bg,
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <AppText size="caption" weight="bold" color={avatarColorFor(assignees[0]!.userId).fg} style={{ fontSize: 10 }}>
-                      {initials(assignees[0]!.user.displayName)}
+              <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md }}>
+                <Pressable
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked: subtask.isDone }}
+                  disabled={readOnly}
+                  onPress={() => toggleDone.mutate(subtask)}
+                  style={{
+                    width: 22,
+                    height: 22,
+                    borderRadius: 8,
+                    backgroundColor: subtask.isDone ? "#59B08A" : "transparent",
+                    borderWidth: subtask.isDone ? 0 : 1.5,
+                    borderColor: colors.line,
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  {subtask.isDone ? (
+                    <AppText size="caption" color={colors.surface}>
+                      ✓
                     </AppText>
-                  </View>
-                ) : (
-                  <AppText size="small" color={colors.muted}>
-                    + إسناد
-                  </AppText>
-                )}
-              </Pressable>
+                  ) : null}
+                </Pressable>
 
-              {!readOnly ? (
+                <AppText
+                  style={{ flex: 1, textDecorationLine: subtask.isDone ? "line-through" : "none" }}
+                  color={subtask.isDone ? colors.muted : colors.ink}
+                >
+                  {subtask.title}
+                </AppText>
+
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel="حذف المهمة الفرعية"
-                  onPress={() => remove.mutate(subtask.id)}
+                  accessibilityLabel={assigning ? "إغلاق إسناد المهمة الفرعية" : "المسؤولون عن المهمة الفرعية"}
+                  disabled={readOnly || pending}
+                  onPress={() => setAssigningId(assigning ? null : subtask.id)}
                   hitSlop={8}
                 >
-                  <AppText color={colors.alert}>✕</AppText>
+                  {assigning ? (
+                    <AppText size="small" weight="semibold" color={colors.accent}>
+                      تم
+                    </AppText>
+                  ) : assignees.length > 0 ? (
+                    <View
+                      style={{
+                        width: 24,
+                        height: 24,
+                        borderRadius: 999,
+                        backgroundColor: avatarColorFor(assignees[0]!.userId).bg,
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <AppText size="caption" weight="bold" color={avatarColorFor(assignees[0]!.userId).fg} style={{ fontSize: 10 }}>
+                        {initials(assignees[0]!.user.displayName)}
+                      </AppText>
+                    </View>
+                  ) : (
+                    <AppText size="small" color={colors.muted}>
+                      + إسناد
+                    </AppText>
+                  )}
                 </Pressable>
+
+                {!readOnly ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="حذف المهمة الفرعية"
+                    onPress={() => remove.mutate(subtask.id)}
+                    hitSlop={8}
+                  >
+                    <AppText color={colors.alert}>✕</AppText>
+                  </Pressable>
+                ) : null}
+              </View>
+
+              {assigning ? (
+                <PeopleField
+                  members={boardMembers}
+                  selectedIds={assigneeSelection.ids}
+                  onChange={assigneeSelection.change}
+                  saving={assigneeSelection.saving}
+                  failed={assigneeSelection.failed}
+                  autoFocus
+                  // Keep the subtask's own row (title, «تم») visible above the field.
+                  revealMargin={MIN_TOUCH_TARGET + spacing.xxl * 2}
+                  placeholder="اكتب اسمًا لإسناد المهمة الفرعية"
+                  accessibilityLabel={`أضف مسؤولًا عن «${subtask.title}»`}
+                  emptyHint="لا يوجد أعضاء لإسنادها إليهم."
+                />
               ) : null}
             </View>
           );
@@ -270,17 +293,6 @@ export function SubtasksSection({
         </View>
       ) : null}
 
-      <AssigneePickerSheet
-        visible={!!assigningSubtask}
-        onClose={() => setAssigningId(null)}
-        title={assigningSubtask?.title ?? ""}
-        subtitle="يمكن اختيار أكثر من شخص، ويجب أن يكون عضوًا في اللوحة."
-        members={boardMembers}
-        selectedIds={assigneeSelection.ids}
-        onChange={assigneeSelection.change}
-        saving={assigneeSelection.saving}
-        failed={assigneeSelection.failed}
-      />
     </View>
   );
 }

@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { Pressable, ScrollView, TextInput, View } from "react-native";
+import { Pressable, TextInput, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { CardPriority, RecurrenceRule } from "@app/types";
@@ -7,15 +7,14 @@ import { Screen } from "@/components/screen";
 import { AppText } from "@/components/text";
 import { ErrorState } from "@/components/state-views";
 import { Skeleton } from "@/components/skeleton";
-import { AssigneePickerSheet } from "@/features/cards/assignee-picker-sheet";
+import { PeopleField } from "@/features/cards/people-field";
 import { DueDateSheet } from "@/components/due-date-sheet";
 import { PrioritySegmented } from "@/components/priority-control";
 import { RecurrenceSheet, summarizeRecurrence } from "@/components/recurrence-sheet";
 import { TemplatePickerSheet } from "@/features/boards/template-picker-sheet";
-import { avatarColorFor } from "@/lib/avatar";
-import { initials } from "@/lib/initials";
 import { formatDueDate } from "@/lib/date";
 import { api } from "@/lib/api";
+import { RevealScrollView } from "@/lib/scroll-reveal";
 import { MIN_TOUCH_TARGET, colors, fonts, fontSizes, radii, spacing } from "@/theme/tokens";
 
 /**
@@ -55,8 +54,6 @@ export default function NewCardScreen() {
 
   const [pickingDueDate, setPickingDueDate] = useState(false);
   const [pickingRecurrence, setPickingRecurrence] = useState(false);
-  const [pickingAssignees, setPickingAssignees] = useState(false);
-  const [pickingRestrictedMembers, setPickingRestrictedMembers] = useState(false);
   const [pickingTemplate, setPickingTemplate] = useState(false);
 
   const [submitting, setSubmitting] = useState(false);
@@ -127,9 +124,6 @@ export default function NewCardScreen() {
   const nonImplicitMembers = board.data.members.filter((m) => m.userId !== board.data!.ownerId);
   // §3c-4 "منتقي المسؤولين لا يعرض المشاهدين".
   const assignableMembers = board.data.members.filter((m) => m.role !== "VIEWER");
-  const assignees = assigneeIds
-    .map((uid) => board.data!.members.find((m) => m.userId === uid))
-    .filter((m): m is NonNullable<typeof m> => !!m);
 
   return (
     <Screen edges={{ top: true, bottom: true }} style={{ backgroundColor: colors.surface }}>
@@ -157,7 +151,7 @@ export default function NewCardScreen() {
         </Pressable>
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: spacing.xl, gap: spacing.xl }} keyboardShouldPersistTaps="handled">
+      <RevealScrollView contentContainerStyle={{ padding: spacing.xl, gap: spacing.xl }} keyboardShouldPersistTaps="handled">
         {/* §3c-3 "يظهر فقط إن كانت للوحة قوالب" */}
         {templates.data && templates.data.length > 0 ? (
           <Row label="استخدام قالب" value="اختيار ▾" onPress={() => setPickingTemplate(true)} />
@@ -250,56 +244,17 @@ export default function NewCardScreen() {
           <PrioritySegmented value={priority} onChange={setPriority} />
         </View>
 
-        <View style={{ gap: spacing.sm }}>
-          <AppText size="caption" weight="semibold" color={colors.muted}>
-            المسؤولون
-          </AppText>
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.sm }}>
-            {assignees.map((member) => {
-              const palette = avatarColorFor(member.userId);
-              return (
-                <View
-                  key={member.userId}
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: spacing.sm,
-                    backgroundColor: colors.canvas,
-                    borderWidth: 1,
-                    borderColor: colors.line,
-                    borderRadius: 999,
-                    paddingVertical: 6,
-                    paddingHorizontal: spacing.md,
-                  }}
-                >
-                  <View style={{ width: 24, height: 24, borderRadius: 999, backgroundColor: palette.bg, alignItems: "center", justifyContent: "center" }}>
-                    <AppText size="caption" weight="bold" color={palette.fg} style={{ fontSize: 10 }}>
-                      {initials(member.user.displayName)}
-                    </AppText>
-                  </View>
-                  <AppText size="small">{member.user.displayName}</AppText>
-                </View>
-              );
-            })}
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => setPickingAssignees(true)}
-              style={{
-                minHeight: MIN_TOUCH_TARGET - 6,
-                justifyContent: "center",
-                paddingHorizontal: spacing.md,
-                borderRadius: 999,
-                borderWidth: 1,
-                borderStyle: "dashed",
-                borderColor: colors.line,
-              }}
-            >
-              <AppText size="small" color={colors.muted}>
-                + إضافة
-              </AppText>
-            </Pressable>
-          </View>
-        </View>
+        <PeopleField
+          label="المسؤولون"
+          members={assignableMembers}
+          lookup={board.data.members}
+          selectedIds={assigneeIds}
+          // The card doesn't exist yet — picks stay local and are sent by `submit`.
+          onChange={setAssigneeIds}
+          placeholder="اكتب اسمًا لإسناد المهمة"
+          accessibilityLabel="أضف مسؤولًا عن المهمة"
+          emptyHint="لا يوجد أعضاء في اللوحة لإسنادها إليهم."
+        />
 
         <View style={{ gap: spacing.sm }}>
           <AppText size="caption" weight="semibold" color={colors.muted}>
@@ -394,25 +349,22 @@ export default function NewCardScreen() {
           </AppText>
         </Pressable>
         {restricted ? (
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => setPickingRestrictedMembers(true)}
-            style={{
-              minHeight: MIN_TOUCH_TARGET,
-              justifyContent: "center",
-              paddingHorizontal: spacing.lg,
-              borderRadius: radii.field,
-              borderWidth: 1,
-              borderColor: colors.line,
-              alignSelf: "flex-start",
-            }}
-          >
-            <AppText size="small" color={colors.accent}>
-              اختيار الأعضاء ({restrictedMemberIds.length})
+          <View style={{ gap: spacing.sm }}>
+            <PeopleField
+              members={nonImplicitMembers}
+              lookup={board.data.members}
+              selectedIds={restrictedMemberIds}
+              onChange={setRestrictedMemberIds}
+              placeholder="اكتب اسم من يملك الوصول"
+              accessibilityLabel="أضف شخصًا يملك الوصول"
+              emptyHint="لا يوجد أعضاء آخرون في اللوحة."
+            />
+            <AppText size="caption" color={colors.muted}>
+              مالك اللوحة يملك الوصول دائمًا.
             </AppText>
-          </Pressable>
+          </View>
         ) : null}
-      </ScrollView>
+      </RevealScrollView>
 
       <DueDateSheet visible={pickingDueDate} onClose={() => setPickingDueDate(false)} onChange={setDueDate} />
 
@@ -421,27 +373,6 @@ export default function NewCardScreen() {
         onClose={() => setPickingRecurrence(false)}
         value={recurrence}
         onChange={setRecurrence}
-      />
-
-      <AssigneePickerSheet
-        visible={pickingAssignees}
-        onClose={() => setPickingAssignees(false)}
-        title="المسؤولون"
-        subtitle="يمكن اختيار أكثر من شخص، ويجب أن يكون عضوًا في اللوحة."
-        members={assignableMembers}
-        selectedIds={assigneeIds}
-        // The card doesn't exist yet — picks stay local and are sent by `submit`.
-        onChange={setAssigneeIds}
-      />
-
-      <AssigneePickerSheet
-        visible={pickingRestrictedMembers}
-        onClose={() => setPickingRestrictedMembers(false)}
-        title="من يملك الوصول"
-        subtitle="مالك اللوحة يملك الوصول دائمًا."
-        members={nonImplicitMembers}
-        selectedIds={restrictedMemberIds}
-        onChange={setRestrictedMemberIds}
       />
 
       <TemplatePickerSheet

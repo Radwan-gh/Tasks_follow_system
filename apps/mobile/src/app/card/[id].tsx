@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Pressable, RefreshControl, ScrollView, TextInput, View } from "react-native";
+import { Pressable, RefreshControl, TextInput, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -8,7 +8,7 @@ import { AppText } from "@/components/text";
 import { Skeleton } from "@/components/skeleton";
 import { ErrorState } from "@/components/state-views";
 import type { CardPriority, RecurrenceRule } from "@app/types";
-import { AssigneePickerSheet } from "@/features/cards/assignee-picker-sheet";
+import { PeopleField } from "@/features/cards/people-field";
 import { AttachmentsSection } from "@/features/cards/attachments-section";
 import { BottomSheet } from "@/components/bottom-sheet";
 import { CostSheet, formatCostChip } from "@/components/cost-sheet";
@@ -19,13 +19,12 @@ import { SaveAsTemplateSheet } from "@/features/boards/save-as-template-sheet";
 import { SubtasksSection } from "@/features/cards/subtasks-section";
 import { HistorySection } from "@/features/cards/history-section";
 import { useAuth } from "@/features/auth/auth-context";
-import { avatarColorFor } from "@/lib/avatar";
-import { initials } from "@/lib/initials";
 import { useAutoSavedIds } from "@/lib/use-auto-saved-ids";
 import { useCurrencySymbol } from "@/lib/currency";
 import { formatDueDate, isOverdue } from "@/lib/date";
 import { formatHijri } from "@/lib/hijri";
 import { api } from "@/lib/api";
+import { RevealScrollView } from "@/lib/scroll-reveal";
 import { LIVE_REFETCH_MS, boardDetailKey, findCachedBoard, findCachedCard, recentClosedSince } from "@/lib/board-cache";
 import { MIN_TOUCH_TARGET, colors, fonts, fontSizes, radii, spacing, statusColors } from "@/theme/tokens";
 
@@ -56,7 +55,8 @@ const NO_IDS: string[] = [];
  * the design's full-height bottom sheet ("تفاصيل البطاقة"). Three
  * independent saves, same split as `apps/web`'s `CardDetailModal.tsx`: the
  * header's «حفظ» commits title/description/due-date; assignees and
- * restricted-access save on every add/remove in their type-ahead sheet.
+ * restricted-access save on every add/remove in their inline type-ahead
+ * (`PeopleField`).
  */
 export default function CardDetailScreen() {
   const params = useLocalSearchParams<{ id: string; boardId?: string }>();
@@ -112,8 +112,6 @@ export default function CardDetailScreen() {
   const [seeded, setSeeded] = useState<FormFields | null>(null);
   const [pickingDueDate, setPickingDueDate] = useState(false);
   const [pickingRecurrence, setPickingRecurrence] = useState(false);
-  const [pickingAssignees, setPickingAssignees] = useState(false);
-  const [pickingRestrictedMembers, setPickingRestrictedMembers] = useState(false);
   const [restricted, setRestricted] = useState(false);
   const [pickingCost, setPickingCost] = useState(false);
   const [menuVisible, setMenuVisible] = useState(false);
@@ -154,8 +152,7 @@ export default function CardDetailScreen() {
     },
   });
 
-  // The people pickers save on every add/remove, so the sheets stay open
-  // while the user keeps adding names.
+  // The people fields save on every add/remove — there is no save button.
   const assigneeSelection = useAutoSavedIds(card.data?.assigneeIds ?? NO_IDS, async (userIds) => {
     await api.cards.updateAssignees(id, { userIds });
     invalidateCard();
@@ -210,9 +207,6 @@ export default function CardDetailScreen() {
 
   const list = board.data.lists.find((l) => l.id === card.data.listId);
   const creator = board.data.members.find((m) => m.userId === card.data.createdById);
-  const assignees = assigneeSelection.ids
-    .map((uid) => board.data!.members.find((m) => m.userId === uid))
-    .filter((m): m is NonNullable<typeof m> => !!m);
   const nonImplicitMembers = board.data.members.filter(
     (m) => m.userId !== board.data!.ownerId && m.userId !== card.data.createdById,
   );
@@ -331,7 +325,7 @@ export default function CardDetailScreen() {
         </View>
       ) : null}
 
-      <ScrollView
+      <RevealScrollView
         contentContainerStyle={{ padding: spacing.xl, gap: spacing.xl }}
         keyboardShouldPersistTaps="handled"
         refreshControl={<RefreshControl refreshing={pullRefreshing} onRefresh={() => void pullToRefresh()} />}
@@ -445,75 +439,20 @@ export default function CardDetailScreen() {
           />
         </View>
 
-        <View style={{ gap: spacing.sm }}>
-          <AppText size="caption" weight="semibold" color={colors.muted}>
-            المسؤولون عن المهمة
-          </AppText>
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.sm }}>
-            {assignees.map((member) => {
-              const palette = avatarColorFor(member.userId);
-              return (
-                <View
-                  key={member.userId}
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: spacing.sm,
-                    backgroundColor: colors.canvas,
-                    borderWidth: 1,
-                    borderColor: colors.line,
-                    borderRadius: 999,
-                    paddingVertical: 6,
-                    paddingHorizontal: spacing.md,
-                    opacity: member.user.isActive ? 1 : 0.5,
-                  }}
-                >
-                  <View
-                    style={{
-                      width: 26,
-                      height: 26,
-                      borderRadius: 999,
-                      backgroundColor: palette.bg,
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <AppText size="caption" weight="bold" color={palette.fg} style={{ fontSize: 10 }}>
-                      {initials(member.user.displayName)}
-                    </AppText>
-                  </View>
-                  <AppText size="small">{member.user.displayName}</AppText>
-                  {!member.user.isActive ? (
-                    <View style={{ borderRadius: radii.chip, backgroundColor: colors.line, paddingHorizontal: spacing.sm, paddingVertical: 2 }}>
-                      <AppText size="caption" weight="semibold" color={colors.muted}>
-                        معطَّل
-                      </AppText>
-                    </View>
-                  ) : null}
-                </View>
-              );
-            })}
-            {!isViewer ? (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="إضافة مسؤول"
-                onPress={() => setPickingAssignees(true)}
-                style={{
-                  width: MIN_TOUCH_TARGET - 6,
-                  height: MIN_TOUCH_TARGET - 6,
-                  borderRadius: 999,
-                  borderWidth: 1,
-                  borderStyle: "dashed",
-                  borderColor: colors.line,
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <AppText color={colors.muted}>+</AppText>
-              </Pressable>
-            ) : null}
-          </View>
-        </View>
+        <PeopleField
+          label="المسؤولون عن المهمة"
+          members={assignableMembers}
+          lookup={board.data.members}
+          selectedIds={assigneeSelection.ids}
+          onChange={assigneeSelection.change}
+          saving={assigneeSelection.saving}
+          failed={assigneeSelection.failed}
+          readOnly={isViewer}
+          placeholder="اكتب اسمًا لإسناد المهمة"
+          accessibilityLabel="أضف مسؤولًا عن المهمة"
+          emptyHint="لا يوجد أعضاء في اللوحة لإسنادها إليهم."
+          noneLabel="لا يوجد مسؤولون."
+        />
 
         <SubtasksSection cardId={id} boardMembers={assignableMembers} readOnly={isViewer} />
 
@@ -557,22 +496,22 @@ export default function CardDetailScreen() {
               </AppText>
             </Pressable>
             {restricted ? (
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => setPickingRestrictedMembers(true)}
-                style={{
-                  minHeight: MIN_TOUCH_TARGET,
-                  justifyContent: "center",
-                  paddingHorizontal: spacing.lg,
-                  borderRadius: radii.field,
-                  borderWidth: 1,
-                  borderColor: colors.line,
-                }}
-              >
-                <AppText size="small" color={colors.accent}>
-                  اختيار الأعضاء ({accessSelection.ids.length})
+              <>
+                <PeopleField
+                  members={nonImplicitMembers}
+                  lookup={board.data.members}
+                  selectedIds={accessSelection.ids}
+                  onChange={accessSelection.change}
+                  saving={accessSelection.saving}
+                  failed={accessSelection.failed}
+                  placeholder="اكتب اسم من يملك الوصول"
+                  accessibilityLabel="أضف شخصًا يملك الوصول"
+                  emptyHint="لا يوجد أعضاء آخرون في اللوحة."
+                />
+                <AppText size="caption" color={colors.muted}>
+                  مالك اللوحة ومُنشئ المهمة يملكان الوصول دائمًا.
                 </AppText>
-              </Pressable>
+              </>
             ) : null}
           </View>
         ) : card.data.isRestricted ? (
@@ -586,7 +525,7 @@ export default function CardDetailScreen() {
         <View style={{ borderTopWidth: 1, borderTopColor: colors.line, paddingTop: spacing.lg }}>
           <HistorySection cardId={id} readOnly={isViewer} />
         </View>
-      </ScrollView>
+      </RevealScrollView>
 
       <DueDateSheet visible={pickingDueDate} onClose={() => setPickingDueDate(false)} onChange={setDueDate} />
 
@@ -628,29 +567,6 @@ export default function CardDetailScreen() {
         onChange={setRecurrence}
       />
 
-      <AssigneePickerSheet
-        visible={pickingAssignees}
-        onClose={() => setPickingAssignees(false)}
-        title="المسؤولون"
-        subtitle={`${title} — يمكن اختيار أكثر من شخص، ويجب أن يكون عضوًا في اللوحة.`}
-        members={assignableMembers}
-        selectedIds={assigneeSelection.ids}
-        onChange={assigneeSelection.change}
-        saving={assigneeSelection.saving}
-        failed={assigneeSelection.failed}
-      />
-
-      <AssigneePickerSheet
-        visible={pickingRestrictedMembers}
-        onClose={() => setPickingRestrictedMembers(false)}
-        title="من يملك الوصول"
-        subtitle="مالك اللوحة ومُنشئ المهمة يملكان الوصول دائمًا."
-        members={nonImplicitMembers}
-        selectedIds={accessSelection.ids}
-        onChange={accessSelection.change}
-        saving={accessSelection.saving}
-        failed={accessSelection.failed}
-      />
     </Screen>
   );
 }
