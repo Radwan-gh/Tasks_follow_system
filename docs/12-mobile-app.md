@@ -356,8 +356,9 @@ Socket.IO لم يُبنَ بعد:
 مقابل في «إضافة مهمة» (`components/recurrence-sheet.tsx`)، شبكة مرفقات في
 تفاصيل البطاقة (`features/cards/attachments-section.tsx`، عبر
 `expo-image-picker` للكاميرا/المعرض و`expo-document-picker` لـ«ملف» — **أي نوع
-ملف**؛ الصور تظهر مصغّرات بعارض ملء الشاشة، وغيرها صفوف باسم الملف وحجمه
-تفتح خارجيًا عبر `Linking`)، قسم «السجل والتعليقات» المُدمَج (`history-section.tsx`)،
+ملف**؛ الصور تظهر مصغّرات بعارض ملء الشاشة يُسحَب فيه أفقيًا بين صور البطاقة
+(`ImagePager`، `pagingEnabled`، مع عدّاد «2 من 5» حين تتعدّد الصور، ويفتح على الصورة
+المنقورة)، وغيرها صفوف باسم الملف وحجمه تفتح خارجيًا عبر `Linking`)، قسم «السجل والتعليقات» المُدمَج (`history-section.tsx`)،
 مكوّن `ConfirmSheet` موحّد (`components/confirm-sheet.tsx`) يحل محل كل تأكيد
 بضغطتين قائم من قبل، وشاشة «عيّن كلمة مرور جديدة» الإجبارية
 (`app/change-password-required.tsx`). التفاصيل الكاملة في

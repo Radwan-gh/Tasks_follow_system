@@ -1,7 +1,9 @@
 /**
  * Page math for the board screen's horizontal status pager
- * (`app/board/[id].tsx`). Kept free of React Native imports so it is
- * unit-tested on its own (`status-pager.test.ts`).
+ * (`app/board/[id].tsx`), also used by the attachment image viewer's pager
+ * (`ImagePager` in `features/cards/attachments-section.tsx`) — any full-width
+ * horizontal pager in this RTL app needs the same measured offsets. Kept free
+ * of React Native imports so it can be unit-tested on its own.
  *
  * Each status page is exactly `pageWidth` wide and reports its own laid-out
  * `x`, which *is* the scroll offset that shows it — whichever way the platform

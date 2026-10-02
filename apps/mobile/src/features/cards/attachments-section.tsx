@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Image, Linking, Modal, Pressable, View } from "react-native";
+import { useEffect, useRef, useState } from "react";
+import { I18nManager, Image, Linking, Modal, Pressable, ScrollView, View, useWindowDimensions } from "react-native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as DocumentPicker from "expo-document-picker";
 import { File } from "expo-file-system";
@@ -11,6 +11,7 @@ import { BottomSheet } from "@/components/bottom-sheet";
 import { ConfirmSheet } from "@/components/confirm-sheet";
 import { Skeleton } from "@/components/skeleton";
 import { API_BASE_URL, api } from "@/lib/api";
+import { indexFromOffset, resolveColumnOffsets } from "@/lib/status-pager";
 import { MIN_TOUCH_TARGET, colors, radii, spacing } from "@/theme/tokens";
 
 const COLUMNS = 3;
@@ -33,7 +34,7 @@ function formatFileSize(bytes: number): string {
 /**
  * "المرفقات" (`design-prompt-group-3.md` §3a-4), extended to any file type: a
  * 3-column thumbnail grid for images + a "+" tile (camera / library / any
- * file), a full-screen image viewer, file rows for everything else (tap opens
+ * file), a full-screen image viewer that swipes between a card's images, file rows for everything else (tap opens
  * it in the system browser, which downloads it), and the
  * أي نوع ملف · حتى 10 · 20MB caption. Deleting an image is the viewer's
  * «حذف»; a file row has its own ✕ — both go through `ConfirmSheet`.
@@ -260,7 +261,7 @@ export function AttachmentsSection({ cardId, readOnly = false }: { cardId: strin
         <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.9)" }}>
           {viewed ? (
             <>
-              <Image source={{ uri: `${API_BASE_URL}${viewed.url}` }} style={{ flex: 1 }} resizeMode="contain" />
+              <ImagePager images={images} index={viewerIndex!} onIndexChange={setViewerIndex} />
               <View
                 style={{
                   flexDirection: "row",
@@ -273,12 +274,21 @@ export function AttachmentsSection({ cardId, readOnly = false }: { cardId: strin
                   {viewed.uploader.displayName} ·{" "}
                   {new Date(viewed.createdAt).toLocaleDateString("ar", { dateStyle: "medium" })}
                 </AppText>
-                <Pressable accessibilityRole="button" onPress={() => setDeleting(viewed)}>
-                  <AppText color={colors.alert} weight="semibold">
-                    حذف
-                  </AppText>
-                </Pressable>
+                {!readOnly ? (
+                  <Pressable accessibilityRole="button" onPress={() => setDeleting(viewed)}>
+                    <AppText color={colors.alert} weight="semibold">
+                      حذف
+                    </AppText>
+                  </Pressable>
+                ) : null}
               </View>
+              {images.length > 1 ? (
+                <View pointerEvents="none" style={{ position: "absolute", top: 50, right: spacing.xl }}>
+                  <AppText color={colors.surface} size="small" weight="semibold">
+                    {viewerIndex! + 1} من {images.length}
+                  </AppText>
+                </View>
+              ) : null}
               <Pressable
                 accessibilityRole="button"
                 onPress={() => setViewerIndex(null)}
@@ -305,5 +315,73 @@ export function AttachmentsSection({ cardId, readOnly = false }: { cardId: strin
         }}
       />
     </View>
+  );
+}
+
+/**
+ * The viewer's horizontal pager: one full-width page per image, swiped with
+ * `pagingEnabled`. Page offsets are *measured* and resolved through
+ * `lib/status-pager.ts`, like the board's status pager — in RTL
+ * `contentOffset.x` is not mirrored, so `index * width` would read the images
+ * in reverse. Mounted per opening, so it starts on the tapped image; hidden
+ * until it has scrolled there, so the first image never flashes first.
+ */
+function ImagePager({
+  images,
+  index,
+  onIndexChange,
+}: {
+  images: Attachment[];
+  index: number;
+  onIndexChange: (index: number) => void;
+}) {
+  const { width } = useWindowDimensions();
+  const pagerRef = useRef<ScrollView>(null);
+  const measuredOffsets = useRef<number[]>([]);
+  const [pageOffsets, setPageOffsets] = useState<number[]>([]);
+  const positioned = useRef(false);
+  const [ready, setReady] = useState(false);
+
+  function handlePageLayout(pageIndex: number, x: number) {
+    if (measuredOffsets.current[pageIndex] === x) return;
+    measuredOffsets.current[pageIndex] = x;
+    const resolved = resolveColumnOffsets(measuredOffsets.current, images.length, width, I18nManager.isRTL);
+    if (resolved) setPageOffsets(resolved);
+  }
+
+  useEffect(() => {
+    if (positioned.current || pageOffsets.length === 0) return;
+    positioned.current = true;
+    const x = pageOffsets[index];
+    if (x != null) pagerRef.current?.scrollTo({ x, animated: false });
+    setReady(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, on the first resolved offsets
+  }, [pageOffsets]);
+
+  return (
+    <ScrollView
+      ref={pagerRef}
+      horizontal
+      pagingEnabled
+      style={{ flex: 1, opacity: ready ? 1 : 0 }}
+      showsHorizontalScrollIndicator={false}
+      scrollEventThrottle={16}
+      onScroll={(e) => {
+        // Ignore the scroll events from before the jump to the tapped image.
+        if (!positioned.current) return;
+        const next = indexFromOffset(pageOffsets, e.nativeEvent.contentOffset.x, index);
+        if (next !== index) onIndexChange(next);
+      }}
+    >
+      {images.map((attachment, pageIndex) => (
+        <View
+          key={attachment.id}
+          style={{ width }}
+          onLayout={(e) => handlePageLayout(pageIndex, e.nativeEvent.layout.x)}
+        >
+          <Image source={{ uri: `${API_BASE_URL}${attachment.url}` }} style={{ flex: 1 }} resizeMode="contain" />
+        </View>
+      ))}
+    </ScrollView>
   );
 }
