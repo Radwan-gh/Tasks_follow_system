@@ -1,10 +1,9 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
-import { promises as fs } from "node:fs";
-import * as path from "node:path";
 import type { Attachment } from "@app/types";
 import { PrismaService } from "../prisma/prisma.service";
 import { BoardsService, canAccessCard, canManageCard } from "../boards/boards.service";
-import { UPLOADS_DIR, displayNameFromStored } from "../common/util/uploads.util";
+import { AttachmentStorageService } from "../common/storage/attachment-storage.service";
+import { buildStoredFilename, displayNameFromStored } from "../common/util/uploads.util";
 
 /** Any file type may be attached (originally images only, `design-prompt-group-3.md` §3) — the caps below still apply. */
 export const MAX_ATTACHMENTS_PER_CARD = 10;
@@ -36,6 +35,7 @@ export class AttachmentsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly boards: BoardsService,
+    private readonly storage: AttachmentStorageService,
   ) {}
 
   private async loadCard(cardId: string) {
@@ -67,43 +67,41 @@ export class AttachmentsService {
     return rows.map(serialize);
   }
 
-  /** `file` has already been written to `UPLOADS_DIR` by multer — this just validates the count cap and records the row. */
+  /** `file` is still in memory — it is only written to storage once access and the count cap pass. */
   async create(
     userId: string,
     cardId: string,
-    file: { filename: string; mimetype: string; size: number },
+    file: { originalname: string; mimetype: string; size: number; buffer: Buffer },
   ): Promise<Attachment> {
     const card = await this.loadCard(cardId);
     await this.boards.assertMembership(userId, card.boardId);
     const ownerId = await this.boardOwnerId(card.boardId);
-    if (!canAccessCard(userId, ownerId, card)) {
-      await this.deleteFile(file.filename);
-      throw new NotFoundException("Card not found");
-    }
-    try {
-      await this.boards.assertBoardMutable(card.boardId);
-    } catch (err) {
-      await this.deleteFile(file.filename);
-      throw err;
-    }
+    if (!canAccessCard(userId, ownerId, card)) throw new NotFoundException("Card not found");
+    await this.boards.assertBoardMutable(card.boardId);
 
     const count = await this.prisma.attachment.count({ where: { cardId } });
     if (count >= MAX_ATTACHMENTS_PER_CARD) {
-      await this.deleteFile(file.filename);
       throw new BadRequestException(`Cards can have at most ${MAX_ATTACHMENTS_PER_CARD} attachments`);
     }
 
-    const created = await this.prisma.attachment.create({
-      data: {
-        cardId,
-        uploaderId: userId,
-        filename: file.filename,
-        mimeType: file.mimetype,
-        sizeBytes: file.size,
-      },
-      include: { uploader: { select: { id: true, username: true, displayName: true } } },
-    });
-    return serialize(created);
+    const filename = buildStoredFilename(file.originalname);
+    await this.storage.put(filename, file.buffer, file.mimetype);
+    try {
+      const created = await this.prisma.attachment.create({
+        data: {
+          cardId,
+          uploaderId: userId,
+          filename,
+          mimeType: file.mimetype,
+          sizeBytes: file.size,
+        },
+        include: { uploader: { select: { id: true, username: true, displayName: true } } },
+      });
+      return serialize(created);
+    } catch (err) {
+      await this.storage.remove(filename);
+      throw err;
+    }
   }
 
   async remove(userId: string, cardId: string, attachmentId: string): Promise<void> {
@@ -116,10 +114,6 @@ export class AttachmentsService {
     if (!canDelete) throw new ForbiddenException("Only the uploader or the task's manager can delete this attachment");
 
     await this.prisma.attachment.delete({ where: { id: attachmentId } });
-    await this.deleteFile(attachment.filename);
-  }
-
-  private async deleteFile(filename: string): Promise<void> {
-    await fs.unlink(path.join(UPLOADS_DIR, filename)).catch(() => undefined);
+    await this.storage.remove(attachment.filename);
   }
 }

@@ -12,21 +12,19 @@ import {
 } from "@nestjs/common";
 import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOperation, ApiParam, ApiResponse, ApiTags } from "@nestjs/swagger";
 import { FileInterceptor } from "@nestjs/platform-express";
-import { diskStorage } from "multer";
+import { memoryStorage } from "multer";
 import type { Express } from "express";
 import { CurrentUser, type AuthUser } from "../common/decorators/current-user.decorator";
 import { JwtAuthGuard } from "../common/guards/jwt-auth.guard";
 import { AttachmentsService, MAX_ATTACHMENT_BYTES } from "./attachments.service";
-import { UPLOADS_DIR, buildStoredFilename } from "../common/util/uploads.util";
 import { zodArrayRef, zodRef } from "../swagger/zod-ref";
 
 // No `fileFilter`: any file type is accepted. Safety comes from how files are
-// named on disk (`buildStoredFilename`) and served (`setUploadHeaders`).
+// named (`buildStoredFilename`) and served (`setUploadHeaders`/signed-URL headers).
+// Buffered in memory (capped at 20MB) so nothing is stored until the service has
+// checked access and the per-card cap — see `AttachmentsService.create`.
 const upload = FileInterceptor("file", {
-  storage: diskStorage({
-    destination: UPLOADS_DIR,
-    filename: (_req, file, cb) => cb(null, buildStoredFilename(file.originalname)),
-  }),
+  storage: memoryStorage(),
   limits: { fileSize: MAX_ATTACHMENT_BYTES },
 });
 

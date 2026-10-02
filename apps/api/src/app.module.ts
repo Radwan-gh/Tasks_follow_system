@@ -1,10 +1,8 @@
 import { Module } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
-import { ServeStaticModule } from "@nestjs/serve-static";
 import { AuthModule } from "./auth/auth.module";
 import { BoardsModule } from "./boards/boards.module";
 import { CardsModule } from "./cards/cards.module";
-import { UPLOADS_DIR, setUploadHeaders } from "./common/util/uploads.util";
 import { ListsModule } from "./lists/lists.module";
 import { MyTasksModule } from "./my-tasks/my-tasks.module";
 import { NotificationsModule } from "./notifications/notifications.module";
@@ -18,14 +16,6 @@ import { UsersModule } from "./users/users.module";
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
-    // Card attachments (`design-prompt-group-3.md` §3a-4) — served publicly
-    // from unguessable UUID filenames, no cloud storage assumed. Any file type
-    // can be uploaded, so `setUploadHeaders` forces non-image files to download.
-    ServeStaticModule.forRoot({
-      rootPath: UPLOADS_DIR,
-      serveRoot: "/uploads",
-      serveStaticOptions: { setHeaders: setUploadHeaders },
-    }),
     PrismaModule,
     AuthModule,
     BoardsModule,

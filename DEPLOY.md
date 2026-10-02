@@ -53,6 +53,25 @@
 
 > `PORT` توفّره Railway تلقائيًا؛ لا تضبطه يدويًا.
 
+**Bucket (مرفقات البطاقات) — إلزامي**
+قرص الحاوية في Railway **مؤقّت** (يُمسَح مع كل نشر)، لذا تُحفَظ المرفقات في Railway
+Bucket (تخزين متوافق مع S3). أنشئ Bucket في المشروع (**New → Bucket**)، ثم أضِف إلى
+خدمة الـ API هذه المتغيّرات كمراجع لمتغيّرات الـ Bucket (استبدل `attachments bucket`
+باسم الـ Bucket عندك):
+
+| المتغيّر | القيمة |
+|---|---|
+| `AWS_ENDPOINT_URL` | `${{attachments bucket.ENDPOINT}}` |
+| `AWS_S3_BUCKET_NAME` | `${{attachments bucket.BUCKET}}` |
+| `AWS_REGION` | `${{attachments bucket.REGION}}` |
+| `AWS_ACCESS_KEY_ID` | `${{attachments bucket.ACCESS_KEY_ID}}` |
+| `AWS_SECRET_ACCESS_KEY` | `${{attachments bucket.SECRET_ACCESS_KEY}}` |
+
+عند الإقلاع يطبع الـ API `Attachments stored in bucket "..."`؛ إن طبع بدلًا منها
+`AWS_S3_BUCKET_NAME not set` فالمتغيّرات غير موصولة والملفات تذهب إلى القرص المؤقّت.
+الـ Buckets القديمة قد تتطلّب عناوين path-style — اضبط حينها `AWS_S3_FORCE_PATH_STYLE=true`
+(تبويب Credentials في الـ Bucket يبيّن ذلك).
+
 لتوليد الأسرار (على جهازك):
 ```bash
 node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
@@ -114,3 +133,5 @@ node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
   الصحيح بدون `/api`)، ثم أعد نشر الواجهة.
 - **أخطاء قاعدة البيانات**: تأكّد أن `DATABASE_URL` في خدمة الـ API يشير إلى
   `${{Postgres.DATABASE_URL}}`.
+- **المرفقات تختفي بعد كل نشر (صور مكسورة)**: متغيّرات الـ Bucket غير موصولة بخدمة
+  الـ API — انظر «Bucket (مرفقات البطاقات)» في الخطوة 2.

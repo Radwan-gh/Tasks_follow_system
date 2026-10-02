@@ -1,16 +1,11 @@
-import { mkdirSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import * as path from "node:path";
 
-/**
- * Local-disk storage root for card attachments (`design-prompt-group-3.md`
- * §3a-4) — no cloud storage assumed. Served publicly (unguessable UUID
- * filenames, no auth) via `ServeStaticModule` at `/uploads` — see
- * `app.module.ts`.
+/*
+ * Naming and serving rules for card attachments. Where the bytes live (a
+ * Railway bucket in production, local disk in dev) is `AttachmentStorageService`'s
+ * concern; both use the stored filename built here as the object key.
  */
-export const UPLOADS_DIR = process.env.UPLOADS_DIR ?? path.join(process.cwd(), "uploads");
-
-mkdirSync(UPLOADS_DIR, { recursive: true });
 
 const NAME_SEPARATOR = "__";
 const MAX_BASE_CHARS = 80;
@@ -58,24 +53,40 @@ export function displayNameFromStored(stored: string): string {
   return i === -1 ? stored : stored.slice(i + NAME_SEPARATOR.length);
 }
 
-/** Only these render inline in a browser; every other type is forced to download. */
-const INLINE_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".webp", ".gif"]);
+/** Only these render inline in a browser (extension → served type); every other type is forced to download. */
+const INLINE_TYPES: Record<string, string> = {
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".png": "image/png",
+  ".webp": "image/webp",
+  ".gif": "image/gif",
+};
 
 function encodeRfc5987(value: string): string {
   return encodeURIComponent(value).replace(/['()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`);
 }
 
+/** The `Content-Type` to serve a stored file inline with, or `null` if it must be downloaded instead. */
+export function inlineContentType(stored: string): string | null {
+  return INLINE_TYPES[path.extname(stored).toLowerCase()] ?? null;
+}
+
+/** `Content-Disposition: attachment`, named after the original upload (ASCII fallback + RFC 5987 UTF-8 name). */
+export function downloadDisposition(stored: string): string {
+  const name = displayNameFromStored(path.basename(stored));
+  const asciiFallback = name.replace(/[^\x20-\x7e]|["\\]/g, "_");
+  return `attachment; filename="${asciiFallback}"; filename*=UTF-8''${encodeRfc5987(name)}`;
+}
+
 /**
- * Uploads are served from the API origin with no auth, and any file type may
- * be attached — so anything that isn't a plain raster image is sent as a
- * download (an uploaded `.html`/`.svg` must never execute in the browser) and
- * `nosniff` stops a mislabelled file being reinterpreted as something else.
+ * Uploads are public (unguessable names, no auth) and any file type may be
+ * attached — so anything that isn't a plain raster image is sent as a download
+ * (an uploaded `.html`/`.svg` must never execute in the browser) and `nosniff`
+ * stops a mislabelled file being reinterpreted as something else. Used when
+ * serving from disk; the bucket gets the same headers baked into its signed URL.
  */
 export function setUploadHeaders(res: { setHeader(name: string, value: string): unknown }, filePath: string): void {
   res.setHeader("X-Content-Type-Options", "nosniff");
-  const stored = path.basename(filePath);
-  if (INLINE_EXTENSIONS.has(path.extname(stored).toLowerCase())) return;
-  const name = displayNameFromStored(stored);
-  const asciiFallback = name.replace(/[^\x20-\x7e]|["\\]/g, "_");
-  res.setHeader("Content-Disposition", `attachment; filename="${asciiFallback}"; filename*=UTF-8''${encodeRfc5987(name)}`);
+  if (inlineContentType(filePath)) return;
+  res.setHeader("Content-Disposition", downloadDisposition(filePath));
 }
