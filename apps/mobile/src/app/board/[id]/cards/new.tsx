@@ -430,10 +430,8 @@ export default function NewCardScreen() {
         subtitle="يمكن اختيار أكثر من شخص، ويجب أن يكون عضوًا في اللوحة."
         members={assignableMembers}
         selectedIds={assigneeIds}
-        onSave={(ids) => {
-          setAssigneeIds(ids);
-          setPickingAssignees(false);
-        }}
+        // The card doesn't exist yet — picks stay local and are sent by `submit`.
+        onChange={setAssigneeIds}
       />
 
       <AssigneePickerSheet
@@ -443,11 +441,7 @@ export default function NewCardScreen() {
         subtitle="مالك اللوحة يملك الوصول دائمًا."
         members={nonImplicitMembers}
         selectedIds={restrictedMemberIds}
-        onSave={(ids) => {
-          setRestrictedMemberIds(ids);
-          setPickingRestrictedMembers(false);
-        }}
-        saveLabel="حفظ"
+        onChange={setRestrictedMemberIds}
       />
 
       <TemplatePickerSheet
