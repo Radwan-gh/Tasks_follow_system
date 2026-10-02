@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Image, Linking, Modal, Pressable, View } from "react-native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as DocumentPicker from "expo-document-picker";
+import { File } from "expo-file-system";
 import * as ImagePicker from "expo-image-picker";
 import { ApiError } from "@app/api-client";
 import type { Attachment } from "@app/types";
@@ -54,7 +55,10 @@ export function AttachmentsSection({ cardId, readOnly = false }: { cardId: strin
   }
 
   const upload = useMutation({
-    mutationFn: (file: { uri: string; name: string; type: string }) => api.attachments.upload(cardId, file),
+    // `expo/fetch` (the global fetch since SDK 57) can't upload a `{ uri }`
+    // part — hand it the bytes read from the picked file instead.
+    mutationFn: ({ uri, name, type }: { uri: string; name: string; type: string }) =>
+      api.attachments.upload(cardId, { name, type, bytes: () => new File(uri).bytes() }),
     onSuccess: () => {
       setUploadError(null);
       invalidate();

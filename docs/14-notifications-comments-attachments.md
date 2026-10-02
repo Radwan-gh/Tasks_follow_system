@@ -208,8 +208,9 @@ DELETE /cards/:cardId/attachments/:attachmentId
   `common/util/uploads.util.ts`): الـUUID يُبقي الرابط غير قابل للتخمين، والاسم
   الأصلي يُحمَل داخل الاسم نفسه فيُعرَض في الواجهة (`Attachment.fileName`،
   يُشتقّ بـ`displayNameFromStored`) ويُسمّى به الملف عند التنزيل — **بلا عمود
-  جديد ولا مِهجرة**. تُنقّى الأسماء: تُفكّ ترميزة latin1 التي يفرضها `multer`
-  على أسماء UTF-8 (وإلا تشوّه العربية)، وتُستبدَل المحارف الخطرة (`/ \ : < > | ? * % #`
+  جديد ولا مِهجرة**. تُنقّى الأسماء: يُفكّ ترميز النسبة المئوية (`%D8%AA…`) الذي
+  يضعه `expo/fetch` على اسم الملف القادم من الجوال، وتُفكّ ترميزة latin1 التي يفرضها
+  `multer` على أسماء UTF-8 الخام من الويب (وإلا تشوّه العربية)، وتُستبدَل المحارف الخطرة (`/ \ : < > | ? * % #`
   وأحرف التحكم) بـ`_`، ويُقصّ الاسم بالبايت، ويُقيَّد الامتداد بـ`[a-z0-9]`.
   الملفات القديمة (`<uuid>.<ext>` بلا فاصل) تبقى صالحة. تُخدَّم علنًا بلا
   مصادقة عبر `GET /uploads/:filename` (`cards/uploads.controller.ts`) — الأمان
@@ -234,7 +235,12 @@ DELETE /cards/:cardId/attachments/:attachmentId
   `AttachmentsSection` في `CardDetailPanel.tsx` (حقل ملف بلا `accept`، وفحص الحجم
   قبل الرفع من `lib/attachment-url.ts`). الجوال: `attachments-section.tsx` (ورقة
   «الكاميرا / المعرض / ملف»). `packages/api-client`'s `attachments.upload` يقبل
-  `File | Blob` (الويب) أو `{ uri, name, type }` (الجوال).
+  `File | Blob` (الويب) أو `UploadFilePart` = `{ name, type, bytes() }` (الجوال).
+  **لا** يُستعمل شكل React Native القديم `{ uri, name, type }`: منذ Expo SDK 57 صار
+  `fetch` العام هو `expo/fetch`، الذي يرفض هذا الشكل قبل الإرسال
+  («Unsupported FormDataPart implementation») فلا يصل أي طلب للخادم. بدلًا منه يقرأ
+  الجوال بايتات الملف المختار عبر `new File(uri).bytes()` من `expo-file-system`،
+  ويُعاد قراءتها عند كل إرسال فتنجح إعادة المحاولة بعد تجديد الرمز (401).
 
 ## توليد المهمة المتكررة (Recurrence)
 

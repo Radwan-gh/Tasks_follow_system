@@ -64,6 +64,18 @@ import { ApiError } from "./error.js";
  * the mobile app with `expo-secure-store` (async). The client awaits every
  * call, so a sync adapter needs no wrapping.
  */
+/**
+ * A file to upload that isn't a browser `Blob` — what the mobile app sends.
+ * Shaped for `expo/fetch`'s multipart encoder: `name`/`type` become the part's
+ * filename and `Content-Type`, `bytes()` its body. Re-read on every send, so a
+ * 401 → refresh → retry re-uploads the same file.
+ */
+export interface UploadFilePart {
+  name: string;
+  type: string;
+  bytes(): Promise<Uint8Array>;
+}
+
 export interface TokenStorage {
   getAccessToken(): string | null | Promise<string | null>;
   getRefreshToken(): string | null | Promise<string | null>;
@@ -324,12 +336,14 @@ export function createApiClient({ baseUrl, storage, onUnauthorized }: ApiClientO
       list: (cardId: string) => request<Attachment[]>(`/cards/${cardId}/attachments`),
       /**
        * `file` is either a browser `File`/`Blob` (web, from an `<input
-       * type="file">`) or the RN `{ uri, name, type }` shape
-       * `expo-image-picker` returns (mobile) — `FormData` needs a real `Blob`
-       * to actually upload bytes; the RN shape only works via React Native's
-       * own `fetch`/`FormData` polyfill, which special-cases that object.
+       * type="file">`) or, on mobile, an `UploadFilePart` that reads its own
+       * bytes. Expo SDK 57 replaces the global `fetch` with `expo/fetch`, which
+       * rejects React Native's old `{ uri, name, type }` part before sending
+       * anything ("Unsupported FormDataPart implementation") — it serializes a
+       * part by awaiting `bytes()` and taking the filename/type from
+       * `name`/`type`.
        */
-      upload: (cardId: string, file: File | Blob | { uri: string; name: string; type: string }) => {
+      upload: (cardId: string, file: File | Blob | UploadFilePart) => {
         const formData = new FormData();
         if (file instanceof Blob) {
           formData.append("file", file, file instanceof File ? file.name : undefined);

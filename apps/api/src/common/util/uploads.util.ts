@@ -12,8 +12,19 @@ const MAX_BASE_CHARS = 80;
 /** Keeps the whole on-disk name well under the 255-byte filesystem limit even for multi-byte scripts. */
 const MAX_BASE_BYTES = 150;
 
-/** multer/busboy decode `originalname` as latin1 by default, which garbles UTF-8 (e.g. Arabic) names. */
+/**
+ * Recovers the real filename from two client quirks: `expo/fetch` (the mobile
+ * app's fetch) percent-encodes it (`%D8%AA…`), and multer/busboy decode
+ * `originalname` as latin1 by default, which garbles raw UTF-8 (e.g. Arabic).
+ */
 function decodeOriginalName(originalname: string): string {
+  if (/%[0-9a-f]{2}/i.test(originalname)) {
+    try {
+      return decodeURIComponent(originalname);
+    } catch {
+      // A literal `%` that isn't an escape (`100%.pdf`) — fall through.
+    }
+  }
   // A code unit above 0xFF can't have come from latin1 decoding — already proper text.
   if (/[^\u0000-ÿ]/.test(originalname)) return originalname;
   const decoded = Buffer.from(originalname, "latin1").toString("utf8");
