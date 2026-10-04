@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Pressable, ScrollView, Switch, TextInput, View } from "react-native";
+import { Image, Pressable, ScrollView, Switch, TextInput, View } from "react-native";
 import { ApiError } from "@app/api-client";
 import { Screen } from "@/components/screen";
 import { AppText } from "@/components/text";
@@ -76,6 +76,15 @@ export default function LoginScreen() {
         contentContainerStyle={{ flexGrow: 1, justifyContent: "center", padding: spacing.xxl }}
         keyboardShouldPersistTaps="handled"
       >
+        <Image
+          source={require("../../assets/images/logo.png")}
+          accessibilityRole="image"
+          accessibilityLabel="غِراس"
+          resizeMode="contain"
+          // Cropped from `logo/ghiras-logo-light.png`; the ratio keeps it sharp
+          // at any width without a fixed height to drift out of sync.
+          style={{ width: 168, height: undefined, aspectRatio: 1130 / 324, alignSelf: "center", marginBottom: spacing.xxl }}
+        />
         <View style={{ gap: spacing.xs, marginBottom: spacing.xxl }}>
           <AppText size="heading" weight="bold">
             تسجيل الدخول

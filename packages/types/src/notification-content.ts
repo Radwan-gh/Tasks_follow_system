@@ -29,4 +29,4 @@ export function describeNotification(input: {
 }
 
 /** Push notification title — the app name, since the body carries the detail. */
-export const PUSH_TITLE = "متابعة المهام";
+export const PUSH_TITLE = "غِراس";

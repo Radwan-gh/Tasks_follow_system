@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
+import ghirasLogo from "../../assets/ghiras-logo.png";
 import { useAuth } from "./AuthContext";
 
 const REMEMBERED_USERNAME_KEY = "kanban.rememberedUsername";
@@ -62,7 +63,8 @@ export function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-100">
+    <div className="flex min-h-screen flex-col items-center justify-center gap-8 bg-slate-100 px-4">
+      <img src={ghirasLogo} alt="غِراس" width={1130} height={324} className="h-auto w-[200px]" />
       <form onSubmit={onSubmit} className="w-full max-w-sm space-y-4 rounded-lg bg-white p-8 shadow">
         <h1 className="text-xl font-semibold text-slate-900">تسجيل الدخول</h1>
         {error && <p className="rounded bg-red-50 p-2 text-sm text-red-600">{error}</p>}

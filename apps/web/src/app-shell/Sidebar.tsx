@@ -1,5 +1,6 @@
 import { Link, useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
+import ghirasMark from "../assets/ghiras-mark.svg";
 import { api } from "../lib/api-client";
 import { useAuth } from "../features/auth/AuthContext";
 import { isOverdueItem } from "../features/my-tasks/group-my-tasks";
@@ -40,10 +41,8 @@ export function Sidebar() {
     <aside className="flex w-[232px] shrink-0 flex-col gap-[22px] border-line bg-surface p-4 [border-inline-start-width:1px] [border-inline-start-style:solid]">
       <div className="flex items-center justify-between gap-2.5 px-1.5">
         <div className="flex min-w-0 items-center gap-2.5">
-          <span className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-xl bg-accent text-[15px] font-bold text-white">
-            ◈
-          </span>
-          <span className="truncate text-[15px] font-bold text-ink">متابعة المهام</span>
+          <img src={ghirasMark} alt="" aria-hidden className="h-[30px] w-[30px] shrink-0" />
+          <span className="truncate text-[17px] font-bold text-ink">غِراس</span>
         </div>
         <NotificationBell />
       </div>
