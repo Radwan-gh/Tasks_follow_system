@@ -88,6 +88,7 @@ model User {
   notificationPrefs Json?
 
   refreshTokens  RefreshToken[]
+  oauthAuthorizationCodes OAuthAuthorizationCode[]
   boardMemberships BoardMember[]
   cardMemberships  CardMember[]
   createdCards   Card[]         @relation("CardCreator")
@@ -109,8 +110,50 @@ model RefreshToken {
   expiresAt DateTime
   revokedAt DateTime?
   createdAt DateTime  @default(now())
+  /// Set when the token was issued to an MCP client over OAuth
+  /// (docs/15-mcp-server.md). Such a token can only be refreshed through the
+  /// OAuth `/token` endpoint by that same client — never at `/auth/refresh` —
+  /// so an MCP session can't be turned into a full REST session.
+  oauthClientId String?
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  oauthClient OAuthClient? @relation(fields: [oauthClientId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+/// An MCP client (e.g. claude.ai) registered via OAuth dynamic client
+/// registration (`POST /register`). `metadata` is the full RFC 7591 client
+/// information the SDK hands us; `clientSecret` is kept in plain text because
+/// the SDK's client-auth middleware compares it verbatim. It protects little:
+/// every token still needs a user's own login plus PKCE.
+model OAuthClient {
+  id           String   @id
+  clientSecret String?
+  metadata     Json
+  createdAt    DateTime @default(now())
+
+  refreshTokens      RefreshToken[]
+  authorizationCodes OAuthAuthorizationCode[]
+}
+
+/// A single-use OAuth authorization code, issued after the user signs in on the
+/// MCP login page and exchanged once at `POST /token`. Only a SHA-256 hash of
+/// the code is stored (same pattern as `RefreshToken.tokenHash`).
+model OAuthAuthorizationCode {
+  id            String    @id @default(cuid())
+  codeHash      String    @unique
+  clientId      String
+  userId        String
+  redirectUri   String
+  codeChallenge String
+  resource      String?
+  expiresAt     DateTime
+  usedAt        DateTime?
+  createdAt     DateTime  @default(now())
+
+  client OAuthClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  user   User        @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
 }

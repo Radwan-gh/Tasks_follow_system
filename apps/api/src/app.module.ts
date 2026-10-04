@@ -4,6 +4,7 @@ import { AuthModule } from "./auth/auth.module";
 import { BoardsModule } from "./boards/boards.module";
 import { CardsModule } from "./cards/cards.module";
 import { ListsModule } from "./lists/lists.module";
+import { McpModule } from "./mcp/mcp.module";
 import { MyTasksModule } from "./my-tasks/my-tasks.module";
 import { NotificationsModule } from "./notifications/notifications.module";
 import { PrismaModule } from "./prisma/prisma.module";
@@ -28,6 +29,7 @@ import { UsersModule } from "./users/users.module";
     UsersModule,
     TemplatesModule,
     SettingsModule,
+    McpModule,
   ],
 })
 export class AppModule {}

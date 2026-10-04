@@ -230,6 +230,22 @@ self-registration**: accounts are created only by an ADMIN via
 `hashPassword` (`common/util/password.util.ts`), so the bcrypt cost factor
 lives in one place.
 
+### Remote MCP server (`apps/api/src/mcp`)
+
+`POST /mcp` lets any user connect Claude to their own boards; see
+`docs/15-mcp-server.md`. The API is also the OAuth 2.1 authorization server
+(dynamic client registration + PKCE, via `@modelcontextprotocol/sdk`'s
+`mcpAuthRouter`, mounted outside Nest's router in `mcp/mount.ts`). MCP tokens
+are ordinary `AuthService` JWTs plus `aud = <PUBLIC_API_URL>/mcp`;
+`JwtStrategy` rejects any token with an `aud`, and a refresh token bound to an
+OAuth client (`RefreshToken.oauthClientId`) only refreshes via `/token` — keep
+both rules or MCP and app sessions become interchangeable. Tools call the same
+service methods as the REST controllers (so `assertMembership` applies) and take
+their input shapes from `packages/types`. Register tools through the
+`toolRegistrar` helper in `mcp-server.factory.ts`, not `server.registerTool`
+directly — the SDK's own generic typing runs `tsc` out of memory on these
+schemas. Lists are deliberately not creatable over MCP.
+
 ### Request validation
 
 Nest's built-in `ValidationPipe`/`class-validator` are **not** used. Request

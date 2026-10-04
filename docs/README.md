@@ -29,6 +29,7 @@
 | [`12-mobile-app.md`](./12-mobile-app.md) | تطبيق الجوال (Expo/React Native) وعميل الـ API المشترك |
 | [`13-redesign-completion-plan.md`](./13-redesign-completion-plan.md) | **متابعة التقدّم** في إتمام تصميم الجوال الكامل (v2)، مرحلة بمرحلة |
 | [`14-notifications-comments-attachments.md`](./14-notifications-comments-attachments.md) | الإشعارات، التعليقات، المرفقات، توليد المهمة المتكررة، وإعادة تعيين كلمة المرور |
+| [`15-mcp-server.md`](./15-mcp-server.md) | خادم MCP البعيد: ربط Claude بالحساب عبر OAuth، والأدوات المتاحة وقواعدها |
 
 ## كيف تُحدَّث هذه الوثائق؟
 

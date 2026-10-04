@@ -44,6 +44,9 @@ Attachment ─ card, uploader
 Notification ─ user
 Template ─ board
 AppSettings (single global row, no relations)
+
+OAuthClient ─ refreshTokens, authorizationCodes   (MCP clients, e.g. claude.ai)
+OAuthAuthorizationCode ─ client, user
 ```
 
 ## Entities in detail
@@ -76,6 +79,16 @@ token. Detailed in [`03-authentication.md`](./03-authentication.md).
 | `tokenHash` | SHA-256 hash of the raw token |
 | `expiresAt` | Expiry time |
 | `revokedAt` | Revocation time (null = still valid) |
+| `oauthClientId` | Set only for tokens issued to an MCP client over OAuth (null for the web/mobile apps). Such a token refreshes only through `POST /token` by that same client, never at `/auth/refresh` — see [`15-mcp-server.md`](./15-mcp-server.md) |
+
+### OAuthClient / OAuthAuthorizationCode
+
+The remote MCP server's OAuth state — detailed in [`15-mcp-server.md`](./15-mcp-server.md).
+
+| Entity | Purpose | Notes |
+|---|---|---|
+| `OAuthClient` | An MCP client registered via dynamic client registration (`POST /register`) | `id` (the `client_id`), `clientSecret?`, `metadata` (the full RFC 7591 client info as Json: name, redirect URIs…). The secret is stored in plain text because the MCP SDK compares it verbatim; it guards little, since every token still needs the user's own login plus PKCE. Deleting a client cascades to its refresh tokens and codes |
+| `OAuthAuthorizationCode` | A single-use code issued after the user signs in on the MCP login page | `codeHash` (SHA-256, unique — the raw code is never stored), `clientId`, `userId`, `redirectUri`, `codeChallenge` (PKCE S256), `resource?`, `expiresAt` (5 minutes), `usedAt?` (set atomically on exchange) |
 
 ### Board
 

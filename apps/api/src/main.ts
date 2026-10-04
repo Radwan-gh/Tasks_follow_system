@@ -1,12 +1,18 @@
 import "reflect-metadata";
 import { NestFactory } from "@nestjs/core";
+import type { NestExpressApplication } from "@nestjs/platform-express";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import { AppModule } from "./app.module";
+import { mountMcp } from "./mcp/mount";
 import { buildZodComponents } from "./swagger/schema-registry";
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
   app.enableCors();
+  // Railway terminates TLS at its proxy; trust its X-Forwarded-For so the MCP
+  // OAuth endpoints rate-limit per client rather than per proxy.
+  app.set("trust proxy", 1);
+  mountMcp(app);
 
   const config = new DocumentBuilder()
     .setTitle("Kanban API")

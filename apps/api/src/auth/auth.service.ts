@@ -29,6 +29,17 @@ interface RefreshPayload {
   jti: string;
 }
 
+/**
+ * Who a token pair is being issued to when it isn't the first-party apps: an
+ * MCP client that signed the user in over OAuth (docs/15-mcp-server.md). The
+ * access token then carries `aud: audience` — which `JwtStrategy` rejects, so
+ * it is only good at `/mcp` — and the refresh token is bound to `clientId`.
+ */
+export interface OAuthGrant {
+  clientId: string;
+  audience: string;
+}
+
 /** The `GET /auth/me` / `PATCH /auth/me` response shape (`CurrentUser` in `packages/types`). */
 function serializeCurrentUser(user: {
   id: string;
@@ -63,6 +74,14 @@ export class AuthService {
   ) {}
 
   async login(input: LoginRequest): Promise<AuthResponse> {
+    return this.issueTokens(await this.validateCredentials(input));
+  }
+
+  /**
+   * The username/password check behind `login`, shared with the MCP OAuth
+   * login page so both sign-in paths apply exactly the same rules.
+   */
+  async validateCredentials(input: LoginRequest) {
     // Usernames are stored lowercase, so sign-in is case-insensitive.
     const user = await this.prisma.user.findUnique({
       where: { username: input.username.trim().toLowerCase() },
@@ -71,13 +90,33 @@ export class AuthService {
       throw new UnauthorizedException("Invalid credentials");
     }
     if (!user.isActive) throw new ForbiddenException("Account is deactivated");
-    return this.issueTokens(user);
+    return user;
   }
 
-  async refresh(refreshToken: string): Promise<AuthResponse> {
+  /** Issues an OAuth-bound token pair for an MCP client — see `OAuthGrant`. */
+  issueOAuthTokens(user: { id: string; username: string; role: string }, grant: OAuthGrant): Promise<AuthResponse> {
+    return this.issueTokens(user, grant);
+  }
+
+  /** Access-token lifetime in seconds, for the OAuth `expires_in` field. */
+  accessTokenTtlSeconds(): number {
+    return Math.floor(ttlToMs(this.config.get<string>("JWT_ACCESS_TTL") ?? "15m") / 1000);
+  }
+
+  /**
+   * Rotates a refresh token. Without `grant` this is `POST /auth/refresh` for
+   * the apps; with it, the OAuth `/token` refresh grant. A token only refreshes
+   * through the path it was issued on — an MCP client's token is refused here
+   * without a matching `grant`, and an app token is refused with one — so
+   * neither kind of session can be converted into the other.
+   */
+  async refresh(refreshToken: string, grant?: OAuthGrant): Promise<AuthResponse> {
     const payload = await this.verifyRefreshToken(refreshToken);
     const stored = await this.prisma.refreshToken.findUnique({ where: { id: payload.jti } });
     if (!stored || stored.tokenHash !== hashToken(refreshToken) || stored.revokedAt || stored.expiresAt < new Date()) {
+      throw new UnauthorizedException("Invalid refresh token");
+    }
+    if (stored.oauthClientId !== (grant?.clientId ?? null)) {
       throw new UnauthorizedException("Invalid refresh token");
     }
     const user = await this.prisma.user.findUnique({ where: { id: stored.userId } });
@@ -88,7 +127,7 @@ export class AuthService {
 
     // Rotate: revoke the used refresh token so it can't be replayed.
     await this.prisma.refreshToken.update({ where: { id: stored.id }, data: { revokedAt: new Date() } });
-    return this.issueTokens(user);
+    return this.issueTokens(user, grant);
   }
 
   async logout(refreshToken: string): Promise<void> {
@@ -164,14 +203,18 @@ export class AuthService {
     }
   }
 
-  private async issueTokens(user: { id: string; username: string; role: string }): Promise<AuthResponse> {
+  private async issueTokens(
+    user: { id: string; username: string; role: string },
+    grant?: OAuthGrant,
+  ): Promise<AuthResponse> {
     const jti = randomUUID();
     const [accessToken, refreshToken] = await Promise.all([
       this.jwt.signAsync(
-        { sub: user.id, username: user.username, role: user.role },
+        { sub: user.id, username: user.username, role: user.role, ...(grant ? { client_id: grant.clientId } : {}) },
         {
           secret: this.config.getOrThrow<string>("JWT_ACCESS_SECRET"),
           expiresIn: this.config.get<string>("JWT_ACCESS_TTL") ?? "15m",
+          ...(grant ? { audience: grant.audience } : {}),
         },
       ),
       this.jwt.signAsync(
@@ -190,6 +233,7 @@ export class AuthService {
         userId: user.id,
         tokenHash: hashToken(refreshToken),
         expiresAt: new Date(Date.now() + ttlMs),
+        oauthClientId: grant?.clientId ?? null,
       },
     });
 

@@ -7,5 +7,6 @@ import { SubtasksService } from "./subtasks.service";
   imports: [BoardsModule],
   controllers: [SubtasksController],
   providers: [SubtasksService],
+  exports: [SubtasksService],
 })
 export class SubtasksModule {}
