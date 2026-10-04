@@ -187,6 +187,9 @@ export class BoardsService {
               include: {
                 members: { select: { userId: true } },
                 assignees: { select: { userId: true } },
+                // The board face's paperclip count and subtask fraction.
+                subtasks: { select: { isDone: true } },
+                _count: { select: { attachments: true } },
               },
             },
           },
@@ -227,7 +230,12 @@ export class BoardsService {
         isArchived: list.isArchived,
         statusCategory: list.statusCategory,
         createdAt: list.createdAt.toISOString(),
-        cards: visible.map(serializeCard),
+        cards: visible.map((card) => ({
+          ...serializeCard(card),
+          subtaskTotal: card.subtasks.length,
+          subtaskDone: card.subtasks.filter((s) => s.isDone).length,
+          attachmentCount: card._count.attachments,
+        })),
       };
     });
 

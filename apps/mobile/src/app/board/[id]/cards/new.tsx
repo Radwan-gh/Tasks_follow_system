@@ -152,6 +152,8 @@ export default function NewCardScreen() {
         <TextInput
           value={title}
           onChangeText={setTitle}
+          // The title is the one required field — start there, keyboard up.
+          autoFocus
           placeholder="عنوان المهمة"
           placeholderTextColor={colors.line}
           multiline
@@ -358,7 +360,7 @@ export default function NewCardScreen() {
         ) : null}
       </RevealScrollView>
 
-      <DueDateSheet visible={pickingDueDate} onClose={() => setPickingDueDate(false)} onChange={setDueDate} />
+      <DueDateSheet visible={pickingDueDate} onClose={() => setPickingDueDate(false)} onChange={setDueDate} value={dueDate} />
 
       <RecurrenceSheet
         visible={pickingRecurrence}

@@ -358,7 +358,7 @@ export default function BoardSettingsScreen() {
         ) : null}
       </RevealScrollView>
 
-      <DueDateSheet visible={pickingDueDate} onClose={() => setPickingDueDate(false)} onChange={setDueDate} />
+      <DueDateSheet visible={pickingDueDate} onClose={() => setPickingDueDate(false)} onChange={setDueDate} value={dueDate} />
 
       <ConfirmSheet
         visible={confirmingArchive}

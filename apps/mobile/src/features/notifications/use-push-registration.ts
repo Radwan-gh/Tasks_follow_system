@@ -1,12 +1,11 @@
 import { useEffect, useSyncExternalStore } from "react";
 import { AppState } from "react-native";
-import * as Notifications from "expo-notifications";
 import { useQueryClient } from "@tanstack/react-query";
 import { ApiError } from "@app/api-client";
 import { api } from "@/lib/api";
 import { useOpenCard } from "@/lib/board-cache";
 import { getDeviceId } from "@/lib/device-id";
-import { registerForPush } from "@/lib/push";
+import { lastTappedPush, onPushReceived, onPushTapped, onPushTokenChange, registerForPush } from "@/lib/push";
 
 export interface PushStatus {
   deviceId: string | null;
@@ -106,7 +105,7 @@ export function usePushRegistration(userId: string | undefined): void {
     const appState = AppState.addEventListener("change", (next) => {
       if (next === "active") void syncPushDevice();
     });
-    const tokenRotation = Notifications.addPushTokenListener(() => void syncPushDevice());
+    const tokenRotation = onPushTokenChange(() => void syncPushDevice());
     return () => {
       appState.remove();
       tokenRotation.remove();
@@ -118,9 +117,8 @@ export function usePushRegistration(userId: string | undefined): void {
   // card/board it's about, so another user's change shows up immediately on
   // whichever of them is on screen instead of at the next poll.
   useEffect(() => {
-    const received = Notifications.addNotificationReceivedListener((notification) => {
+    const received = onPushReceived(({ cardId, boardId }) => {
       void queryClient.invalidateQueries({ queryKey: ["notifications"] });
-      const { cardId, boardId } = notification.request.content.data ?? {};
       if (typeof cardId === "string" && cardId.length > 0) {
         for (const key of ["card", "cardHistory", "cardComments"]) {
           void queryClient.invalidateQueries({ queryKey: [key, cardId] });
@@ -135,8 +133,7 @@ export function usePushRegistration(userId: string | undefined): void {
 
   // Tapping a notification opens the card it refers to.
   useEffect(() => {
-    const openFromResponse = (response: Notifications.NotificationResponse | null) => {
-      const data = response?.notification.request.content.data;
+    const openFromData = (data: Record<string, unknown> | null) => {
       const cardId = data?.cardId;
       const boardId = typeof data?.boardId === "string" ? data.boardId : undefined;
       if (typeof cardId === "string" && cardId.length > 0) openCard(cardId, boardId);
@@ -144,9 +141,9 @@ export function usePushRegistration(userId: string | undefined): void {
 
     // Covers the cold-start case: the tap that launched the app has already
     // fired by the time this listener attaches.
-    void Notifications.getLastNotificationResponseAsync().then(openFromResponse).catch(() => undefined);
+    void lastTappedPush().then(openFromData);
 
-    const subscription = Notifications.addNotificationResponseReceivedListener(openFromResponse);
+    const subscription = onPushTapped(openFromData);
     return () => subscription.remove();
   }, [openCard]);
 }

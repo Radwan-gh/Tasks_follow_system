@@ -3,13 +3,15 @@ import { I18nManager, Pressable, RefreshControl, ScrollView, TextInput, View, us
 import { useIsFocused, useLocalSearchParams, useRouter } from "expo-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import type { BoardDetail, Card } from "@app/types";
+import type { BoardCard, BoardDetail, Card } from "@app/types";
+import { ApiError } from "@app/api-client";
 import { Screen } from "@/components/screen";
 import { AppText } from "@/components/text";
 import { ErrorState } from "@/components/state-views";
 import { Skeleton } from "@/components/skeleton";
 import { ConfirmSheet } from "@/components/confirm-sheet";
 import { BottomSheet } from "@/components/bottom-sheet";
+import { Toast, type ToastMessage } from "@/components/toast";
 import { ListColumn, sortByPriority } from "@/features/boards/list-column";
 import { CardItem } from "@/features/boards/card-item";
 import { MoveCardSheet } from "@/features/boards/move-card-sheet";
@@ -36,8 +38,9 @@ function makeTempId(): string {
   return `temp:${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
-function moveCardInBoard(board: BoardDetail, cardId: string, targetListId: string): BoardDetail {
-  let moved: Card | null = null;
+/** Moves a card in the cached board: to `index` in the target list, or to its end (where the server appends). */
+function moveCardInBoard(board: BoardDetail, cardId: string, targetListId: string, index?: number): BoardDetail {
+  let moved: BoardCard | null = null;
   const withoutCard = board.lists.map((list) => {
     const card = list.cards.find((c) => c.id === cardId);
     if (!card) return list;
@@ -47,19 +50,51 @@ function moveCardInBoard(board: BoardDetail, cardId: string, targetListId: strin
   if (!moved) return board;
   return {
     ...board,
-    lists: withoutCard.map((list) => (list.id === targetListId ? { ...list, cards: [...list.cards, moved!] } : list)),
+    lists: withoutCard.map((list) => {
+      if (list.id !== targetListId) return list;
+      const cards = [...list.cards];
+      cards.splice(index ?? cards.length, 0, moved!);
+      return { ...list, cards };
+    }),
   };
+}
+
+/** Where a card sits right now — what an undo puts it back to. */
+interface CardPlace {
+  listId: string;
+  index: number;
+  /** Its server-order neighbours, for `move: { beforeId, afterId }`. */
+  beforeId: string | null;
+  afterId: string | null;
+}
+
+interface MoveInput {
+  cardId: string;
+  targetListId: string;
+  /** Set only by an undo: the place the card is going back to. */
+  restore?: CardPlace;
+}
+
+function findCardPlace(board: BoardDetail, cardId: string): CardPlace | null {
+  for (const list of board.lists) {
+    const index = list.cards.findIndex((c) => c.id === cardId);
+    if (index === -1) continue;
+    // A still-optimistic neighbour has no server id to anchor to.
+    const real = (c: BoardCard | undefined) => (c && !c.id.startsWith("temp:") ? c.id : null);
+    return { listId: list.id, index, beforeId: real(list.cards[index - 1]), afterId: real(list.cards[index + 1]) };
+  }
+  return null;
 }
 
 function removeCardFromBoard(board: BoardDetail, cardId: string): BoardDetail {
   return { ...board, lists: board.lists.map((list) => ({ ...list, cards: list.cards.filter((c) => c.id !== cardId) })) };
 }
 
-function addCardToBoard(board: BoardDetail, listId: string, card: Card): BoardDetail {
+function addCardToBoard(board: BoardDetail, listId: string, card: BoardCard): BoardDetail {
   return { ...board, lists: board.lists.map((list) => (list.id === listId ? { ...list, cards: [...list.cards, card] } : list)) };
 }
 
-function makeTempCard(input: { id: string; listId: string; boardId: string; title: string; createdById: string }): Card {
+function makeTempCard(input: { id: string; listId: string; boardId: string; title: string; createdById: string }): BoardCard {
   return {
     id: input.id,
     listId: input.listId,
@@ -80,6 +115,9 @@ function makeTempCard(input: { id: string; listId: string; boardId: string; titl
     recurrence: null,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
+    subtaskTotal: 0,
+    subtaskDone: 0,
+    attachmentCount: 0,
   };
 }
 
@@ -133,21 +171,66 @@ export default function BoardScreen() {
   const listRef = useRef<ScrollView>(null);
   const chipsRef = useRef<ScrollView>(null);
 
+  const [toast, setToast] = useState<ToastMessage | null>(null);
+  // The toast's undo calls `move` from inside `move`'s own options.
+  const moveRef = useRef<(input: MoveInput) => void>(() => undefined);
+
+  /**
+   * A move takes the card out of the column on screen, so every move started
+   * here says where it went and offers to take it back — the arrow sits inside
+   * the card's own tap area, and a near-miss "open" used to move a task with
+   * no trace. The undo is itself a move (`restore`), so it puts the card back
+   * between its old neighbours and announces nothing.
+   */
   const move = useMutation({
-    mutationFn: (input: { cardId: string; targetListId: string }) =>
-      api.cards.update(input.cardId, { targetListId: input.targetListId }),
+    mutationFn: async (input: MoveInput) => {
+      // With no neighbour on either side there is nothing to anchor to: append.
+      const neighbours =
+        input.restore && (input.restore.beforeId || input.restore.afterId)
+          ? { beforeId: input.restore.beforeId, afterId: input.restore.afterId }
+          : undefined;
+      try {
+        return await api.cards.update(input.cardId, { targetListId: input.targetListId, move: neighbours });
+      } catch (error) {
+        // A neighbour moved away meanwhile — the server refuses it as an anchor.
+        // Back in the right status still beats a failed undo, so retry at the end.
+        if (neighbours && error instanceof ApiError && error.status === 400) {
+          return api.cards.update(input.cardId, { targetListId: input.targetListId });
+        }
+        throw error;
+      }
+    },
     onMutate: async (input) => {
       setMovingCardId(null);
       await queryClient.cancelQueries({ queryKey: boardQueryKey });
       const previous = queryClient.getQueryData<BoardDetail>(boardQueryKey);
-      if (previous) queryClient.setQueryData(boardQueryKey, moveCardInBoard(previous, input.cardId, input.targetListId));
+      if (previous) {
+        queryClient.setQueryData(
+          boardQueryKey,
+          moveCardInBoard(previous, input.cardId, input.targetListId, input.restore?.index),
+        );
+        const from = findCardPlace(previous, input.cardId);
+        const target = previous.lists.find((l) => l.id === input.targetListId);
+        if (!input.restore && from && target) {
+          setToast({
+            id: Date.now(),
+            message: `نُقلت إلى «${target.name}»`,
+            actionLabel: "تراجع",
+            onAction: () => moveRef.current({ cardId: input.cardId, targetListId: from.listId, restore: from }),
+          });
+        } else {
+          setToast(null);
+        }
+      }
       return { previous };
     },
     onError: (_err, _input, context) => {
       if (context?.previous) queryClient.setQueryData(boardQueryKey, context.previous);
+      setToast({ id: Date.now(), message: "تعذّر نقل المهمة. تحقّق من الاتصال وأعد المحاولة." });
     },
     onSettled: () => void queryClient.invalidateQueries({ queryKey: ["board", id] }),
   });
+  moveRef.current = move.mutate;
 
   const newCardHref = (listId: string, draftTitle: string) =>
     `/board/${id}/cards/new?listId=${listId}${draftTitle ? `&title=${encodeURIComponent(draftTitle)}` : ""}`;
@@ -405,230 +488,240 @@ export default function BoardScreen() {
         </View>
       ) : null}
 
-      {board.isPending ? (
-        <View style={{ paddingHorizontal: spacing.xl, gap: spacing.md }}>
-          <Skeleton height={32} width={220} radius={999} />
-          <Skeleton height={420} radius={20} />
-        </View>
-      ) : board.isError ? (
-        <ErrorState onRetry={() => void board.refetch()} />
-      ) : searchOpen ? (
-        <>
-          <View style={{ paddingHorizontal: spacing.xl, paddingBottom: spacing.md, flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
-            <View
-              style={{
-                flex: 1,
-                flexDirection: "row",
-                alignItems: "center",
-                backgroundColor: colors.canvas,
-                borderRadius: radii.field,
-                paddingHorizontal: spacing.md,
-                minHeight: MIN_TOUCH_TARGET,
-              }}
-            >
-              <TextInput
-                value={searchText}
-                onChangeText={setSearchText}
-                placeholder="ابحث في اللوحة"
-                placeholderTextColor={colors.muted}
-                autoFocus
+      <View style={{ flex: 1 }}>
+        {board.isPending ? (
+          <View style={{ paddingHorizontal: spacing.xl, gap: spacing.md }}>
+            <Skeleton height={32} width={220} radius={999} />
+            <Skeleton height={420} radius={20} />
+          </View>
+        ) : board.isError ? (
+          <ErrorState onRetry={() => void board.refetch()} />
+        ) : searchOpen ? (
+          <>
+            <View style={{ paddingHorizontal: spacing.xl, paddingBottom: spacing.md, flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
+              <View
                 style={{
                   flex: 1,
-                  fontFamily: fonts.regular,
-                  fontSize: fontSizes.body,
-                  color: colors.ink,
-                  textAlign: "right",
-                  writingDirection: "rtl",
-                }}
-              />
-            </View>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="ترشيح"
-              onPress={() => setFilterVisible(true)}
-              style={{
-                width: MIN_TOUCH_TARGET,
-                height: MIN_TOUCH_TARGET,
-                borderRadius: radii.field,
-                borderWidth: 1,
-                borderColor: isFilterActive(filter) ? colors.accent : colors.line,
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <Ionicons name="options-outline" size={18} color={isFilterActive(filter) ? colors.accent : colors.muted} />
-            </Pressable>
-          </View>
-
-          {isFilterActive(filter) ? (
-            <View style={{ paddingHorizontal: spacing.xl, paddingBottom: spacing.md }}>
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => setFilter(EMPTY_BOARD_FILTER)}
-                style={{
-                  alignSelf: "flex-start",
                   flexDirection: "row",
                   alignItems: "center",
-                  gap: spacing.xs,
-                  backgroundColor: colors.accentSoft,
-                  borderRadius: 999,
+                  backgroundColor: colors.canvas,
+                  borderRadius: radii.field,
                   paddingHorizontal: spacing.md,
-                  paddingVertical: 6,
+                  minHeight: MIN_TOUCH_TARGET,
                 }}
               >
-                <AppText size="small" weight="semibold" color={colors.accent}>
-                  مرشَّح ✕
-                </AppText>
+                <TextInput
+                  value={searchText}
+                  onChangeText={setSearchText}
+                  placeholder="ابحث في اللوحة"
+                  placeholderTextColor={colors.muted}
+                  autoFocus
+                  style={{
+                    flex: 1,
+                    fontFamily: fonts.regular,
+                    fontSize: fontSizes.body,
+                    color: colors.ink,
+                    textAlign: "right",
+                    writingDirection: "rtl",
+                  }}
+                />
+              </View>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="ترشيح"
+                onPress={() => setFilterVisible(true)}
+                style={{
+                  width: MIN_TOUCH_TARGET,
+                  height: MIN_TOUCH_TARGET,
+                  borderRadius: radii.field,
+                  borderWidth: 1,
+                  borderColor: isFilterActive(filter) ? colors.accent : colors.line,
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Ionicons name="options-outline" size={18} color={isFilterActive(filter) ? colors.accent : colors.muted} />
               </Pressable>
             </View>
-          ) : null}
 
-          <ScrollView
-            contentContainerStyle={{ paddingHorizontal: spacing.xl, paddingBottom: spacing.xxl, gap: spacing.lg }}
-            refreshControl={<RefreshControl refreshing={pullRefreshing} onRefresh={() => void pullToRefresh()} />}
-          >
-            {searchResults.length === 0 ? (
-              <EmptyState
-                icon="search-outline"
-                title={trimmedSearch ? `لا نتائج لـ "${trimmedSearch}"` : "لا نتائج"}
-                message="جرّب كلمة أخرى أو امسح الترشيح."
-              />
-            ) : (
-              searchResults.map(({ list, cards }) => (
-                <View key={list.id} style={{ gap: spacing.sm }}>
-                  <AppText size="small" weight="bold" color={colors.muted}>
-                    {list.name} · {cards.length}
-                  </AppText>
-                  <View style={{ gap: spacing.sm }}>
-                    {cards.map((card) => (
-                      <CardItem
-                        key={card.id}
-                        card={card}
-                        assignees={resolveAssignees(card.assigneeIds)}
-                        hasNext={false}
-                        onMoveNext={() => {}}
-                        onLongPress={() => !boardReadOnly && setMovingCardId(card.id)}
-                        onOpen={() => openCard(card.id, id)}
-                        highlightQuery={trimmedSearch}
-                      />
-                    ))}
-                  </View>
-                </View>
-              ))
-            )}
-          </ScrollView>
-        </>
-      ) : (
-        <>
-          <ScrollView
-            ref={chipsRef}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={{ flexGrow: 0, marginBottom: spacing.md }}
-            contentContainerStyle={{ paddingHorizontal: spacing.xl, gap: spacing.sm }}
-          >
-            {board.data.lists.map((list, index) => (
-              <Pressable
-                key={list.id}
-                testID={`status-chip-${index}`}
-                accessibilityRole="tab"
-                accessibilityState={{ selected: index === activeIndex }}
-                onPress={() => scrollToColumn(index)}
-                onLayout={(e) => {
-                  const { x, width: chipWidth } = e.nativeEvent.layout;
-                  chipCenters.current[index] = x + chipWidth / 2;
-                }}
-                style={{
-                  borderRadius: 999,
-                  minHeight: MIN_TOUCH_TARGET,
-                  justifyContent: "center",
-                  paddingHorizontal: spacing.lg,
-                  backgroundColor: index === activeIndex ? colors.accent : colors.surface,
-                  borderWidth: index === activeIndex ? 0 : 1,
-                  borderColor: colors.line,
-                }}
-              >
-                <AppText
-                  size="small"
-                  weight={index === activeIndex ? "semibold" : "regular"}
-                  color={index === activeIndex ? colors.surface : colors.muted}
+            {isFilterActive(filter) ? (
+              <View style={{ paddingHorizontal: spacing.xl, paddingBottom: spacing.md }}>
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => setFilter(EMPTY_BOARD_FILTER)}
+                  style={{
+                    alignSelf: "flex-start",
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: spacing.xs,
+                    backgroundColor: colors.accentSoft,
+                    borderRadius: 999,
+                    paddingHorizontal: spacing.md,
+                    paddingVertical: 6,
+                  }}
                 >
-                  {list.name} · {list.cards.length}
-                </AppText>
-              </Pressable>
-            ))}
-          </ScrollView>
+                  <AppText size="small" weight="semibold" color={colors.accent}>
+                    مرشَّح ✕
+                  </AppText>
+                </Pressable>
+              </View>
+            ) : null}
 
-          {board.data.lists.length === 0 ? (
-            <AppText size="small" color={colors.muted} style={{ paddingHorizontal: spacing.xl }}>
-              لا حالات في هذه اللوحة بعد.
-            </AppText>
-          ) : (
             <ScrollView
-              ref={listRef}
-              testID="status-pager"
+              contentContainerStyle={{ paddingHorizontal: spacing.xl, paddingBottom: spacing.xxl, gap: spacing.lg }}
+              refreshControl={<RefreshControl refreshing={pullRefreshing} onRefresh={() => void pullToRefresh()} />}
+            >
+              {searchResults.length === 0 ? (
+                <EmptyState
+                  icon="search-outline"
+                  title={trimmedSearch ? `لا نتائج لـ "${trimmedSearch}"` : "لا نتائج"}
+                  message="جرّب كلمة أخرى أو امسح الترشيح."
+                />
+              ) : (
+                searchResults.map(({ list, cards }) => (
+                  <View key={list.id} style={{ gap: spacing.sm }}>
+                    <AppText size="small" weight="bold" color={colors.muted}>
+                      {list.name} · {cards.length}
+                    </AppText>
+                    <View style={{ gap: spacing.sm }}>
+                      {cards.map((card) => (
+                        <CardItem
+                          key={card.id}
+                          card={card}
+                          assignees={resolveAssignees(card.assigneeIds)}
+                          hasNext={false}
+                          onMoveNext={() => {}}
+                          onLongPress={() => !boardReadOnly && setMovingCardId(card.id)}
+                          onOpen={() => openCard(card.id, id)}
+                          highlightQuery={trimmedSearch}
+                        />
+                      ))}
+                    </View>
+                  </View>
+                ))
+              )}
+            </ScrollView>
+          </>
+        ) : (
+          <>
+            <ScrollView
+              ref={chipsRef}
               horizontal
-              style={{ flex: 1 }}
               showsHorizontalScrollIndicator={false}
-              snapToOffsets={snapOffsets.length > 0 ? snapOffsets : undefined}
-              decelerationRate="fast"
-              scrollEventThrottle={16}
-              onScroll={(e) => setActiveIndex(indexFromOffset(columnOffsets, e.nativeEvent.contentOffset.x, activeIndex))}
+              style={{ flexGrow: 0, marginBottom: spacing.md }}
+              contentContainerStyle={{ paddingHorizontal: spacing.xl, gap: spacing.sm }}
             >
               {board.data.lists.map((list, index) => (
-                <View
+                <Pressable
                   key={list.id}
-                  testID={`status-page-${index}`}
-                  style={{ width }}
-                  onLayout={(e) => handleColumnLayout(index, e.nativeEvent.layout.x)}
+                  testID={`status-chip-${index}`}
+                  accessibilityRole="tab"
+                  accessibilityState={{ selected: index === activeIndex }}
+                  onPress={() => scrollToColumn(index)}
+                  onLayout={(e) => {
+                    const { x, width: chipWidth } = e.nativeEvent.layout;
+                    chipCenters.current[index] = x + chipWidth / 2;
+                  }}
+                  style={{
+                    borderRadius: 999,
+                    minHeight: MIN_TOUCH_TARGET,
+                    justifyContent: "center",
+                    paddingHorizontal: spacing.lg,
+                    backgroundColor: index === activeIndex ? colors.accent : colors.surface,
+                    borderWidth: index === activeIndex ? 0 : 1,
+                    borderColor: colors.line,
+                  }}
                 >
-                  <ScrollView
-                    style={{ flex: 1 }}
-                    contentContainerStyle={{ paddingHorizontal: spacing.xl, paddingBottom: spacing.lg }}
-                    nestedScrollEnabled
-                    showsVerticalScrollIndicator={false}
-                    refreshControl={<RefreshControl refreshing={pullRefreshing} onRefresh={() => void pullToRefresh()} />}
+                  <AppText
+                    size="small"
+                    weight={index === activeIndex ? "semibold" : "regular"}
+                    color={index === activeIndex ? colors.surface : colors.muted}
                   >
-                    <ListColumn
-                      list={list}
-                      width={columnWidth}
-                      resolveAssignees={resolveAssignees}
-                      hasNext={index < board.data!.lists.length - 1}
-                      nextListIsClosed={board.data!.lists[index + 1]?.statusCategory === "CLOSED"}
-                      canCloseCard={canCloseCard}
-                      readOnly={boardReadOnly}
-                      onMoveCardNext={(cardId) => {
-                        if (cardId.startsWith("temp:")) return;
-                        const nextList = board.data!.lists[index + 1];
-                        if (nextList) move.mutate({ cardId, targetListId: nextList.id });
-                      }}
-                      onLongPressCard={(cardId) => (cardId.startsWith("temp:") ? undefined : setMovingCardId(cardId))}
-                      onOpenCard={(cardId) => openCard(cardId, id)}
-                      showLoadOlder={
-                        list.statusCategory === "CLOSED" && !!closedSince && (board.data?.hiddenClosedCount ?? 0) > 0
-                      }
-                      onLoadOlder={() => setClosedSince(undefined)}
-                    />
-                  </ScrollView>
-                </View>
+                    {list.name} · {list.cards.length}
+                  </AppText>
+                </Pressable>
               ))}
             </ScrollView>
-          )}
 
-          {/* Each column scrolls vertically on its own (nested in the
-              horizontal pager), so this bar sits below the pager and stays
-              reachable no matter how long the active column is. */}
-          {board.data.lists[activeIndex] && !boardReadOnly ? (
-            <View style={{ paddingHorizontal: spacing.xl, paddingTop: spacing.md }}>
-              <QuickAddCard
-                placeholder={`+ مهمة جديدة في «${board.data.lists[activeIndex]!.name}»`}
-                onAdd={(title) => addCard.mutateAsync({ listId: board.data!.lists[activeIndex]!.id, title })}
-                onOpenDetails={(draft) => router.push(newCardHref(board.data!.lists[activeIndex]!.id, draft))}
-              />
-            </View>
-          ) : null}
-        </>
-      )}
+            {board.data.lists.length === 0 ? (
+              <AppText size="small" color={colors.muted} style={{ paddingHorizontal: spacing.xl }}>
+                لا حالات في هذه اللوحة بعد.
+              </AppText>
+            ) : (
+              <ScrollView
+                ref={listRef}
+                testID="status-pager"
+                horizontal
+                style={{ flex: 1 }}
+                showsHorizontalScrollIndicator={false}
+                snapToOffsets={snapOffsets.length > 0 ? snapOffsets : undefined}
+                decelerationRate="fast"
+                scrollEventThrottle={16}
+                onScroll={(e) => setActiveIndex(indexFromOffset(columnOffsets, e.nativeEvent.contentOffset.x, activeIndex))}
+              >
+                {board.data.lists.map((list, index) => (
+                  <View
+                    key={list.id}
+                    testID={`status-page-${index}`}
+                    style={{ width }}
+                    onLayout={(e) => handleColumnLayout(index, e.nativeEvent.layout.x)}
+                  >
+                    <ScrollView
+                      style={{ flex: 1 }}
+                      contentContainerStyle={{ paddingHorizontal: spacing.xl, paddingBottom: spacing.lg }}
+                      nestedScrollEnabled
+                      showsVerticalScrollIndicator={false}
+                      refreshControl={<RefreshControl refreshing={pullRefreshing} onRefresh={() => void pullToRefresh()} />}
+                    >
+                      <ListColumn
+                        list={list}
+                        width={columnWidth}
+                        resolveAssignees={resolveAssignees}
+                        hasNext={index < board.data!.lists.length - 1}
+                        nextListIsClosed={board.data!.lists[index + 1]?.statusCategory === "CLOSED"}
+                        canCloseCard={canCloseCard}
+                        readOnly={boardReadOnly}
+                        onMoveCardNext={(cardId) => {
+                          if (cardId.startsWith("temp:")) return;
+                          const nextList = board.data!.lists[index + 1];
+                          if (nextList) move.mutate({ cardId, targetListId: nextList.id });
+                        }}
+                        onLongPressCard={(cardId) => (cardId.startsWith("temp:") ? undefined : setMovingCardId(cardId))}
+                        onOpenCard={(cardId) => openCard(cardId, id)}
+                        showLoadOlder={
+                          list.statusCategory === "CLOSED" && !!closedSince && (board.data?.hiddenClosedCount ?? 0) > 0
+                        }
+                        onLoadOlder={() => setClosedSince(undefined)}
+                      />
+                    </ScrollView>
+                  </View>
+                ))}
+              </ScrollView>
+            )}
+          </>
+        )}
+
+        {/* Floats over the bottom of the content, just above the quick-add,
+            without pushing the columns around. Kept inside this box rather
+            than hung off the bar: Android never delivers a touch outside a
+            view's parent, and the toast's «تراجع» has to be tappable. */}
+        <View style={{ position: "absolute", bottom: 0, start: spacing.xl, end: spacing.xl, paddingBottom: spacing.sm }}>
+          <Toast toast={toast} onDismiss={() => setToast(null)} />
+        </View>
+      </View>
+
+      {/* Each column scrolls vertically on its own (nested in the horizontal
+          pager), so this bar sits below the pager and stays reachable no
+          matter how long the active column is. */}
+      {board.data?.lists[activeIndex] && !boardReadOnly && !searchOpen ? (
+        <View style={{ paddingHorizontal: spacing.xl, paddingTop: spacing.md }}>
+          <QuickAddCard
+            placeholder={`+ مهمة جديدة في «${board.data.lists[activeIndex]!.name}»`}
+            onAdd={(title) => addCard.mutateAsync({ listId: board.data!.lists[activeIndex]!.id, title })}
+            onOpenDetails={(draft) => router.push(newCardHref(board.data!.lists[activeIndex]!.id, draft))}
+          />
+        </View>
+      ) : null}
 
       <MoveCardSheet
         visible={!!movingCardId}

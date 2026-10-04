@@ -18,6 +18,7 @@ import { AuthProvider, useAuth } from "@/features/auth/auth-context";
 import { usePushRegistration } from "@/features/notifications/use-push-registration";
 import { setUnauthorizedHandler } from "@/lib/api";
 import { queryClient } from "@/lib/query-client";
+import { windowRootRef } from "@/lib/keyboard";
 import { useAutoUpdate } from "@/lib/updates";
 import { colors } from "@/theme/tokens";
 
@@ -101,7 +102,7 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <QueryClientProvider client={queryClient}>
           <AuthProvider>
-            <View style={{ flex: 1, backgroundColor: colors.canvas }}>
+            <View ref={windowRootRef} style={{ flex: 1, backgroundColor: colors.canvas }}>
               <StatusBar style="dark" />
               <RootNavigator />
             </View>

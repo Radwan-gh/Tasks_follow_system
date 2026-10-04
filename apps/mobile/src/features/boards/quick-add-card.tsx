@@ -53,24 +53,33 @@ export function QuickAddCard({
           backgroundColor: colors.surface,
         }}
       >
-        <TextInput
-          value={title}
-          onChangeText={setTitle}
-          onSubmitEditing={submit}
-          placeholder={placeholder}
-          placeholderTextColor={colors.muted}
-          returnKeyType="done"
-          blurOnSubmit={false}
-          style={{
-            flex: 1,
-            minHeight: MIN_TOUCH_TARGET,
-            fontFamily: fonts.regular,
-            fontSize: fontSizes.body,
-            color: colors.ink,
-            textAlign: "right",
-            writingDirection: "rtl",
-          }}
-        />
+        <View style={{ flex: 1, justifyContent: "center" }}>
+          {/* Drawn by hand rather than as `placeholder`: the hint names the
+              active status, and Android does not repaint a right-aligned
+              EditText's hint when it changes — swiping to another status left
+              the field blank although the new hint was set. */}
+          {title ? null : (
+            <AppText color={colors.muted} numberOfLines={1} pointerEvents="none" style={{ position: "absolute", start: 0, end: 0 }}>
+              {placeholder}
+            </AppText>
+          )}
+          <TextInput
+            value={title}
+            onChangeText={setTitle}
+            onSubmitEditing={submit}
+            accessibilityLabel={placeholder}
+            returnKeyType="done"
+            blurOnSubmit={false}
+            style={{
+              minHeight: MIN_TOUCH_TARGET,
+              fontFamily: fonts.regular,
+              fontSize: fontSizes.body,
+              color: colors.ink,
+              textAlign: "right",
+              writingDirection: "rtl",
+            }}
+          />
+        </View>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="إضافة مع التفاصيل"

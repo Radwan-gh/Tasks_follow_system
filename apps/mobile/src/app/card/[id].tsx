@@ -1,17 +1,19 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Pressable, RefreshControl, TextInput, View } from "react-native";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useLocalSearchParams, useNavigation, useRouter } from "expo-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Screen } from "@/components/screen";
 import { AppText } from "@/components/text";
 import { Skeleton } from "@/components/skeleton";
 import { ErrorState } from "@/components/state-views";
-import type { CardPriority, RecurrenceRule } from "@app/types";
+import { ConfirmSheet } from "@/components/confirm-sheet";
+import type { Card, CardPriority, RecurrenceRule } from "@app/types";
 import { PeopleField } from "@/features/cards/people-field";
 import { AttachmentsSection } from "@/features/cards/attachments-section";
+import { MoveCardSheet } from "@/features/boards/move-card-sheet";
 import { CostSheet, formatCostChip } from "@/components/cost-sheet";
 import { DueDateSheet } from "@/components/due-date-sheet";
-import { nextPriority, priorityLabel } from "@/components/priority-control";
+import { PrioritySheet, priorityLabel } from "@/components/priority-control";
 import { RecurrenceSheet, summarizeRecurrence } from "@/components/recurrence-sheet";
 import { SubtasksSection } from "@/features/cards/subtasks-section";
 import { HistorySection } from "@/features/cards/history-section";
@@ -49,11 +51,14 @@ const NO_IDS: string[] = [];
 
 /**
  * `/card/:id` — presented as a native modal over the board screen, matching
- * the design's full-height bottom sheet ("تفاصيل البطاقة"). Three
- * independent saves, same split as `apps/web`'s `CardDetailModal.tsx`: the
- * header's «حفظ» commits title/description/due-date; assignees and
- * restricted-access save on every add/remove in their inline type-ahead
- * (`PeopleField`).
+ * the design's full-height bottom sheet ("تفاصيل البطاقة"). Two save models,
+ * same split as `apps/web`'s `CardDetailModal.tsx`, and the header makes the
+ * split visible: the *typed* fields — title, description, due date,
+ * recurrence — wait for «حفظ», which lights up only while one of them differs
+ * from the saved task; everything picked from a sheet or list — status,
+ * priority, cost, assignees, access, subtasks, attachments — saves the moment
+ * it is picked. Leaving with unsaved typed edits (إلغاء, system back) asks
+ * first instead of dropping them.
  */
 export default function CardDetailScreen() {
   const params = useLocalSearchParams<{ id: string; boardId?: string }>();
@@ -111,6 +116,37 @@ export default function CardDetailScreen() {
   const [pickingRecurrence, setPickingRecurrence] = useState(false);
   const [restricted, setRestricted] = useState(false);
   const [pickingCost, setPickingCost] = useState(false);
+  const [pickingPriority, setPickingPriority] = useState(false);
+  const [pickingStatus, setPickingStatus] = useState(false);
+  const [titleFocused, setTitleFocused] = useState(false);
+
+  // Unsaved = a «حفظ» field differs from what the server last sent. The access
+  // toggle has its own save path, so it never counts.
+  const dirty =
+    !!seeded && !sameFormFields({ title, description, dueDate, recurrence, restricted: seeded.restricted }, seeded);
+
+  // Every way out — «إلغاء», the system back button or gesture — is a removal
+  // of this screen, so one `beforeRemove` listener guards them all. Refs, not
+  // state, so a save can mark itself as leaving and go back in the same tick.
+  const navigation = useNavigation();
+  const dirtyRef = useRef(dirty);
+  dirtyRef.current = dirty;
+  const leavingRef = useRef(false);
+  const [pendingLeave, setPendingLeave] = useState<Parameters<typeof navigation.dispatch>[0] | null>(null);
+  useEffect(
+    () =>
+      navigation.addListener("beforeRemove", (event) => {
+        if (!dirtyRef.current || leavingRef.current) return;
+        event.preventDefault();
+        setPendingLeave(event.data.action);
+      }),
+    [navigation],
+  );
+
+  function leave() {
+    leavingRef.current = true;
+    router.back();
+  }
 
   // The first render may come from cache and background refetches/polls bring
   // other users' edits, so the form re-seeds whenever the server's values
@@ -143,7 +179,7 @@ export default function CardDetailScreen() {
     mutationFn: () => api.cards.update(id, { title, description: description || null, dueDate, recurrence }),
     onSuccess: () => {
       invalidateCard();
-      router.back();
+      leave();
     },
   });
 
@@ -166,7 +202,28 @@ export default function CardDetailScreen() {
 
   const updatePriority = useMutation({
     mutationFn: (priority: CardPriority) => api.cards.update(id, { priority }),
-    onSuccess: invalidateCard,
+    onSuccess: () => {
+      setPickingPriority(false);
+      invalidateCard();
+    },
+  });
+
+  // The status chip's move — the visible way to reach every status, which the
+  // board otherwise only offers on long-press. The chip itself is the
+  // confirmation: it changes to the new status as soon as it is picked.
+  const moveCard = useMutation({
+    mutationFn: (targetListId: string) => api.cards.update(id, { targetListId }),
+    onMutate: async (targetListId) => {
+      setPickingStatus(false);
+      await queryClient.cancelQueries({ queryKey: ["card", id] });
+      const previous = queryClient.getQueryData<Card>(["card", id]);
+      if (previous) queryClient.setQueryData<Card>(["card", id], { ...previous, listId: targetListId });
+      return { previous };
+    },
+    onError: (_err, _targetListId, context) => {
+      if (context?.previous) queryClient.setQueryData(["card", id], context.previous);
+    },
+    onSettled: invalidateCard,
   });
 
   const updateCost = useMutation({
@@ -207,6 +264,13 @@ export default function CardDetailScreen() {
   const canManageAccess = !isViewer && (user?.id === board.data.ownerId || user?.id === card.data.createdById);
   // §3c-4 "منتقي المسؤولين لا يعرض المشاهدين".
   const assignableMembers = board.data.members.filter((m) => m.role !== "VIEWER");
+  // An archived board refuses every write (`assertBoardMutable`), so its chips don't offer them.
+  const readOnly = isViewer || board.data.isArchived;
+  const canSave = dirty && title.trim().length > 0 && !save.isPending;
+  const listIndex = board.data.lists.findIndex((l) => l.id === card.data.listId);
+  const nextListId = board.data.lists[listIndex + 1]?.id ?? null;
+  // §3b-4: only the board owner or this task's assignees may move it into «انتهى».
+  const canCloseCard = !!user && (board.data.ownerId === user.id || card.data.assigneeIds.includes(user.id));
 
   return (
     <Screen edges={{ top: true, bottom: true }} style={{ backgroundColor: colors.surface }}>
@@ -225,8 +289,13 @@ export default function CardDetailScreen() {
           <AppText color={colors.muted}>إلغاء</AppText>
         </Pressable>
 
+        {/* Both chips open a picker, and both say so with the same ▾. */}
         {list ? (
-          <View
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`الحالة: ${list.name}. اضغط للنقل إلى حالة أخرى`}
+            onPress={() => setPickingStatus(true)}
+            disabled={readOnly || moveCard.isPending}
             style={{
               flexDirection: "row",
               alignItems: "center",
@@ -234,7 +303,7 @@ export default function CardDetailScreen() {
               backgroundColor: colors.canvas,
               borderRadius: 999,
               paddingHorizontal: spacing.md,
-              paddingVertical: 5,
+              minHeight: 30,
             }}
           >
             <View
@@ -247,15 +316,19 @@ export default function CardDetailScreen() {
             />
             <AppText size="caption" weight="semibold">
               {list.name}
+              {readOnly ? "" : " ▾"}
             </AppText>
-          </View>
+          </Pressable>
         ) : null}
 
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="الأولوية — اضغط للتبديل"
-          onPress={() => updatePriority.mutate(nextPriority(card.data.priority))}
-          disabled={updatePriority.isPending || isViewer}
+          accessibilityLabel={`الأولوية: ${priorityLabel(card.data.priority)}. اضغط للتغيير`}
+          onPress={() => {
+            updatePriority.reset();
+            setPickingPriority(true);
+          }}
+          disabled={readOnly}
           style={{
             flexDirection: "row",
             alignItems: "center",
@@ -263,22 +336,26 @@ export default function CardDetailScreen() {
             backgroundColor: card.data.priority === "URGENT" ? colors.urgentSoft : colors.canvas,
             borderRadius: 999,
             paddingHorizontal: spacing.md,
-            paddingVertical: 5,
+            minHeight: 30,
           }}
         >
           <AppText size="caption" weight="semibold" color={card.data.priority === "URGENT" ? colors.urgent : colors.muted}>
             {priorityLabel(card.data.priority)}
+            {readOnly ? "" : " ▾"}
           </AppText>
         </Pressable>
 
         {!isViewer ? (
+          // Lit only while there is something to save — so it doubles as the
+          // "you have unsaved edits" signal the instant-save fields never raise.
           <Pressable
             accessibilityRole="button"
+            accessibilityState={{ disabled: !canSave }}
             onPress={() => save.mutate()}
-            disabled={save.isPending || title.trim().length === 0}
+            disabled={!canSave}
             hitSlop={8}
           >
-            <AppText weight="bold" color={title.trim().length === 0 ? colors.muted : colors.accent}>
+            <AppText weight="bold" color={canSave || save.isPending ? colors.accent : colors.muted}>
               {save.isPending ? "جارٍ الحفظ..." : "حفظ"}
             </AppText>
           </Pressable>
@@ -308,11 +385,16 @@ export default function CardDetailScreen() {
         refreshControl={<RefreshControl refreshing={pullRefreshing} onRefresh={() => void pullToRefresh()} />}
       >
         <View style={{ gap: spacing.md }}>
+          {/* A hairline (accent while typing) is what tells this heading
+              apart as a field — same device as the new-task title. */}
           <TextInput
             value={title}
             onChangeText={setTitle}
+            onFocus={() => setTitleFocused(true)}
+            onBlur={() => setTitleFocused(false)}
             multiline
             editable={!isViewer}
+            accessibilityLabel="عنوان المهمة"
             style={{
               fontFamily: fonts.bold,
               fontSize: fontSizes.heading,
@@ -320,6 +402,9 @@ export default function CardDetailScreen() {
               textAlign: "right",
               writingDirection: "rtl",
               lineHeight: fontSizes.heading * 1.5,
+              paddingBottom: isViewer ? 0 : spacing.xs,
+              borderBottomWidth: isViewer ? 0 : 1,
+              borderBottomColor: titleFocused ? colors.accent : colors.line,
             }}
           />
           <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md, flexWrap: "wrap" }}>
@@ -504,7 +589,7 @@ export default function CardDetailScreen() {
         </View>
       </RevealScrollView>
 
-      <DueDateSheet visible={pickingDueDate} onClose={() => setPickingDueDate(false)} onChange={setDueDate} />
+      <DueDateSheet visible={pickingDueDate} onClose={() => setPickingDueDate(false)} onChange={setDueDate} value={dueDate} />
 
       <CostSheet
         visible={pickingCost}
@@ -522,6 +607,39 @@ export default function CardDetailScreen() {
         onChange={setRecurrence}
       />
 
+      <PrioritySheet
+        visible={pickingPriority}
+        onClose={() => setPickingPriority(false)}
+        value={card.data.priority}
+        onChange={(priority) => updatePriority.mutate(priority)}
+        saving={updatePriority.isPending}
+        failed={updatePriority.isError}
+      />
+
+      <MoveCardSheet
+        visible={pickingStatus}
+        onClose={() => setPickingStatus(false)}
+        card={card.data}
+        lists={board.data.lists}
+        nextListId={nextListId}
+        canCloseCard={canCloseCard}
+        onMove={(targetListId) => moveCard.mutate(targetListId)}
+      />
+
+      <ConfirmSheet
+        visible={!!pendingLeave}
+        onClose={() => setPendingLeave(null)}
+        title="تجاهل التعديلات؟"
+        consequence="لم تُحفظ تعديلاتك على العنوان أو الوصف أو الموعد. إن خرجت الآن فستضيع."
+        confirmLabel="تجاهل والخروج"
+        cancelLabel="متابعة التعديل"
+        onConfirm={() => {
+          const action = pendingLeave;
+          setPendingLeave(null);
+          leavingRef.current = true;
+          if (action) navigation.dispatch(action);
+        }}
+      />
     </Screen>
   );
 }

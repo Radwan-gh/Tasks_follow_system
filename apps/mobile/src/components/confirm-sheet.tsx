@@ -12,6 +12,9 @@ import { MIN_TOUCH_TARGET, colors, fonts, fontSizes, radii, spacing } from "@/th
  *
  * `typeToConfirm` renders the harsher variant (board deletion): the action
  * button stays disabled until the typed text exactly matches it.
+ *
+ * `cancelLabel` renames the neutral button where "إلغاء" would be ambiguous —
+ * on the discard-changes prompt, the neutral choice means *keep editing*.
  */
 export function ConfirmSheet({
   visible,
@@ -19,6 +22,7 @@ export function ConfirmSheet({
   title,
   consequence,
   confirmLabel,
+  cancelLabel = "إلغاء",
   onConfirm,
   confirming,
   typeToConfirm,
@@ -28,6 +32,7 @@ export function ConfirmSheet({
   title: string;
   consequence: string;
   confirmLabel: string;
+  cancelLabel?: string;
   onConfirm: () => void;
   confirming?: boolean;
   typeToConfirm?: string;
@@ -80,7 +85,7 @@ export function ConfirmSheet({
             justifyContent: "center",
           }}
         >
-          <AppText weight="semibold">إلغاء</AppText>
+          <AppText weight="semibold">{cancelLabel}</AppText>
         </Pressable>
         <Pressable
           accessibilityRole="button"

@@ -208,6 +208,20 @@ export const CardSchema = z.object({
 export type Card = z.infer<typeof CardSchema>;
 
 /**
+ * A card as `GET /boards/:id` returns it inside its list: the card plus the
+ * counts its board face shows (a description glyph needs nothing extra, but a
+ * paperclip count and a subtask fraction would otherwise mean opening every
+ * card). Only the board detail carries these — every other card endpoint
+ * returns a plain `Card`.
+ */
+export const BoardCardSchema = CardSchema.extend({
+  subtaskTotal: z.number().int(),
+  subtaskDone: z.number().int(),
+  attachmentCount: z.number().int(),
+});
+export type BoardCard = z.infer<typeof BoardCardSchema>;
+
+/**
  * A sub-task ("مهمة فرعية") belonging to a card. Ordered within its parent
  * card via a fractional-index `position` (same scheme as lists/cards), can be
  * checked off (`isDone`), and can be assigned to several board members.
@@ -271,7 +285,7 @@ export const ListSchema = z.object({
   isArchived: z.boolean(),
   statusCategory: ListStatusCategory.nullable(),
   createdAt: z.string().datetime(),
-  cards: z.array(CardSchema),
+  cards: z.array(BoardCardSchema),
 });
 export type List = z.infer<typeof ListSchema>;
 

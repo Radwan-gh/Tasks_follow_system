@@ -1,5 +1,5 @@
-import { useEffect, useState, type RefObject } from "react";
-import { Keyboard, Platform, type KeyboardEvent, type View } from "react-native";
+import { createRef, useEffect, useState, type RefObject } from "react";
+import { Dimensions, Keyboard, Platform, type KeyboardEvent, type View } from "react-native";
 
 /** The keyboard's top edge and height, in window coordinates (dp). */
 type KeyboardFrame = { top: number; height: number };
@@ -48,6 +48,16 @@ export function useKeyboardHeight(): number {
 }
 
 /**
+ * The app's outermost full-window view (attached in `app/_layout.tsx`). The
+ * keyboard overlap is measured *relative to it* — see `useKeyboardOverlap`.
+ */
+export const windowRootRef = createRef<View>();
+
+function measureInWindow(node: View): Promise<{ y: number; height: number }> {
+  return new Promise((resolve) => node.measureInWindow((_x, y, _width, height) => resolve({ y, height })));
+}
+
+/**
  * How much of `ref`'s box the keyboard covers, in dp.
  *
  * Measured rather than assumed equal to the keyboard height, because the
@@ -56,6 +66,18 @@ export function useKeyboardHeight(): number {
  * is overlap. Feeding the result back as `paddingBottom` is safe — padding is
  * interior to the frame, so it never moves the container's own bottom edge and
  * the measurement cannot chase itself.
+ *
+ * No two coordinate spaces are ever compared directly. The keyboard event's
+ * `screenY` is in *screen* coordinates, while `measureInWindow` on Android
+ * subtracts the visible window frame's top — so comparing them, as this used
+ * to, came up short by exactly the status bar height wherever the two origins
+ * differ (Expo Go), which left the board's quick-add field under the keyboard.
+ * Instead each side is reduced to a distance from the bottom edge within its
+ * own space: the keyboard's from the screen's bottom, the container's from the
+ * root view's bottom (both measured the same way, so their offset cancels).
+ * The root runs edge-to-edge, so those two bottoms are the same line. Where it
+ * does not (a window that stops above the navigation bar) the error is the
+ * bar's height *extra* room — the field sits a little high, never hidden.
  */
 export function useKeyboardOverlap(ref: RefObject<View | null>): number {
   const frame = useKeyboardFrame();
@@ -70,8 +92,16 @@ export function useKeyboardOverlap(ref: RefObject<View | null>): number {
     if (!node) return;
 
     let cancelled = false;
-    node.measureInWindow((_x, y, _width, height) => {
-      if (!cancelled) setOverlap(Math.max(0, y + height - frame.top));
+    const root = windowRootRef.current;
+    void Promise.all([measureInWindow(node), root ? measureInWindow(root) : null]).then(([box, rootBox]) => {
+      if (cancelled) return;
+      if (!rootBox) {
+        setOverlap(Math.max(0, box.y + box.height - frame.top));
+        return;
+      }
+      const keyboardFromBottom = Dimensions.get("screen").height - frame.top;
+      const boxFromBottom = rootBox.y + rootBox.height - (box.y + box.height);
+      setOverlap(Math.max(0, keyboardFromBottom - boxFromBottom));
     });
     return () => {
       cancelled = true;

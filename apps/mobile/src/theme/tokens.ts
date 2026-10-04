@@ -29,6 +29,9 @@ export const colors = {
    *  (amber) and `alert` (red) — see `v2-new-style.md` §7.3. */
   urgent: "#C05A17",
   urgentSoft: "#FCEEDF",
+
+  /** The dim behind a bottom sheet — `ink` at 40%. */
+  scrim: "rgba(35,35,42,0.4)",
 } as const;
 
 /** One colour per status category, keyed to `ListStatusCategory`. */

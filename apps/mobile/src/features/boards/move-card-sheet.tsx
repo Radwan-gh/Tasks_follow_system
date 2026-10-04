@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import { Pressable, View } from "react-native";
 import type { Card, List } from "@app/types";
 import { BottomSheet } from "@/components/bottom-sheet";
@@ -5,11 +6,15 @@ import { AppText } from "@/components/text";
 import { MIN_TOUCH_TARGET, colors, radii, spacing, statusColors } from "@/theme/tokens";
 
 /**
- * The design's long-press sheet: every status in board order (current
- * disabled, the very next one highlighted) plus delete. "فتح البطاقة" is left
- * out — there is no card detail screen yet, so a row for it would go nowhere.
- * Delete itself opens the shared `ConfirmSheet` (`design-prompt-group-3.md`
- * §3a-6) rather than an inline tap-twice toggle — see `board/[id].tsx`.
+ * The status picker: every status in board order (current disabled, the very
+ * next one highlighted). Opened by long-pressing a card on the board and by
+ * tapping the status chip in the task detail header — the visible way in, so
+ * nobody has to discover the long-press to move a task more than one step.
+ *
+ * The board's long-press version also carries delete (`onRequestDelete`),
+ * set apart below a divider so it never reads as one more move target. It
+ * opens the shared `ConfirmSheet` (`design-prompt-group-3.md` §3a-6) rather
+ * than deleting on the spot — see `board/[id].tsx`.
  */
 export function MoveCardSheet({
   visible,
@@ -29,9 +34,15 @@ export function MoveCardSheet({
   /** Whether the current user may move *this* card into «انتهى» — §3b-4. */
   canCloseCard: boolean;
   onMove: (targetListId: string) => void;
-  onRequestDelete: () => void;
+  /** Omit to leave delete out — the task detail screen's sheet only moves. */
+  onRequestDelete?: () => void;
 }) {
-  if (!card) return null;
+  // The board clears `card` the moment the sheet is dismissed; keep showing the
+  // last one so the sheet can slide out instead of vanishing mid-animation.
+  const lastCard = useRef(card);
+  if (card) lastCard.current = card;
+  const shown = card ?? lastCard.current;
+  if (!shown) return null;
 
   return (
     <BottomSheet visible={visible} onClose={onClose}>
@@ -42,7 +53,7 @@ export function MoveCardSheet({
 
         <View style={{ gap: spacing.sm }}>
           {lists.map((list) => {
-            const isCurrent = list.id === card.listId;
+            const isCurrent = list.id === shown.listId;
             const isNext = list.id === nextListId;
             const blocked = list.statusCategory === "CLOSED" && !isCurrent && !canCloseCard;
             return (
@@ -58,7 +69,7 @@ export function MoveCardSheet({
                     minHeight: MIN_TOUCH_TARGET,
                     borderRadius: radii.field,
                     borderWidth: 1,
-                    borderColor: isNext ? "#D6E1F8" : colors.line,
+                    borderColor: isNext ? colors.accentSoft : colors.line,
                     backgroundColor: isNext ? colors.accentSoft : isCurrent || blocked ? colors.canvas : colors.surface,
                     paddingHorizontal: spacing.lg,
                     opacity: blocked ? 0.6 : 1,
@@ -75,7 +86,7 @@ export function MoveCardSheet({
                   <AppText style={{ flex: 1 }} weight={isNext ? "semibold" : "regular"} color={isCurrent || blocked ? colors.muted : colors.ink}>
                     {list.name}
                   </AppText>
-                  <AppText size="caption" color={isNext ? "#7C8CA8" : colors.muted}>
+                  <AppText size="caption" color={isNext ? colors.accent : colors.muted}>
                     {isCurrent ? "الحالة الحالية" : isNext ? "التالية" : list.cards.length}
                   </AppText>
                 </Pressable>
@@ -89,22 +100,25 @@ export function MoveCardSheet({
           })}
         </View>
 
-        <Pressable
-          accessibilityRole="button"
-          onPress={onRequestDelete}
-          style={{
-            minHeight: MIN_TOUCH_TARGET,
-            borderRadius: radii.field,
-            backgroundColor: colors.alertSoft,
-            alignItems: "center",
-            justifyContent: "center",
-            marginTop: spacing.sm,
-          }}
-        >
-          <AppText weight="semibold" color={colors.alert}>
-            حذف
-          </AppText>
-        </Pressable>
+        {onRequestDelete ? (
+          <View style={{ borderTopWidth: 1, borderTopColor: colors.line, paddingTop: spacing.md, marginTop: spacing.xs }}>
+            <Pressable
+              accessibilityRole="button"
+              onPress={onRequestDelete}
+              style={{
+                minHeight: MIN_TOUCH_TARGET,
+                borderRadius: radii.field,
+                backgroundColor: colors.alertSoft,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <AppText weight="semibold" color={colors.alert}>
+                حذف المهمة
+              </AppText>
+            </Pressable>
+          </View>
+        ) : null}
       </View>
     </BottomSheet>
   );

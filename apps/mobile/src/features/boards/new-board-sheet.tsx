@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Pressable, TextInput, View } from "react-native";
 import { BottomSheet } from "@/components/bottom-sheet";
 import { DueDateSheet } from "@/components/due-date-sheet";
@@ -24,6 +24,7 @@ export function NewBoardSheet({
   const [name, setName] = useState("");
   const [dueDate, setDueDate] = useState<string | null>(null);
   const [pickingDueDate, setPickingDueDate] = useState(false);
+  const nameRef = useRef<TextInput>(null);
 
   function close() {
     setName("");
@@ -33,16 +34,28 @@ export function NewBoardSheet({
 
   const canCreate = name.trim().length > 0 && !creating;
 
+  function create() {
+    if (canCreate) onCreate({ name: name.trim(), dueDate });
+  }
+
   return (
-    <BottomSheet visible={visible} onClose={close}>
+    // Naming is the only required step, so the keyboard comes up with the sheet.
+    // Deferred past `onShow`: Android focuses the field then, but drops the
+    // keyboard request until the sheet's own window has taken focus.
+    <BottomSheet visible={visible} onClose={close} onShow={() => setTimeout(() => nameRef.current?.focus(), 250)}>
       <View style={{ paddingHorizontal: spacing.xl, gap: spacing.lg, paddingBottom: spacing.sm }}>
         <AppText weight="bold" size="title">
           لوحة جديدة
         </AppText>
 
         <TextInput
+          ref={nameRef}
           value={name}
           onChangeText={setName}
+          // The return key creates the board, as the board's quick-add does.
+          onSubmitEditing={create}
+          returnKeyType="done"
+          submitBehavior="blurAndSubmit"
           placeholder="اسم اللوحة"
           placeholderTextColor={colors.muted}
           style={{
@@ -82,7 +95,7 @@ export function NewBoardSheet({
         <Pressable
           accessibilityRole="button"
           disabled={!canCreate}
-          onPress={() => onCreate({ name: name.trim(), dueDate })}
+          onPress={create}
           style={{
             minHeight: MIN_TOUCH_TARGET,
             borderRadius: radii.field,
@@ -97,7 +110,7 @@ export function NewBoardSheet({
         </Pressable>
       </View>
 
-      <DueDateSheet visible={pickingDueDate} onClose={() => setPickingDueDate(false)} onChange={setDueDate} />
+      <DueDateSheet visible={pickingDueDate} onClose={() => setPickingDueDate(false)} onChange={setDueDate} value={dueDate} />
     </BottomSheet>
   );
 }
