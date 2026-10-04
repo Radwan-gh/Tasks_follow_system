@@ -93,10 +93,11 @@ export class BoardsController {
 
   @Delete(":id")
   @HttpCode(204)
-  @ApiOperation({ summary: "Delete a board" })
+  @ApiOperation({ summary: "Permanently delete an archived board" })
   @ApiParam({ name: "id", description: "Board ID" })
   @ApiResponse({ status: 204, description: "Deleted" })
   @ApiResponse({ status: 403, description: "Requires OWNER role" })
+  @ApiResponse({ status: 409, description: "Board is not archived yet" })
   async remove(@CurrentUser() user: AuthUser, @Param("id") id: string) {
     await this.boards.remove(user.id, id);
   }

@@ -48,7 +48,7 @@ BoardsService.assertMembership(userId, boardId, minRole = "MEMBER")
 | إسناد بطاقة/مهمة فرعية لأعضاء | MEMBER (المُسنَد يجب أن يكون عضوًا **وليس VIEWER** — انظر أدناه) |
 | تعديل اسم/وصف اللوحة | MEMBER |
 | **أرشفة اللوحة** (`isArchived`) | **OWNER** |
-| **حذف اللوحة** | **OWNER** |
+| **حذف اللوحة** (المؤرشفة فقط — 409 لغير المؤرشفة) | **OWNER** |
 | **إضافة/إزالة عضو، وتبديل دوره بين MEMBER/VIEWER** | **OWNER** |
 | **البحث عن مستخدمين لإضافتهم** (`GET /boards/:id/member-candidates`) | **OWNER** |
 

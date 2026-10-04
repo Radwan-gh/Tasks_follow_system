@@ -3,19 +3,21 @@ import type { BoardDetail, UpdateBoardRequest } from "@app/types";
 
 interface BoardSettingsModalProps {
   board: BoardDetail;
-  /** Archiving is OWNER-only server-side; hide the button for members. */
+  /** Archiving and deleting are OWNER-only server-side; hide the button for members. */
   canArchive: boolean;
   onClose: () => void;
   onSave: (updates: UpdateBoardRequest) => Promise<void>;
   onArchive: () => Promise<void>;
+  /** Only offered once the board is archived — the server rejects deleting a live board. */
+  onDelete: () => Promise<void>;
 }
 
-export function BoardSettingsModal({ board, canArchive, onClose, onSave, onArchive }: BoardSettingsModalProps) {
+export function BoardSettingsModal({ board, canArchive, onClose, onSave, onArchive, onDelete }: BoardSettingsModalProps) {
   const [name, setName] = useState(board.name);
   const [description, setDescription] = useState(board.description ?? "");
   const [dueDate, setDueDate] = useState(board.dueDate ? board.dueDate.slice(0, 10) : "");
   const [saving, setSaving] = useState(false);
-  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function handleSave() {
@@ -39,15 +41,18 @@ export function BoardSettingsModal({ board, canArchive, onClose, onSave, onArchi
     }
   }
 
-  async function handleArchive() {
+  // A live board is archived first; only an archived one can be deleted for good.
+  const deleting = board.isArchived;
+
+  async function handleConfirm() {
     setSaving(true);
     setError(null);
     try {
-      await onArchive();
+      await (deleting ? onDelete() : onArchive());
     } catch (err) {
-      setError(err instanceof Error ? err.message : "فشل حذف اللوحة");
+      setError(err instanceof Error ? err.message : deleting ? "فشل حذف اللوحة" : "فشلت أرشفة اللوحة");
       setSaving(false);
-      setConfirmingDelete(false);
+      setConfirming(false);
     }
   }
 
@@ -78,21 +83,28 @@ export function BoardSettingsModal({ board, canArchive, onClose, onSave, onArchi
           onChange={(e) => setDueDate(e.target.value)}
           className="rounded border border-slate-300 px-2 py-1 text-sm"
         />
+        {confirming && (
+          <p className="text-sm text-slate-600">
+            {deleting
+              ? "تُحذف اللوحة بكل قوائمها ومهامها ومرفقاتها وسجلّها، ولا يمكن التراجع عن ذلك."
+              : "تصبح اللوحة للقراءة فقط، ويمكن استعادتها أو حذفها لاحقًا."}
+          </p>
+        )}
         {error && <p className="text-sm text-red-600">{error}</p>}
         <div className="flex items-center justify-between pt-2">
           <div>
             {canArchive &&
-              (confirmingDelete ? (
+              (confirming ? (
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={handleArchive}
+                    onClick={handleConfirm}
                     disabled={saving}
                     className="rounded bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-500 disabled:opacity-50"
                   >
-                    تأكيد الحذف
+                    {deleting ? "حذف نهائيًا" : "تأكيد الأرشفة"}
                   </button>
                   <button
-                    onClick={() => setConfirmingDelete(false)}
+                    onClick={() => setConfirming(false)}
                     disabled={saving}
                     className="rounded px-2 py-1.5 text-sm text-slate-600 hover:bg-slate-100"
                   >
@@ -101,11 +113,11 @@ export function BoardSettingsModal({ board, canArchive, onClose, onSave, onArchi
                 </div>
               ) : (
                 <button
-                  onClick={() => setConfirmingDelete(true)}
+                  onClick={() => setConfirming(true)}
                   disabled={saving}
                   className="rounded px-3 py-1.5 text-sm text-red-600 hover:bg-red-50"
                 >
-                  حذف اللوحة
+                  {deleting ? "حذف اللوحة" : "أرشفة اللوحة"}
                 </button>
               ))}
           </div>

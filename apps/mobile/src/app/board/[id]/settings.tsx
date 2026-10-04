@@ -20,7 +20,8 @@ import { MIN_TOUCH_TARGET, colors, fonts, fontSizes, radii, spacing } from "@/th
 
 /**
  * `/board/:id/settings` — the design's «إعدادات اللوحة والأعضاء» single
- * screen (`v2-new-style.md` §7.2): rename/description/due-date, archive, and
+ * screen (`v2-new-style.md` §7.2): rename/description/due-date, archive (and,
+ * once archived, restore or permanently delete), and
  * the members — edited with the same inline `PeopleField` as task assignees,
  * saving every add/remove at once (`PUT /boards/:id/members`). Mirrors
  * `apps/web`'s `BoardSettingsModal`/`BoardMembersModal`.
@@ -46,6 +47,7 @@ export default function BoardSettingsScreen() {
   const [seeded, setSeeded] = useState(false);
   const [pickingDueDate, setPickingDueDate] = useState(false);
   const [confirmingArchive, setConfirmingArchive] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [memberSearch, setMemberSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -132,6 +134,21 @@ export default function BoardSettingsScreen() {
     mutationFn: () => api.boards.update(id, { isArchived: false }),
     onSuccess: invalidate,
     onError: reportError,
+  });
+
+  const remove = useMutation({
+    mutationFn: () => api.boards.remove(id),
+    onSuccess: () => {
+      setConfirmingDelete(false);
+      // Not `invalidate()`: refetching this board would only 404 behind the sheet.
+      void queryClient.invalidateQueries({ queryKey: ["boards"] });
+      router.dismissTo("/archived-boards");
+      queryClient.removeQueries({ queryKey: ["board", id] });
+    },
+    onError: (err) => {
+      setConfirmingDelete(false);
+      reportError(err);
+    },
   });
 
   // §3c-4 "منتقي دور لكل عضو (عضو ▾ / مشاهد) يتاح للمالك".
@@ -321,22 +338,42 @@ export default function BoardSettingsScreen() {
         {canArchive ? (
           <View style={{ borderTopWidth: 1, borderTopColor: colors.line, paddingTop: spacing.lg }}>
             {board.data.isArchived ? (
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => restore.mutate()}
-                disabled={restore.isPending}
-                style={{
-                  minHeight: MIN_TOUCH_TARGET,
-                  borderRadius: radii.field,
-                  backgroundColor: colors.accentSoft,
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <AppText weight="semibold" color={colors.accent}>
-                  {restore.isPending ? "جارٍ الاستعادة..." : "استعادة اللوحة"}
+              <View style={{ gap: spacing.md }}>
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => restore.mutate()}
+                  disabled={restore.isPending}
+                  style={{
+                    minHeight: MIN_TOUCH_TARGET,
+                    borderRadius: radii.field,
+                    backgroundColor: colors.accentSoft,
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <AppText weight="semibold" color={colors.accent}>
+                    {restore.isPending ? "جارٍ الاستعادة..." : "استعادة اللوحة"}
+                  </AppText>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => setConfirmingDelete(true)}
+                  style={{
+                    minHeight: MIN_TOUCH_TARGET,
+                    borderRadius: radii.field,
+                    backgroundColor: colors.alertSoft,
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <AppText weight="semibold" color={colors.alert}>
+                    حذف اللوحة
+                  </AppText>
+                </Pressable>
+                <AppText size="caption" color={colors.muted}>
+                  الحذف نهائي ولا يمكن التراجع عنه.
                 </AppText>
-              </Pressable>
+              </View>
             ) : (
               <Pressable
                 accessibilityRole="button"
@@ -364,10 +401,21 @@ export default function BoardSettingsScreen() {
         visible={confirmingArchive}
         onClose={() => setConfirmingArchive(false)}
         title="أرشفة اللوحة"
-        consequence="تصبح اللوحة للقراءة فقط، وتُستثنى من تقريرَي المتأخّرة وعبء العمل. يمكن استعادتها لاحقًا."
+        consequence="تصبح اللوحة للقراءة فقط، وتُستثنى من تقريرَي المتأخّرة وعبء العمل. يمكن استعادتها أو حذفها لاحقًا."
         confirmLabel="أرشفة"
         confirming={archive.isPending}
         onConfirm={() => archive.mutate()}
+      />
+
+      <ConfirmSheet
+        visible={confirmingDelete}
+        onClose={() => setConfirmingDelete(false)}
+        title="حذف اللوحة"
+        consequence="تُحذف اللوحة بكل قوائمها ومهامها ومرفقاتها وسجلّها، ولا يمكن التراجع عن ذلك. اكتب اسم اللوحة للتأكيد."
+        confirmLabel="حذف نهائيًا"
+        typeToConfirm={board.data.name}
+        confirming={remove.isPending}
+        onConfirm={() => remove.mutate()}
       />
 
     </Screen>

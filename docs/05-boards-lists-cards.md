@@ -46,7 +46,8 @@
 
 ### التعديل والحذف
 - تعديل الاسم/الوصف: MEMBER. أرشفة اللوحة (أو استعادتها بـ`isArchived: false`): OWNER.
-  الحذف: OWNER (انظر [`04-authorization.md`](./04-authorization.md)).
+  الحذف: OWNER، **وللّوحات المؤرشفة فقط** (انظر «الحذف النهائي» أدناه و
+  [`04-authorization.md`](./04-authorization.md)).
 
 ### الأرشفة — للقراءة فقط (`design-prompt-group-3.md` §3b-3)
 - `PATCH /boards/:id { isArchived: true }` (OWNER فقط) يجعل اللوحة **للقراءة فقط**:
@@ -61,6 +62,24 @@
 - الاستعادة (`isArchived: false`) متاحة للمالك فقط من نفس مسار `PATCH /boards/:id`.
 - `ReportsService.overdue()`/`workload()` (انظر [`11-reports.md`](./11-reports.md))
   تستثنيان بطاقات أي لوحة مؤرشفة.
+
+### الحذف النهائي — بعد الأرشفة فقط
+- `DELETE /boards/:id` (`BoardsService.remove`، عبر `api.boards.remove` في
+  `packages/api-client`) يتطلّب **OWNER**، ويرفض بـ **409** (`ConflictException`) أيّ
+  لوحة غير مؤرشفة. الأرشفة إذن هي الخطوة الأولى القابلة للتراجع دائمًا، ولا يمكن مسح
+  لوحة نشطة بضغطة واحدة.
+- القوائم والبطاقات وسجلّ النشاط والتعليقات والمرفقات والأعضاء والقوالب تُحذف تلقائيًا
+  بـ`onDelete: Cascade` في المخطّط. أما الإشعارات (`Notification`) فتحمل `boardId`
+  نصيًّا بلا مفتاح أجنبي، لذا تُحذف صراحةً **في نفس المعاملة** مع اللوحة حتى لا يبقى
+  إشعار يفتح لوحة غير موجودة.
+- ملفات المرفقات نفسها (القرص أو الـbucket) تُحذف بعد نجاح المعاملة عبر
+  `AttachmentStorageService.remove` — بأفضل جهد، فغياب ملف ليس خطأً. لهذا صار
+  `AttachmentStorageService` مُقدَّمًا ومُصدَّرًا من `BoardsModule` (ويصل إلى
+  `CardsModule` عبر استيرادها له).
+- الواجهات: زر «حذف اللوحة» يظهر للمالك في إعدادات اللوحة **فقط حين تكون مؤرشفة**
+  (مكان زر «أرشفة اللوحة»). على الويب (`BoardSettingsModal`) تأكيد بخطوتين ثم الانتقال
+  إلى `/boards/archived`؛ وعلى الجوال `ConfirmSheet` بصيغة `typeToConfirm` (كتابة اسم
+  اللوحة) ثم الرجوع إلى `/archived-boards`.
 
 ### إدارة الأعضاء
 - **الاستبدال الكامل (OWNER) — `PUT /boards/:id/members`:** المصدر

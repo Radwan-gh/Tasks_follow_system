@@ -247,6 +247,8 @@ export function createApiClient({ baseUrl, storage, onUnauthorized }: ApiClientO
       getSummary: (id: string) => request<BoardOwnerSummary>(`/boards/${id}/summary`),
       update: (id: string, body: UpdateBoardRequest) =>
         request<BoardSummary>(`/boards/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+      /** Owner-only, and only once the board is archived (409 otherwise). */
+      remove: (id: string) => request<void>(`/boards/${id}`, { method: "DELETE" }),
       /** Owner-only user search behind the "add member" picker. Empty search = first page of candidates. */
       memberCandidates: (id: string, params: { search?: string; limit?: number } = {}) => {
         const query = new URLSearchParams();

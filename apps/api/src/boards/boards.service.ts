@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -8,6 +9,7 @@ import type { Prisma } from "@prisma/client";
 import type { BoardRole, CardPriority, CreateBoardRequest, RecurrenceRule, UpdateBoardRequest } from "@app/types";
 import { generateKeyBetween, generateNKeysBetween } from "@app/ordering";
 import { PrismaService } from "../prisma/prisma.service";
+import { AttachmentStorageService } from "../common/storage/attachment-storage.service";
 import { COMPLETED_CATEGORIES } from "../common/util/completed.util";
 import { TASK_WORKFLOW_TEMPLATE } from "./board-templates";
 
@@ -27,7 +29,10 @@ const ROLE_RANK: Record<BoardRole, number> = { VIEWER: 0, MEMBER: 1, OWNER: 2 };
 
 @Injectable()
 export class BoardsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly storage: AttachmentStorageService,
+  ) {}
 
   /** Single source of truth for "can user X do Y on board Z", reused by lists/cards services. */
   async assertMembership(userId: string, boardId: string, minRole: BoardRole = "MEMBER") {
@@ -283,9 +288,29 @@ export class BoardsService {
     return serializeBoard(board, aggregates.get(boardId) ?? EMPTY_AGGREGATE);
   }
 
+  /**
+   * Permanent delete — only reachable *after* archiving, so archive is always
+   * the reversible first step and a live board can't be wiped in one click.
+   * Lists/cards/activity/members cascade in the database; notifications only
+   * hold a plain `boardId` (no FK), so they're removed in the same transaction
+   * rather than left pointing at a board that no longer opens. Attachment
+   * bytes live outside the database and are cleared best-effort afterwards.
+   */
   async remove(userId: string, boardId: string) {
     await this.assertMembership(userId, boardId, "OWNER");
-    await this.prisma.board.delete({ where: { id: boardId } });
+    const board = await this.prisma.board.findUnique({ where: { id: boardId }, select: { isArchived: true } });
+    if (!board) throw new NotFoundException("Board not found");
+    if (!board.isArchived) throw new ConflictException("Archive the board before deleting it");
+
+    const attachments = await this.prisma.attachment.findMany({
+      where: { card: { boardId } },
+      select: { filename: true },
+    });
+    await this.prisma.$transaction([
+      this.prisma.notification.deleteMany({ where: { boardId } }),
+      this.prisma.board.delete({ where: { id: boardId } }),
+    ]);
+    await Promise.all(attachments.map((a) => this.storage.remove(a.filename)));
   }
 
   /**

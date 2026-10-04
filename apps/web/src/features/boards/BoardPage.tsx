@@ -365,6 +365,11 @@ export function BoardPage() {
             queryClient.invalidateQueries({ queryKey: ["boards"] });
             navigate("/boards");
           }}
+          onDelete={async () => {
+            await api.boards.remove(board.id);
+            queryClient.invalidateQueries({ queryKey: ["boards"] });
+            navigate("/boards/archived");
+          }}
         />
       )}
       {membersOpen && (
