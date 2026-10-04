@@ -15,6 +15,11 @@ const fs = require('fs');
 const path = require('path');
 
 const args = process.argv.slice(2);
+// Always export from a cold Metro cache: a transform cached by an earlier
+// export (or a dev server) can carry a different EXPO_PUBLIC_API_URL, or
+// none, and the cache key does not change with it — which once shipped an
+// update pointing at the localhost fallback.
+if (args[0] === 'expo' && args[1] === 'export' && !args.includes('--clear')) args.push('--clear');
 // shell: Node refuses to spawn pnpm.cmd without one. The args eoas passes carry
 // no spaces or shell metacharacters.
 const result = spawnSync(['pnpm', 'exec', ...args].join(' '), { stdio: 'inherit', shell: true });

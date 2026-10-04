@@ -95,7 +95,7 @@ try {
 # --- Step 2: publish (or export, for a dry run) -----------------------------
 if (Test-Path $outDir) { Remove-Item -Recurse -Force $outDir }
 if ($DryRun) {
-    $cmd = @('expo', 'export', '--platform', 'android', '--output-dir', 'dist')
+    $cmd = @('expo', 'export', '--platform', 'android', '--output-dir', 'dist', '--clear')
     Step "Dry run: exporting the bundle only (npx $($cmd -join ' '))"
 } else {
     if (-not $Message) { $Message = ($commit -replace '^\S+\s+', '') }
@@ -108,6 +108,15 @@ if ($DryRun) {
     $env:PATH = "$PSScriptRoot;$env:PATH"
     if ($Rollout) { $cmd += @('--rollout-percentage', "$Rollout") }
     Step "Publishing to branch production (npx $($cmd -join ' '))"
+}
+# eoas runs 'expo export' with EXPO_NO_DOTENV=1, so .env.production is never
+# read and the bundle silently falls back to localhost. Variables already in
+# the process environment are still inlined, so put the EXPO_PUBLIC_* values
+# from .env.production there ourselves.
+foreach ($line in Get-Content (Join-Path $mobile '.env.production')) {
+    if ($line -match '^\s*(EXPO_PUBLIC_[A-Z0-9_]+)\s*=\s*(.*)$') {
+        Set-Item -Path "env:$($Matches[1])" -Value $Matches[2].Trim().Trim('"', "'")
+    }
 }
 Write-Host "Full log: $log"
 Push-Location $mobile
