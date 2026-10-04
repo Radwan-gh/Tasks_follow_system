@@ -39,6 +39,7 @@ import type {
   Subtask,
   Template,
   UpdateAppSettingsRequest,
+  SetBoardMembersRequest,
   UpdateAssigneesRequest,
   UpdateBoardRequest,
   UpdateCardAccessRequest,
@@ -257,6 +258,9 @@ export function createApiClient({ baseUrl, storage, onUnauthorized }: ApiClientO
       /** `userId` comes from a `memberCandidates` row — there is no lookup by a typed-in name. */
       addMember: (id: string, userId: string, role?: Exclude<BoardRole, "OWNER">) =>
         request<BoardMember>(`/boards/${id}/members`, { method: "POST", body: JSON.stringify({ userId, role }) }),
+      /** Full replace of the member set — what the auto-saving people picker sends. Newcomers join as MEMBER. */
+      setMembers: (id: string, body: SetBoardMembersRequest) =>
+        request<BoardMember[]>(`/boards/${id}/members`, { method: "PUT", body: JSON.stringify(body) }),
       updateMemberRole: (id: string, userId: string, role: Exclude<BoardRole, "OWNER">) =>
         request<BoardMember>(`/boards/${id}/members/${userId}/role`, {
           method: "PATCH",

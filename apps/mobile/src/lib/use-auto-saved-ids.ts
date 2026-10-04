@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 /**
  * A list of user ids that saves itself on every change — the people pickers
- * (card assignees, subtask assignees, restricted access) have no save button.
+ * (card assignees, subtask assignees, restricted access, board members) have
+ * no save button.
  *
  * Every endpoint behind them is a full replace, so each save sends the whole
  * latest set. Saves run one at a time and only the newest pending set is sent

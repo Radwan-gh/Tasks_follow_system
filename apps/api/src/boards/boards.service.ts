@@ -358,6 +358,49 @@ export class BoardsService {
     };
   }
 
+  /**
+   * Full replace of the board's member set — what the auto-saving people
+   * picker sends on every add/remove, mirroring card assignees. Newcomers join
+   * as `MEMBER`; members who stay keep their role; the owner is always kept.
+   * A removed member also loses their per-card access rows, as in
+   * `removeMember`. Returns the resulting member list.
+   */
+  async setMembers(userId: string, boardId: string, userIds: string[]) {
+    await this.assertMembership(userId, boardId, "OWNER");
+
+    const current = await this.prisma.boardMember.findMany({
+      where: { boardId },
+      select: { userId: true, role: true },
+    });
+    const wanted = new Set(userIds);
+    const currentIds = new Set(current.map((m) => m.userId));
+    const toAdd = [...wanted].filter((id) => !currentIds.has(id));
+    const toRemove = current.filter((m) => m.role !== "OWNER" && !wanted.has(m.userId)).map((m) => m.userId);
+
+    if (toAdd.length > 0) {
+      const users = await this.prisma.user.findMany({
+        where: { id: { in: toAdd } },
+        select: { id: true, isActive: true },
+      });
+      if (users.length !== toAdd.length) throw new NotFoundException("No such user");
+      // Same rule as `addMember`: only *new* memberships are blocked for a
+      // deactivated account; one deactivated after joining can stay.
+      if (users.some((u) => !u.isActive)) throw new BadRequestException("Cannot add a deactivated user to a board");
+    }
+
+    await this.prisma.$transaction([
+      this.prisma.cardMember.deleteMany({ where: { userId: { in: toRemove }, card: { boardId } } }),
+      this.prisma.boardMember.deleteMany({ where: { boardId, userId: { in: toRemove } } }),
+      this.prisma.boardMember.createMany({ data: toAdd.map((id) => ({ boardId, userId: id, role: "MEMBER" as const })) }),
+    ]);
+
+    const members = await this.prisma.boardMember.findMany({
+      where: { boardId },
+      include: { user: { select: { id: true, username: true, displayName: true, isActive: true } } },
+    });
+    return members.map((m) => ({ userId: m.userId, boardId: m.boardId, role: m.role, user: m.user }));
+  }
+
   /** §3c-4: owner-only switch between `MEMBER` and `VIEWER` for an existing member. Never touches the owner's own row. */
   async updateMemberRole(userId: string, boardId: string, targetUserId: string, role: "MEMBER" | "VIEWER") {
     await this.assertMembership(userId, boardId, "OWNER");

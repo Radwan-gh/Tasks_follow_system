@@ -98,6 +98,18 @@ export const UpdateBoardMemberRoleRequestSchema = z.object({
 export type UpdateBoardMemberRoleRequest = z.infer<typeof UpdateBoardMemberRoleRequestSchema>;
 
 /**
+ * `PUT /boards/:id/members` — owner-only atomic full replace of who is on the
+ * board, the same shape as {@link UpdateAssigneesRequestSchema} so both apps
+ * drive it from the same auto-saving people picker. Newcomers join as
+ * `MEMBER`, members who stay keep their role, and the owner is always kept
+ * whether listed or not. Duplicates are collapsed.
+ */
+export const SetBoardMembersRequestSchema = z.object({
+  userIds: z.array(z.string().min(1)),
+});
+export type SetBoardMembersRequest = z.infer<typeof SetBoardMembersRequestSchema>;
+
+/**
  * Admin-only creation of a user account. Public self-registration was removed —
  * new accounts are provisioned by an admin, who sets the initial password and
  * (optionally) the role. See `POST /admin/users`.

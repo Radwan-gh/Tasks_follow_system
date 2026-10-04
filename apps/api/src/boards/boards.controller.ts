@@ -1,14 +1,16 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query, UseGuards } from "@nestjs/common";
+import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Put, Query, UseGuards } from "@nestjs/common";
 import { ApiBearerAuth, ApiBody, ApiOperation, ApiParam, ApiQuery, ApiResponse, ApiTags } from "@nestjs/swagger";
 import {
   AddBoardMemberRequestSchema,
   CreateBoardRequestSchema,
   SearchMemberCandidatesQuerySchema,
+  SetBoardMembersRequestSchema,
   UpdateBoardMemberRoleRequestSchema,
   UpdateBoardRequestSchema,
   type AddBoardMemberRequest,
   type CreateBoardRequest,
   type SearchMemberCandidatesQuery,
+  type SetBoardMembersRequest,
   type UpdateBoardMemberRoleRequest,
   type UpdateBoardRequest,
 } from "@app/types";
@@ -126,6 +128,20 @@ export class BoardsController {
     @Body(new ZodValidationPipe(AddBoardMemberRequestSchema)) body: AddBoardMemberRequest,
   ) {
     return this.boards.addMember(user.id, id, body.userId, body.role);
+  }
+
+  @Put(":id/members")
+  @ApiOperation({ summary: "Replace the board's member set (owner-only); newcomers join as MEMBER, the owner is always kept" })
+  @ApiParam({ name: "id", description: "Board ID" })
+  @ApiBody({ schema: zodRef("SetBoardMembersRequest") })
+  @ApiResponse({ status: 200, schema: zodArrayRef("BoardMember") })
+  @ApiResponse({ status: 403, description: "Requires OWNER role" })
+  setMembers(
+    @CurrentUser() user: AuthUser,
+    @Param("id") id: string,
+    @Body(new ZodValidationPipe(SetBoardMembersRequestSchema)) body: SetBoardMembersRequest,
+  ) {
+    return this.boards.setMembers(user.id, id, [...new Set(body.userIds)]);
   }
 
   @Patch(":id/members/:userId/role")

@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState, type ReactNode } from "react";
 import { Pressable, TextInput, View } from "react-native";
 import type { BoardMember } from "@app/types";
 import { AppText } from "@/components/text";
@@ -9,9 +9,10 @@ import { useRevealInScroll } from "@/lib/scroll-reveal";
 import { MIN_TOUCH_TARGET, colors, fonts, fontSizes, radii, spacing } from "@/theme/tokens";
 
 /**
- * Inline people type-ahead — card assignees, subtask assignees and
- * restricted-access members, edited right where they are shown, with no sheet
- * to open first.
+ * Inline people type-ahead — card assignees, subtask assignees,
+ * restricted-access members and board membership, edited right where they are
+ * shown, with no sheet to open first. Board membership differs only in where
+ * suggestions come from: the user directory, searched through `onTermChange`.
  *
  * One bordered box holds the picked people as chips with the text input at
  * the end of the same wrapping row (a "token field"). Typing shows the top
@@ -44,6 +45,11 @@ export function PeopleField({
   readOnly = false,
   autoFocus = false,
   revealMargin,
+  noMatchText = (term) => `لا يوجد عضو يطابق «${term}».`,
+  searching = false,
+  onTermChange,
+  lockedIds,
+  chipExtra,
   saving = false,
   failed = false,
 }: {
@@ -65,10 +71,24 @@ export function PeopleField({
   autoFocus?: boolean;
   /** Room left above the field when focus scrolls it to the top — to keep what it belongs to in view. */
   revealMargin?: number;
+  /** The line shown when nobody matches the typed text. */
+  noMatchText?: (term: string) => string;
+  /** Suggestions are still loading from the server — say so instead of "no match". */
+  searching?: boolean;
+  /** Called with the typed text, for callers that search the server rather than `members` alone. */
+  onTermChange?: (term: string) => void;
+  /** Chips that cannot be removed (e.g. the board owner). */
+  lockedIds?: ReadonlySet<string>;
+  /** Extra control rendered inside a chip, after the name (e.g. a role toggle). */
+  chipExtra?: (member: BoardMember) => ReactNode;
   saving?: boolean;
   failed?: boolean;
 }) {
-  const [search, setSearch] = useState("");
+  const [search, setSearchState] = useState("");
+  function setSearch(next: string) {
+    setSearchState(next);
+    onTermChange?.(next);
+  }
   const [focused, setFocused] = useState(false);
   const inputRef = useRef<TextInput>(null);
   const containerRef = useRef<View>(null);
@@ -107,7 +127,7 @@ export function PeopleField({
       chosen.length > 0 ? (
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.xs }}>
           {chosen.map((member) => (
-            <PersonChip key={member.userId} member={member} />
+            <PersonChip key={member.userId} member={member} extra={chipExtra?.(member)} />
           ))}
         </View>
       ) : (
@@ -115,7 +135,7 @@ export function PeopleField({
           {noneLabel}
         </AppText>
       );
-  } else if (members.length === 0 && chosen.length === 0) {
+  } else if (members.length === 0 && chosen.length === 0 && !onTermChange) {
     body = (
       <AppText size="small" color={colors.muted}>
         {emptyHint ?? noneLabel}
@@ -146,7 +166,12 @@ export function PeopleField({
             <PersonChip
               key={member.userId}
               member={member}
-              onRemove={() => onChange(selectedIds.filter((id) => id !== member.userId))}
+              extra={chipExtra?.(member)}
+              onRemove={
+                lockedIds?.has(member.userId)
+                  ? undefined
+                  : () => onChange(selectedIds.filter((id) => id !== member.userId))
+              }
             />
           ))}
           <TextInput
@@ -196,7 +221,7 @@ export function PeopleField({
         {focused && typed ? (
           matches.length === 0 ? (
             <AppText size="small" color={colors.muted} style={{ paddingHorizontal: spacing.sm }}>
-              لا يوجد عضو يطابق «{typed}».
+              {searching ? "جارٍ البحث…" : noMatchText(typed)}
             </AppText>
           ) : (
             <View
@@ -322,7 +347,7 @@ function SuggestionRow({
 }
 
 /** A picked person. With `onRemove` the chip is the remove button; without it, a plain label. */
-function PersonChip({ member, onRemove }: { member: BoardMember; onRemove?: () => void }) {
+function PersonChip({ member, extra, onRemove }: { member: BoardMember; extra?: ReactNode; onRemove?: () => void }) {
   const content = (
     <>
       <Avatar member={member} size={24} />
@@ -332,6 +357,7 @@ function PersonChip({ member, onRemove }: { member: BoardMember; onRemove?: () =
           معطَّل
         </AppText>
       ) : null}
+      {extra}
       {onRemove ? (
         <AppText size="caption" color={colors.muted}>
           ✕

@@ -1,15 +1,15 @@
-import { useId, useMemo, useState, type KeyboardEvent } from "react";
+import { useId, useMemo, useState, type KeyboardEvent, type ReactNode } from "react";
 import type { BoardMember } from "@app/types";
 
 /**
  * The one place the web app renders "pick people" UI — card assignees,
- * subtask assignees and the restricted-access list all go through
- * `UserTypeahead`, so matching, the selected chips and the empty states
- * behave identically everywhere a user is chosen.
+ * subtask assignees, the restricted-access list and board membership all go
+ * through `UserTypeahead`, so matching, the selected chips and the empty
+ * states behave identically everywhere a user is chosen.
  *
- * Board *membership* itself is added from `BoardMembersModal`, which searches
- * the user directory (`GET /boards/:id/member-candidates`) instead of this
- * in-memory list, but reuses `UserIdentity`/`matchesUser` from here.
+ * Board membership (`BoardMembersModal`) differs only in where suggestions
+ * come from: the user directory (`GET /boards/:id/member-candidates`, fed in
+ * through `onTermChange`) instead of the board's in-memory member list.
  */
 
 /** How many suggestions the type-ahead shows — enough to disambiguate, few enough to read at a glance. */
@@ -78,30 +78,6 @@ export function UserAvatar({ displayName, dimmed = false }: { displayName: strin
   );
 }
 
-/** Name + username + an optional "معطَّل" badge — the shared row for any user list. */
-export function UserIdentity({
-  displayName,
-  username,
-  isActive = true,
-}: {
-  displayName: string;
-  username: string;
-  isActive?: boolean;
-}) {
-  return (
-    <span className="flex min-w-0 flex-1 items-center gap-2">
-      <UserAvatar displayName={displayName} dimmed={!isActive} />
-      <span className="min-w-0">
-        <span className="block truncate text-sm text-slate-700">{displayName}</span>
-        <span className="block truncate text-xs text-slate-400">{username}</span>
-      </span>
-      {!isActive && (
-        <span className="shrink-0 rounded bg-red-50 px-1.5 py-0.5 text-[10px] font-medium text-red-600">معطَّل</span>
-      )}
-    </span>
-  );
-}
-
 /** `text` with the first case-insensitive occurrence of `term` emphasised — shows *why* a row matched. */
 function MatchedText({ text, term }: { text: string; term: string }) {
   const needle = term.trim().toLowerCase();
@@ -129,15 +105,34 @@ export function UserTypeahead({
   members,
   selectedIds,
   onChange,
+  lookup = members,
   label,
   placeholder = "اكتب اسمًا أو اسم مستخدم",
   emptyHint,
+  noMatchText = (term) => `لا يوجد عضو يطابق «${term}».`,
+  searching = false,
+  onTermChange,
+  lockedIds,
+  chipExtra,
   saving = false,
   failed = false,
 }: {
+  /** Who can be suggested. */
   members: BoardMember[];
   selectedIds: string[];
   onChange: (userIds: string[]) => void;
+  /** Where chips resolve their person from, when wider than `members` (e.g. people already on the board). */
+  lookup?: BoardMember[];
+  /** The line shown when nobody matches the typed text. */
+  noMatchText?: (term: string) => string;
+  /** Suggestions are still loading from the server — say so instead of "no match". */
+  searching?: boolean;
+  /** Called with the typed text, for callers that search the server rather than `members` alone. */
+  onTermChange?: (term: string) => void;
+  /** Chips without a remove button (e.g. the board owner). */
+  lockedIds?: ReadonlySet<string>;
+  /** Extra control rendered inside a chip, after the name (e.g. a role toggle). */
+  chipExtra?: (member: BoardMember) => ReactNode;
   /** Accessible name of the input, e.g. «أضف مسؤولًا». */
   label: string;
   placeholder?: string;
@@ -156,21 +151,28 @@ export function UserTypeahead({
   const chosen = useMemo(
     () =>
       selectedIds
-        .map((id) => members.find((m) => m.userId === id))
+        .map((id) => lookup.find((m) => m.userId === id))
         .filter((m): m is BoardMember => !!m),
-    [members, selectedIds],
+    [lookup, selectedIds],
   );
 
   const open = focused && term.trim().length > 0;
   const active = Math.min(highlight, Math.max(matches.length - 1, 0));
 
-  if (members.length === 0) return <p className="text-xs text-muted">{emptyHint}</p>;
+  if (members.length === 0 && chosen.length === 0 && !onTermChange) {
+    return <p className="text-xs text-muted">{emptyHint}</p>;
+  }
+
+  function changeTerm(next: string) {
+    setTerm(next);
+    setHighlight(0);
+    onTermChange?.(next);
+  }
 
   function add(member: BoardMember | undefined) {
     if (!member) return;
     onChange([...selectedIds, member.userId]);
-    setTerm("");
-    setHighlight(0);
+    changeTerm("");
   }
 
   function onKeyDown(e: KeyboardEvent<HTMLInputElement>) {
@@ -186,7 +188,7 @@ export function UserTypeahead({
     } else if (e.key === "Escape" && term) {
       // Clear the text only — don't let this Escape also close the card panel.
       e.stopPropagation();
-      setTerm("");
+      changeTerm("");
     }
   }
 
@@ -203,10 +205,7 @@ export function UserTypeahead({
           aria-activedescendant={open && matches.length > 0 ? `${listId}-${active}` : undefined}
           autoComplete="off"
           value={term}
-          onChange={(e) => {
-            setTerm(e.target.value);
-            setHighlight(0);
-          }}
+          onChange={(e) => changeTerm(e.target.value)}
           onKeyDown={onKeyDown}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
@@ -221,7 +220,9 @@ export function UserTypeahead({
             className="absolute inset-x-0 top-full z-10 mt-1 overflow-hidden rounded-field border border-line bg-surface p-1 shadow-lg"
           >
             {matches.length === 0 ? (
-              <li className="px-3 py-2 text-xs text-muted">لا يوجد عضو يطابق «{term.trim()}».</li>
+              <li className="px-3 py-2 text-xs text-muted">
+                {searching ? "جارٍ البحث…" : noMatchText(term.trim())}
+              </li>
             ) : (
               matches.map((m, index) => (
                 <li
@@ -270,14 +271,19 @@ export function UserTypeahead({
               <ChipAvatar displayName={m.user.displayName} />
               <span className="max-w-[10rem] truncate">{m.user.displayName}</span>
               {!m.user.isActive && <span className="text-[10px] font-medium text-alert">معطَّل</span>}
-              <button
-                type="button"
-                onClick={() => onChange(selectedIds.filter((id) => id !== m.userId))}
-                aria-label={`إزالة ${m.user.displayName}`}
-                className="flex h-5 w-5 items-center justify-center rounded-full text-muted hover:bg-surface hover:text-alert focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
-              >
-                <span aria-hidden>✕</span>
-              </button>
+              {chipExtra?.(m)}
+              {lockedIds?.has(m.userId) ? (
+                <span aria-hidden className="w-1" />
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => onChange(selectedIds.filter((id) => id !== m.userId))}
+                  aria-label={`إزالة ${m.user.displayName}`}
+                  className="flex h-5 w-5 items-center justify-center rounded-full text-muted hover:bg-surface hover:text-alert focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+                >
+                  <span aria-hidden>✕</span>
+                </button>
+              )}
             </span>
           ))}
           {saving && <span className="text-[11px] text-muted">جارٍ الحفظ…</span>}

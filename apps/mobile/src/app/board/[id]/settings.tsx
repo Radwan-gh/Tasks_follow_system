@@ -1,32 +1,36 @@
-import { useEffect, useState } from "react";
-import { Pressable, ScrollView, TextInput, View } from "react-native";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Pressable, TextInput, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError } from "@app/api-client";
-import type { BoardMemberCandidate, BoardRole } from "@app/types";
+import type { BoardMember, BoardRole } from "@app/types";
 import { Screen } from "@/components/screen";
 import { AppText } from "@/components/text";
 import { ConfirmSheet } from "@/components/confirm-sheet";
 import { DueDateSheet } from "@/components/due-date-sheet";
 import { ErrorState } from "@/components/state-views";
 import { Skeleton } from "@/components/skeleton";
-import { AddMemberSheet } from "@/features/boards/add-member-sheet";
 import { useAuth } from "@/features/auth/auth-context";
-import { avatarColorFor } from "@/lib/avatar";
-import { initials } from "@/lib/initials";
+import { PeopleField } from "@/features/cards/people-field";
 import { formatDueDate } from "@/lib/date";
 import { api } from "@/lib/api";
+import { RevealScrollView } from "@/lib/scroll-reveal";
+import { useAutoSavedIds } from "@/lib/use-auto-saved-ids";
 import { MIN_TOUCH_TARGET, colors, fonts, fontSizes, radii, spacing } from "@/theme/tokens";
 
 /**
  * `/board/:id/settings` — the design's «إعدادات اللوحة والأعضاء» single
- * screen (`v2-new-style.md` §7.2): rename/description/due-date, add member
- * by picking them from the directory, remove member, archive. All endpoints already exist
- * (`PATCH /boards/:id`, `POST`/`DELETE .../members`) — this is UI only,
- * mirroring `apps/web`'s `BoardSettingsModal`/`BoardMembersModal`.
+ * screen (`v2-new-style.md` §7.2): rename/description/due-date, archive, and
+ * the members — edited with the same inline `PeopleField` as task assignees,
+ * saving every add/remove at once (`PUT /boards/:id/members`). Mirrors
+ * `apps/web`'s `BoardSettingsModal`/`BoardMembersModal`.
  */
-/** Above this many members, the list gets its own filter box. */
-const MEMBER_FILTER_THRESHOLD = 6;
+/** Short enough to feel live; the typed text is still re-matched locally on every keystroke. */
+const SEARCH_DEBOUNCE_MS = 150;
+/** The server's cap — enough rows for the local prefix-first ranking to pick the best 3 from. */
+const CANDIDATE_LIMIT = 50;
+/** Stable fallback while the board loads, so `useAutoSavedIds` sees one empty list, not a new one per render. */
+const NO_MEMBERS: BoardMember[] = [];
 
 export default function BoardSettingsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -42,9 +46,8 @@ export default function BoardSettingsScreen() {
   const [seeded, setSeeded] = useState(false);
   const [pickingDueDate, setPickingDueDate] = useState(false);
   const [confirmingArchive, setConfirmingArchive] = useState(false);
-  const [removingMember, setRemovingMember] = useState<{ userId: string; displayName: string } | null>(null);
-  const [addingMember, setAddingMember] = useState(false);
-  const [memberFilter, setMemberFilter] = useState("");
+  const [memberSearch, setMemberSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -55,6 +58,45 @@ export default function BoardSettingsScreen() {
       setSeeded(true);
     }
   }, [board.data, seeded]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(memberSearch.trim()), SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [memberSearch]);
+
+  const members = board.data?.members ?? NO_MEMBERS;
+  const isOwner = !!user && board.data?.ownerId === user.id;
+
+  const memberIds = useMemo(() => members.map((m) => m.userId), [members]);
+  const memberSelection = useAutoSavedIds(memberIds, async (userIds) => {
+    await api.boards.setMembers(id, { userIds });
+    invalidate();
+  });
+
+  const candidates = useQuery({
+    queryKey: ["member-candidates", id, debouncedSearch],
+    queryFn: () => api.boards.memberCandidates(id, { search: debouncedSearch, limit: CANDIDATE_LIMIT }),
+    enabled: isOwner && debouncedSearch.length > 0,
+    placeholderData: (previous) => previous,
+  });
+
+  // Candidates in the picker's shape. Everyone ever suggested is remembered
+  // so a just-added chip still resolves before the board refetch lists them.
+  const pool = useMemo<BoardMember[]>(
+    () => (candidates.data?.users ?? []).map((u) => ({ userId: u.id, boardId: id, role: "MEMBER", user: u })),
+    [candidates.data, id],
+  );
+  const seen = useRef(new Map<string, BoardMember>());
+  const lookup = useMemo(() => {
+    for (const m of pool) seen.current.set(m.userId, m);
+    const onBoard = new Set(members.map((m) => m.userId));
+    return [...members, ...[...seen.current.values()].filter((m) => !onBoard.has(m.userId))];
+  }, [members, pool]);
+  const ownerIds = useMemo(
+    () => new Set(members.filter((m) => m.role === "OWNER").map((m) => m.userId)),
+    [members],
+  );
+  const roleOf = useMemo(() => new Map(members.map((m) => [m.userId, m.role])), [members]);
 
   function invalidate() {
     void queryClient.invalidateQueries({ queryKey: ["board", id] });
@@ -92,29 +134,6 @@ export default function BoardSettingsScreen() {
     onError: reportError,
   });
 
-  const addMember = useMutation({
-    mutationFn: (input: { userId: string; role: Exclude<BoardRole, "OWNER"> }) =>
-      api.boards.addMember(id, input.userId, input.role),
-    onSuccess: () => {
-      setAddingMember(false);
-      setError(null);
-      invalidate();
-    },
-    onError: (err) => {
-      setAddingMember(false);
-      reportError(err);
-    },
-  });
-
-  const removeMember = useMutation({
-    mutationFn: (userId: string) => api.boards.removeMember(id, userId),
-    onSuccess: () => {
-      setRemovingMember(null);
-      invalidate();
-    },
-    onError: reportError,
-  });
-
   // §3c-4 "منتقي دور لكل عضو (عضو ▾ / مشاهد) يتاح للمالك".
   const updateMemberRole = useMutation({
     mutationFn: (input: { userId: string; role: Exclude<BoardRole, "OWNER"> }) =>
@@ -140,15 +159,39 @@ export default function BoardSettingsScreen() {
     );
   }
 
-  const canArchive = board.data.ownerId === user?.id;
-  const filterTerm = memberFilter.trim().toLowerCase();
-  const visibleMembers = filterTerm
-    ? board.data.members.filter(
-        (m) =>
-          m.user.displayName.toLowerCase().includes(filterTerm) ||
-          m.user.username.toLowerCase().includes(filterTerm),
-      )
-    : board.data.members;
+  const canArchive = isOwner;
+
+  function roleChip(member: BoardMember) {
+    const role = roleOf.get(member.userId);
+    // Not saved yet — nothing to switch until the server has the row.
+    if (!role) return null;
+    const label = role === "OWNER" ? "مالك" : role === "VIEWER" ? "مشاهد" : "عضو";
+    if (role === "OWNER" || !isOwner) {
+      return (
+        <AppText size="caption" weight="semibold" color={colors.muted}>
+          {label}
+        </AppText>
+      );
+    }
+    return (
+      // §3c-4 "منتقي دور لكل عضو (عضو ▾ / مشاهد) يتاح للمالك" — inside the chip:
+      // tapping the role switches it, tapping the rest of the chip removes the person.
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`دور ${member.user.displayName}: ${label} — اضغط للتبديل`}
+        disabled={updateMemberRole.isPending}
+        hitSlop={6}
+        onPress={() =>
+          updateMemberRole.mutate({ userId: member.userId, role: role === "VIEWER" ? "MEMBER" : "VIEWER" })
+        }
+        style={{ borderRadius: radii.chip, backgroundColor: colors.line, paddingHorizontal: spacing.sm, paddingVertical: 1 }}
+      >
+        <AppText size="caption" weight="semibold" color={colors.muted}>
+          {label} ▾
+        </AppText>
+      </Pressable>
+    );
+  }
 
   return (
     <Screen edges={{ top: true, bottom: true }} style={{ backgroundColor: colors.surface }}>
@@ -174,7 +217,7 @@ export default function BoardSettingsScreen() {
         </Pressable>
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: spacing.xl, gap: spacing.xl }} keyboardShouldPersistTaps="handled">
+      <RevealScrollView contentContainerStyle={{ padding: spacing.xl, gap: spacing.xl }} keyboardShouldPersistTaps="handled">
         {error ? (
           <View style={{ backgroundColor: colors.alertSoft, borderRadius: radii.field, padding: spacing.md }}>
             <AppText size="small" color={colors.alert}>
@@ -246,157 +289,33 @@ export default function BoardSettingsScreen() {
         </Pressable>
 
         <View style={{ gap: spacing.sm, borderTopWidth: 1, borderTopColor: colors.line, paddingTop: spacing.lg }}>
-          <AppText size="caption" weight="semibold" color={colors.muted}>
-            أعضاء اللوحة
-          </AppText>
-
-          {/* Owners add people by searching the directory — no exact username to recall. */}
-          {canArchive ? (
-            <Pressable
-              accessibilityRole="button"
-              disabled={addMember.isPending}
-              onPress={() => setAddingMember(true)}
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: spacing.sm,
-                minHeight: MIN_TOUCH_TARGET,
-                borderRadius: radii.field,
-                backgroundColor: colors.accent,
-              }}
-            >
-              <AppText weight="semibold" color={colors.surface}>
-                {addMember.isPending ? "جارٍ الإضافة..." : "＋ إضافة عضو"}
-              </AppText>
-            </Pressable>
+          <PeopleField
+            label="أعضاء اللوحة"
+            members={pool}
+            lookup={lookup}
+            selectedIds={memberSelection.ids}
+            onChange={memberSelection.change}
+            saving={memberSelection.saving}
+            failed={memberSelection.failed}
+            readOnly={!isOwner}
+            onTermChange={setMemberSearch}
+            searching={candidates.isFetching || memberSearch.trim() !== debouncedSearch}
+            noMatchText={(typed) =>
+              // Only an admin can create the missing account, so only an admin is told how.
+              user?.role === "ADMIN"
+                ? `لا يوجد مستخدم يطابق «${typed}» ويمكن إضافته. إن لم يكن له حساب بعد، أنشئه من «حسابي ← المستخدمون والصلاحيات».`
+                : `لا يوجد مستخدم يطابق «${typed}» ويمكن إضافته.`
+            }
+            lockedIds={ownerIds}
+            chipExtra={roleChip}
+            placeholder="اكتب اسمًا أو اسم مستخدم لإضافته"
+            accessibilityLabel="أضف عضوًا إلى اللوحة"
+          />
+          {isOwner ? (
+            <AppText size="caption" color={colors.muted}>
+              الأعضاء يعدّلون المهام، والمشاهدون يقرؤون فقط. اضغط الدور لتبديله، واضغط الاسم لإزالته.
+            </AppText>
           ) : null}
-
-          {/* A long board's member list needs filtering as much as the picker does. */}
-          {board.data.members.length >= MEMBER_FILTER_THRESHOLD ? (
-            <TextInput
-              value={memberFilter}
-              onChangeText={setMemberFilter}
-              placeholder="تصفية الأعضاء بالاسم أو اسم المستخدم"
-              placeholderTextColor={colors.muted}
-              autoCapitalize="none"
-              accessibilityLabel="تصفية الأعضاء"
-              style={{
-                minHeight: MIN_TOUCH_TARGET,
-                borderWidth: 1,
-                borderColor: colors.line,
-                borderRadius: radii.field,
-                paddingHorizontal: spacing.lg,
-                fontFamily: fonts.regular,
-                fontSize: fontSizes.body,
-                color: colors.ink,
-                textAlign: "right",
-                writingDirection: "rtl",
-              }}
-            />
-          ) : null}
-
-          <View style={{ gap: spacing.sm }}>
-            {visibleMembers.length === 0 ? (
-              <AppText size="small" color={colors.muted}>
-                لا يوجد عضو يطابق «{memberFilter.trim()}».
-              </AppText>
-            ) : null}
-            {visibleMembers.map((member) => {
-              const palette = avatarColorFor(member.userId);
-              return (
-                <View
-                  key={member.userId}
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: spacing.md,
-                    padding: spacing.md,
-                    backgroundColor: colors.canvas,
-                    borderRadius: radii.card,
-                    opacity: member.user.isActive ? 1 : 0.6,
-                  }}
-                >
-                  <View
-                    style={{
-                      width: 36,
-                      height: 36,
-                      borderRadius: 999,
-                      backgroundColor: palette.bg,
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <AppText size="caption" weight="bold" color={palette.fg}>
-                      {initials(member.user.displayName)}
-                    </AppText>
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <AppText weight="semibold" size="small">
-                      {member.user.displayName}
-                    </AppText>
-                    <AppText size="caption" color={colors.muted}>
-                      {member.user.username}
-                    </AppText>
-                  </View>
-                  {!member.user.isActive ? (
-                    <View style={{ borderRadius: radii.chip, backgroundColor: colors.alertSoft, paddingHorizontal: spacing.sm, paddingVertical: 3 }}>
-                      <AppText size="caption" weight="semibold" color={colors.alert}>
-                        معطَّل
-                      </AppText>
-                    </View>
-                  ) : null}
-                  {member.role !== "OWNER" && canArchive ? (
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel="تبديل الدور: عضو / مشاهد"
-                      disabled={updateMemberRole.isPending}
-                      onPress={() =>
-                        updateMemberRole.mutate({
-                          userId: member.userId,
-                          role: member.role === "VIEWER" ? "MEMBER" : "VIEWER",
-                        })
-                      }
-                      style={{
-                        borderRadius: radii.chip,
-                        backgroundColor: colors.line,
-                        paddingHorizontal: spacing.sm,
-                        paddingVertical: 3,
-                      }}
-                    >
-                      <AppText size="caption" weight="semibold" color={colors.muted}>
-                        {member.role === "VIEWER" ? "مشاهد ▾" : "عضو ▾"}
-                      </AppText>
-                    </Pressable>
-                  ) : (
-                    <View
-                      style={{
-                        borderRadius: radii.chip,
-                        backgroundColor: member.role === "OWNER" ? colors.ink : colors.line,
-                        paddingHorizontal: spacing.sm,
-                        paddingVertical: 3,
-                      }}
-                    >
-                      <AppText size="caption" weight="semibold" color={member.role === "OWNER" ? colors.surface : colors.muted}>
-                        {member.role === "OWNER" ? "مالك" : member.role === "VIEWER" ? "مشاهد" : "عضو"}
-                      </AppText>
-                    </View>
-                  )}
-                  {member.role !== "OWNER" ? (
-                    <Pressable
-                      accessibilityRole="button"
-                      onPress={() => setRemovingMember({ userId: member.userId, displayName: member.user.displayName })}
-                      hitSlop={8}
-                    >
-                      <AppText size="caption" weight="semibold" color={colors.alert}>
-                        إزالة
-                      </AppText>
-                    </Pressable>
-                  ) : null}
-                </View>
-              );
-            })}
-          </View>
         </View>
 
         {canArchive ? (
@@ -437,15 +356,7 @@ export default function BoardSettingsScreen() {
             )}
           </View>
         ) : null}
-      </ScrollView>
-
-      <AddMemberSheet
-        visible={addingMember}
-        onClose={() => setAddingMember(false)}
-        boardId={id}
-        adding={addMember.isPending}
-        onPick={(user: BoardMemberCandidate, role) => addMember.mutate({ userId: user.id, role })}
-      />
+      </RevealScrollView>
 
       <DueDateSheet visible={pickingDueDate} onClose={() => setPickingDueDate(false)} onChange={setDueDate} />
 
@@ -459,21 +370,6 @@ export default function BoardSettingsScreen() {
         onConfirm={() => archive.mutate()}
       />
 
-      <ConfirmSheet
-        visible={!!removingMember}
-        onClose={() => setRemovingMember(null)}
-        title="إزالة عضو"
-        consequence={
-          removingMember
-            ? `ستتم إزالة «${removingMember.displayName}» من اللوحة. لن يعود بإمكانه رؤيتها أو الوصول لبطاقاتها.`
-            : ""
-        }
-        confirmLabel="إزالة"
-        confirming={removeMember.isPending}
-        onConfirm={() => {
-          if (removingMember) removeMember.mutate(removingMember.userId);
-        }}
-      />
     </Screen>
   );
 }

@@ -24,6 +24,7 @@ import {
   UpdateBoardRequestSchema,
   AddBoardMemberRequestSchema,
   UpdateBoardMemberRoleRequestSchema,
+  SetBoardMembersRequestSchema,
   CreateTemplateRequestSchema,
   UpdateTemplateRequestSchema,
   SaveCardAsTemplateRequestSchema,
@@ -95,6 +96,7 @@ registry.register("CreateBoardRequest", CreateBoardRequestSchema);
 registry.register("UpdateBoardRequest", UpdateBoardRequestSchema);
 registry.register("AddBoardMemberRequest", AddBoardMemberRequestSchema);
 registry.register("UpdateBoardMemberRoleRequest", UpdateBoardMemberRoleRequestSchema);
+registry.register("SetBoardMembersRequest", SetBoardMembersRequestSchema);
 registry.register("CreateTemplateRequest", CreateTemplateRequestSchema);
 registry.register("UpdateTemplateRequest", UpdateTemplateRequestSchema);
 registry.register("SaveCardAsTemplateRequest", SaveCardAsTemplateRequestSchema);

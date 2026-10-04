@@ -73,7 +73,8 @@ BoardsService.assertMembership(userId, boardId, minRole = "MEMBER")
 الأدنى تكفي وحدها لمنعه دون أي تحقّق إضافي صريح.
 
 - **`POST /boards/:id/members`** يقبل `role` اختياريًا (`"MEMBER" | "VIEWER"`,
-  الافتراضي `MEMBER`)؛ **`PATCH /boards/:id/members/:userId/role`** (مالك اللوحة فقط)
+  الافتراضي `MEMBER`)، أمّا **`PUT /boards/:id/members`** (الاستبدال الكامل الذي تستعمله
+  الواجهتان) فيضيف الجدد دائمًا بدور `MEMBER` ويُبقي دور من يبقى كما هو؛ **`PATCH /boards/:id/members/:userId/role`** (مالك اللوحة فقط)
   يبدّل عضوًا قائمًا بين الدورين — لا يصل أبدًا إلى `OWNER` عبر هذا المسار (لا نقل ملكية).
 - **لا يظهر VIEWER في منتقي المسؤولين:** `CardsService.updateAssignees` و
   `SubtasksService.updateAssignees` يستثنيان صراحةً أعضاء بدور `VIEWER` من فحص "هل
