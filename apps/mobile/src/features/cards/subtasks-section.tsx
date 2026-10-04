@@ -280,6 +280,11 @@ export function SubtasksSection({
             placeholder="+ إضافة مهمة فرعية"
             placeholderTextColor={colors.muted}
             onSubmitEditing={() => newTitle.trim() && create.mutate(newTitle.trim())}
+            // `multiline` (with Enter still submitting) because a single-line,
+            // right-aligned Android input always reports it can scroll sideways,
+            // so a drag that starts on it never reaches the page's ScrollView.
+            multiline
+            submitBehavior="blurAndSubmit"
             returnKeyType="done"
             style={{
               minHeight: MIN_TOUCH_TARGET,

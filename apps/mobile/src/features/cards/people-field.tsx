@@ -156,6 +156,9 @@ export function PeopleField({
             onSubmitEditing={() => add(matches[0])}
             // Keep the keyboard up after a pick so the next name can be typed straight away.
             submitBehavior="submit"
+            // Multiline so a drag starting here still scrolls the page — see the
+            // add-subtask input in `subtasks-section.tsx`.
+            multiline
             returnKeyType="done"
             autoFocus={autoFocus}
             autoCapitalize="none"
