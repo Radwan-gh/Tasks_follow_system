@@ -11,7 +11,6 @@ import { DueDateSheet } from "@/components/due-date-sheet";
 import { ErrorState } from "@/components/state-views";
 import { Skeleton } from "@/components/skeleton";
 import { AddMemberSheet } from "@/features/boards/add-member-sheet";
-import { TemplatesSection } from "@/features/boards/templates-section";
 import { useAuth } from "@/features/auth/auth-context";
 import { avatarColorFor } from "@/lib/avatar";
 import { initials } from "@/lib/initials";
@@ -399,12 +398,6 @@ export default function BoardSettingsScreen() {
             })}
           </View>
         </View>
-
-        {canArchive ? (
-          <View style={{ borderTopWidth: 1, borderTopColor: colors.line, paddingTop: spacing.lg }}>
-            <TemplatesSection boardId={id} />
-          </View>
-        ) : null}
 
         {canArchive ? (
           <View style={{ borderTopWidth: 1, borderTopColor: colors.line, paddingTop: spacing.lg }}>

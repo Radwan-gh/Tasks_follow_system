@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { Pressable, RefreshControl, TextInput, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import Ionicons from "@expo/vector-icons/Ionicons";
 import { Screen } from "@/components/screen";
 import { AppText } from "@/components/text";
 import { Skeleton } from "@/components/skeleton";
@@ -10,12 +9,10 @@ import { ErrorState } from "@/components/state-views";
 import type { CardPriority, RecurrenceRule } from "@app/types";
 import { PeopleField } from "@/features/cards/people-field";
 import { AttachmentsSection } from "@/features/cards/attachments-section";
-import { BottomSheet } from "@/components/bottom-sheet";
 import { CostSheet, formatCostChip } from "@/components/cost-sheet";
 import { DueDateSheet } from "@/components/due-date-sheet";
 import { nextPriority, priorityLabel } from "@/components/priority-control";
 import { RecurrenceSheet, summarizeRecurrence } from "@/components/recurrence-sheet";
-import { SaveAsTemplateSheet } from "@/features/boards/save-as-template-sheet";
 import { SubtasksSection } from "@/features/cards/subtasks-section";
 import { HistorySection } from "@/features/cards/history-section";
 import { useAuth } from "@/features/auth/auth-context";
@@ -26,7 +23,7 @@ import { formatHijri } from "@/lib/hijri";
 import { api } from "@/lib/api";
 import { RevealScrollView } from "@/lib/scroll-reveal";
 import { LIVE_REFETCH_MS, boardDetailKey, findCachedBoard, findCachedCard, recentClosedSince } from "@/lib/board-cache";
-import { MIN_TOUCH_TARGET, colors, fonts, fontSizes, radii, spacing, statusColors } from "@/theme/tokens";
+import { colors, fonts, fontSizes, radii, spacing, statusColors } from "@/theme/tokens";
 
 /** The fields «حفظ» / the access toggle edit locally before committing. */
 interface FormFields {
@@ -114,8 +111,6 @@ export default function CardDetailScreen() {
   const [pickingRecurrence, setPickingRecurrence] = useState(false);
   const [restricted, setRestricted] = useState(false);
   const [pickingCost, setPickingCost] = useState(false);
-  const [menuVisible, setMenuVisible] = useState(false);
-  const [savingAsTemplate, setSavingAsTemplate] = useState(false);
 
   // The first render may come from cache and background refetches/polls bring
   // other users' edits, so the form re-seeds whenever the server's values
@@ -182,11 +177,6 @@ export default function CardDetailScreen() {
     },
   });
 
-  const saveAsTemplate = useMutation({
-    mutationFn: (name: string) => api.cards.saveAsTemplate(id, { name }),
-    onSuccess: () => setSavingAsTemplate(false),
-  });
-
   if (card.isPending || (card.isSuccess && board.isPending)) {
     return (
       <Screen edges={{ top: true, bottom: true }} style={{ backgroundColor: colors.surface, padding: spacing.xl, gap: spacing.md }}>
@@ -211,7 +201,6 @@ export default function CardDetailScreen() {
     (m) => m.userId !== board.data!.ownerId && m.userId !== card.data.createdById,
   );
   const overdue = dueDate ? isOverdue(dueDate) : false;
-  const isOwner = user?.id === board.data.ownerId;
   // §3c-4 "اللوحة بعين المشاهد ... تفاصيل البطاقة قراءة كاملة بلا حقل تعليق".
   const myRole = board.data.members.find((m) => m.userId === user?.id)?.role;
   const isViewer = myRole === "VIEWER";
@@ -281,18 +270,6 @@ export default function CardDetailScreen() {
             {priorityLabel(card.data.priority)}
           </AppText>
         </Pressable>
-
-        {isOwner ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="خيارات إضافية"
-            onPress={() => setMenuVisible(true)}
-            hitSlop={8}
-            style={{ minWidth: MIN_TOUCH_TARGET - 20, alignItems: "center" }}
-          >
-            <Ionicons name="ellipsis-horizontal" size={20} color={colors.muted} />
-          </Pressable>
-        ) : null}
 
         {!isViewer ? (
           <Pressable
@@ -536,28 +513,6 @@ export default function CardDetailScreen() {
         note={card.data.costNote}
         saving={updateCost.isPending}
         onSave={(costAmount, costNote) => updateCost.mutate({ costAmount, costNote })}
-      />
-
-      <BottomSheet visible={menuVisible} onClose={() => setMenuVisible(false)}>
-        <View style={{ paddingHorizontal: spacing.xl, gap: spacing.sm, paddingBottom: spacing.md }}>
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => {
-              setMenuVisible(false);
-              setSavingAsTemplate(true);
-            }}
-            style={{ minHeight: MIN_TOUCH_TARGET, justifyContent: "center" }}
-          >
-            <AppText weight="semibold">حفظ كقالب</AppText>
-          </Pressable>
-        </View>
-      </BottomSheet>
-
-      <SaveAsTemplateSheet
-        visible={savingAsTemplate}
-        onClose={() => setSavingAsTemplate(false)}
-        saving={saveAsTemplate.isPending}
-        onSave={(name) => saveAsTemplate.mutate(name)}
       />
 
       <RecurrenceSheet

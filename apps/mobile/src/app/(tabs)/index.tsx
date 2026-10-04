@@ -3,7 +3,6 @@ import { Pressable, RefreshControl, ScrollView, View } from "react-native";
 import { useRouter } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { BoardTemplate } from "@app/types";
 import { Screen } from "@/components/screen";
 import { AppText } from "@/components/text";
 import { BoardCardSkeleton } from "@/components/skeleton";
@@ -24,8 +23,8 @@ export default function BoardsScreen() {
   const [creatingBoard, setCreatingBoard] = useState(false);
 
   const createBoard = useMutation({
-    mutationFn: (input: { name: string; template: BoardTemplate; dueDate: string | null }) =>
-      api.boards.create({ name: input.name, template: input.template, dueDate: input.dueDate }),
+    mutationFn: (input: { name: string; dueDate: string | null }) =>
+      api.boards.create({ name: input.name, dueDate: input.dueDate }),
     onSuccess: (board) => {
       setCreatingBoard(false);
       void queryClient.invalidateQueries({ queryKey: ["boards"] });

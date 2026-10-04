@@ -40,10 +40,10 @@ export const AuthResponseSchema = z.object({
 export type AuthResponse = z.infer<typeof AuthResponseSchema>;
 
 /**
- * Which starter layout to seed a new board with. `EMPTY` (default) keeps the
- * historical behavior of a board with zero lists; `TASK_WORKFLOW` seeds the
- * five status lists (جديد ← جاهز للتنفيذ ← قيد التنفيذ ← تم التنفيذ ← انتهى)
- * with their `statusCategory` set.
+ * Which starter layout to seed a new board with. `TASK_WORKFLOW` (default,
+ * what both apps rely on — neither sends this field) seeds the five status
+ * lists (جديد ← جاهز للتنفيذ ← قيد التنفيذ ← تم التنفيذ ← انتهى) with their
+ * `statusCategory` set; `EMPTY` creates a board with zero lists.
  */
 export const BoardTemplate = z.enum(["EMPTY", "TASK_WORKFLOW"]);
 export type BoardTemplate = z.infer<typeof BoardTemplate>;

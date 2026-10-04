@@ -7,7 +7,7 @@ import { MIN_TOUCH_TARGET, colors, fonts, fontSizes, radii, spacing } from "@/th
  * Title-only card creation in the board screen's bottom bar — the fast path.
  * `title` is the only field the API requires, so the common case needs no
  * navigation at all; the full «إضافة مهمة» screen stays one tap away behind
- * «تفاصيل» for templates, subtasks, assignees and restricted access, carrying
+ * «تفاصيل» for subtasks, assignees and restricted access, carrying
  * whatever was already typed with it.
  *
  * The field stays focused after a submit so several tasks can be added in a

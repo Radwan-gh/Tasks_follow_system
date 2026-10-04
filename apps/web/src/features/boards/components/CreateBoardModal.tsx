@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import type { BoardTemplate, CreateBoardRequest } from "@app/types";
+import type { CreateBoardRequest } from "@app/types";
 
 interface CreateBoardModalProps {
   onClose: () => void;
@@ -7,12 +7,11 @@ interface CreateBoardModalProps {
   creating: boolean;
 }
 
-/** Name + description + optional due date + template — matches `CreateBoardRequestSchema` in full. */
+/** Name + description + optional due date. New boards always start with the five status lists (server default). */
 export function CreateBoardModal({ onClose, onCreate, creating }: CreateBoardModalProps) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [dueDate, setDueDate] = useState("");
-  const [template, setTemplate] = useState<BoardTemplate>("TASK_WORKFLOW");
 
   function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -21,7 +20,6 @@ export function CreateBoardModal({ onClose, onCreate, creating }: CreateBoardMod
       name: name.trim(),
       description: description.trim() || undefined,
       dueDate: dueDate ? new Date(dueDate).toISOString() : undefined,
-      template,
     });
   }
 
@@ -63,18 +61,6 @@ export function CreateBoardModal({ onClose, onCreate, creating }: CreateBoardMod
             onChange={(e) => setDueDate(e.target.value)}
             className="w-full rounded-field border border-line px-3 py-2 text-sm"
           />
-        </label>
-
-        <label className="block space-y-1">
-          <span className="text-sm text-ink/70">القالب</span>
-          <select
-            value={template}
-            onChange={(e) => setTemplate(e.target.value as BoardTemplate)}
-            className="w-full rounded-field border border-line px-3 py-2 text-sm text-ink"
-          >
-            <option value="TASK_WORKFLOW">قالب سير عمل المهام</option>
-            <option value="EMPTY">لوحة فارغة</option>
-          </select>
         </label>
 
         <div className="flex justify-end gap-2 pt-2">

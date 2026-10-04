@@ -72,10 +72,11 @@ export class BoardsService {
   }
 
   async create(userId: string, input: CreateBoardRequest) {
-    // Seed the five status lists when the task-workflow template is chosen;
-    // otherwise the board starts empty (historical default). Positions are
-    // generated in one evenly-spaced batch so the fractional keys sort in order.
-    const templateLists = input.template === "TASK_WORKFLOW" ? TASK_WORKFLOW_TEMPLATE : [];
+    // Seed the five status lists unless an empty board is explicitly asked for
+    // — the apps never send `template`, so every board they create gets them.
+    // Positions are generated in one evenly-spaced batch so the fractional
+    // keys sort in order.
+    const templateLists = input.template === "EMPTY" ? [] : TASK_WORKFLOW_TEMPLATE;
     const positions = generateNKeysBetween(null, null, templateLists.length);
 
     const board = await this.prisma.board.create({

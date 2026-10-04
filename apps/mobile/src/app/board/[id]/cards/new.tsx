@@ -11,7 +11,6 @@ import { PeopleField } from "@/features/cards/people-field";
 import { DueDateSheet } from "@/components/due-date-sheet";
 import { PrioritySegmented } from "@/components/priority-control";
 import { RecurrenceSheet, summarizeRecurrence } from "@/components/recurrence-sheet";
-import { TemplatePickerSheet } from "@/features/boards/template-picker-sheet";
 import { formatDueDate } from "@/lib/date";
 import { api } from "@/lib/api";
 import { RevealScrollView } from "@/lib/scroll-reveal";
@@ -21,7 +20,7 @@ import { MIN_TOUCH_TARGET, colors, fonts, fontSizes, radii, spacing } from "@/th
  * `/board/:id/cards/new?listId=&title=` — the design's "إضافة مهمة جديدة".
  * This is the *opt-in* path now: the board screen creates title-only cards
  * inline, and «تفاصيل» opens this screen (carrying whatever was typed in
- * `title`) for what only it offers — templates, description, due date,
+ * `title`) for what only it offers — description, due date,
  * recurrence, priority, assignees, subtasks, restricted access. The target
  * list is fixed by the caller, so there is no board/status picker here.
  * Submission is sequential (`POST cards` → `updateAssignees` → `updateAccess`
@@ -39,7 +38,6 @@ export default function NewCardScreen() {
   const queryClient = useQueryClient();
 
   const board = useQuery({ queryKey: ["board", boardId], queryFn: () => api.boards.get(boardId) });
-  const templates = useQuery({ queryKey: ["templates", boardId], queryFn: () => api.templates.list(boardId) });
 
   const [title, setTitle] = useState(prefillTitle ?? "");
   const [description, setDescription] = useState("");
@@ -54,7 +52,6 @@ export default function NewCardScreen() {
 
   const [pickingDueDate, setPickingDueDate] = useState(false);
   const [pickingRecurrence, setPickingRecurrence] = useState(false);
-  const [pickingTemplate, setPickingTemplate] = useState(false);
 
   const [submitting, setSubmitting] = useState(false);
   const [failedStep, setFailedStep] = useState<string | null>(null);
@@ -152,11 +149,6 @@ export default function NewCardScreen() {
       </View>
 
       <RevealScrollView contentContainerStyle={{ padding: spacing.xl, gap: spacing.xl }} keyboardShouldPersistTaps="handled">
-        {/* §3c-3 "يظهر فقط إن كانت للوحة قوالب" */}
-        {templates.data && templates.data.length > 0 ? (
-          <Row label="استخدام قالب" value="اختيار ▾" onPress={() => setPickingTemplate(true)} />
-        ) : null}
-
         <TextInput
           value={title}
           onChangeText={setTitle}
@@ -373,17 +365,6 @@ export default function NewCardScreen() {
         onClose={() => setPickingRecurrence(false)}
         value={recurrence}
         onChange={setRecurrence}
-      />
-
-      <TemplatePickerSheet
-        visible={pickingTemplate}
-        onClose={() => setPickingTemplate(false)}
-        templates={templates.data ?? []}
-        onSelect={(template) => {
-          setTitle(template.titlePattern);
-          setDescription(template.description ?? "");
-          setSubtaskTitles(template.subtaskTitles);
-        }}
       />
     </Screen>
   );
