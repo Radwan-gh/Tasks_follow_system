@@ -96,6 +96,7 @@ model User {
 
   refreshTokens  RefreshToken[]
   oauthAuthorizationCodes OAuthAuthorizationCode[]
+  pendingUploads PendingUpload[]
   boardMemberships BoardMember[]
   cardMemberships  CardMember[]
   createdCards   Card[]         @relation("CardCreator")
@@ -297,6 +298,26 @@ model Attachment {
   uploader User @relation(fields: [uploaderId], references: [id])
 
   @@index([cardId, createdAt])
+}
+
+/// A file uploaded through `POST /mcp-uploads/:token` but not yet attached to
+/// a card — the first half of attaching a file over MCP, where the bytes can't
+/// travel inside a tool call. `add_attachment` turns it into an `Attachment`
+/// (same storage object, `filename` is its key) and deletes this row; unclaimed
+/// rows and their objects are purged after `expiresAt`.
+model PendingUpload {
+  id        String   @id @default(cuid())
+  userId    String
+  filename  String
+  mimeType  String
+  sizeBytes Int
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
 }
 
 /// In-app notification (assignment, due-soon, overdue, comment on a card

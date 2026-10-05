@@ -18,8 +18,8 @@ const COLUMNS = 3;
 const GAP = spacing.sm;
 
 /** Mirrors `MAX_ATTACHMENT_BYTES` in `apps/api/src/cards/attachments.service.ts`. */
-const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
-const OVERSIZE_MESSAGE = "حجم الملف يتجاوز 20MB";
+const MAX_ATTACHMENT_BYTES = 30 * 1024 * 1024;
+const OVERSIZE_MESSAGE = "حجم الملف يتجاوز 30MB";
 
 /** Only these render as a thumbnail/viewer; every other attachment is a file row that opens externally. */
 const PREVIEWABLE_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
@@ -36,7 +36,7 @@ function formatFileSize(bytes: number): string {
  * 3-column thumbnail grid for images + a "+" tile (camera / library / any
  * file), a full-screen image viewer that swipes between a card's images, file rows for everything else (tap opens
  * it in the system browser, which downloads it), and the
- * أي نوع ملف · حتى 10 · 20MB caption. Deleting an image is the viewer's
+ * أي نوع ملف · حتى 10 · 30MB caption. Deleting an image is the viewer's
  * «حذف»; a file row has its own ✕ — both go through `ConfirmSheet`.
  */
 export function AttachmentsSection({ cardId, readOnly = false }: { cardId: string; readOnly?: boolean }) {
@@ -228,7 +228,7 @@ export function AttachmentsSection({ cardId, readOnly = false }: { cardId: strin
       ) : null}
 
       <AppText size="caption" color={colors.muted}>
-        أي نوع ملف · حتى 10 · 20MB للملف
+        أي نوع ملف · حتى 10 · 30MB للملف
       </AppText>
 
       <BottomSheet visible={pickerOpen} onClose={() => setPickerOpen(false)}>

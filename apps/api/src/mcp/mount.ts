@@ -3,16 +3,17 @@ import type { NestExpressApplication } from "@nestjs/platform-express";
 import { json, type RequestHandler } from "express";
 import { requireBearerAuth } from "@modelcontextprotocol/sdk/server/auth/middleware/bearerAuth.js";
 import { getOAuthProtectedResourceMetadataUrl, mcpAuthRouter } from "@modelcontextprotocol/sdk/server/auth/router.js";
-import { MCP_MAX_ATTACHMENT_BYTES } from "./mcp-server.factory";
+import { MCP_MAX_INLINE_TEXT_BYTES } from "./mcp-server.factory";
 import { McpOAuthProvider } from "./oauth/oauth.provider";
 
 /**
- * `add_attachment` carries the file as base64 inside the JSON-RPC body (4/3 of
- * its size), far past Nest's default 100kb JSON limit — so `/mcp` gets its own
- * parser with room for the largest file plus the envelope. Every other route
- * keeps Nest's default.
+ * `add_attachment` can carry a text note inline in the JSON-RPC body, past
+ * Nest's default 100kb JSON limit — so `/mcp` gets its own parser with room for
+ * the largest note plus the envelope (non-ASCII text can grow when escaped).
+ * Real files skip this path: they go to `/mcp-uploads/:token` as multipart.
+ * Every other route keeps Nest's default.
  */
-const parseMcpJson = json({ limit: Math.ceil((MCP_MAX_ATTACHMENT_BYTES * 4) / 3) + 1024 * 1024 });
+const parseMcpJson = json({ limit: MCP_MAX_INLINE_TEXT_BYTES * 2 });
 // Not called `jsonParser`: Nest skips registering its own global JSON parser
 // when a middleware by that name is already mounted (`isMiddlewareApplied`).
 const mcpJsonParser: RequestHandler = (req, res, next) => parseMcpJson(req, res, next);
