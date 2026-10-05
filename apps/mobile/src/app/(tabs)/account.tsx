@@ -207,6 +207,23 @@ export default function AccountScreen() {
 
         <Pressable
           accessibilityRole="button"
+          onPress={() => router.push("/guide")}
+          style={{
+            minHeight: MIN_TOUCH_TARGET,
+            borderRadius: radii.field,
+            borderWidth: 1,
+            borderColor: colors.line,
+            backgroundColor: colors.surface,
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <AppText weight="semibold">دليل الاستخدام</AppText>
+        </Pressable>
+
+        <Pressable
+          accessibilityRole="button"
           onPress={onLogout}
           disabled={isLoggingOut}
           style={{

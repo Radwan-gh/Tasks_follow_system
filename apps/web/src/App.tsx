@@ -11,6 +11,7 @@ import { AppShell } from "./app-shell/AppShell";
 import { MyTasksPage } from "./features/my-tasks/MyTasksPage";
 import { ArchivedBoardsPage } from "./features/boards/ArchivedBoardsPage";
 import { OversightPage } from "./features/oversight/OversightPage";
+import { GuidePage } from "./features/guide/GuidePage";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
@@ -78,6 +79,14 @@ export function App() {
           element={
             <ProtectedRoute>
               <MyTasksPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/guide"
+          element={
+            <ProtectedRoute>
+              <GuidePage />
             </ProtectedRoute>
           }
         />

@@ -30,10 +30,10 @@
 | `prisma/schema.prisma` أو `packages/types/src/domain.ts` (كيانات/حقول) | [`02-domain-model.md`](./02-domain-model.md) |
 | `auth/*` أو منطق رموز الدخول/التحديث | [`03-authentication.md`](./03-authentication.md) |
 | `boards.service.ts` (`assertMembership`) أو `admin.guard.ts` أو الأدوار | [`04-authorization.md`](./04-authorization.md) |
-| `boards`/`lists`/`cards` (خدمات، متحكّمات، قواعد النقل) | [`05-boards-lists-cards.md`](./05-boards-lists-cards.md) |
+| `boards`/`lists`/`cards` (خدمات، متحكّمات، قواعد النقل) | [`05-boards-lists-cards.md`](./05-boards-lists-cards.md) (+ «دليل الاستخدام» إن تغيّرت قاعدة نقل) |
 | `packages/ordering/*` أو `position.util.ts` | [`06-ordering.md`](./06-ordering.md) |
 | `users.service.ts`/`users.controller.ts` أو `seed.ts` | [`07-admin.md`](./07-admin.md) |
-| `boards/board-templates.ts` أو حقل `List.statusCategory` | [`09-list-status-templates.md`](./09-list-status-templates.md) |
+| `boards/board-templates.ts` أو حقل `List.statusCategory` | [`09-list-status-templates.md`](./09-list-status-templates.md) + نصّ «دليل الاستخدام» في الويب والجوال (`GuidePage.tsx`، `app/guide.tsx`) |
 | `subtasks/*` أو الإسناد (`CardAssignee`/`SubtaskAssignee`, `updateAssignees`) | [`10-subtasks-and-assignment.md`](./10-subtasks-and-assignment.md) |
 | `reports/*` أو `packages/types/src/reports.ts` | [`11-reports.md`](./11-reports.md) |
 | `apps/mobile/*` أو `packages/api-client/*` | [`12-mobile-app.md`](./12-mobile-app.md) |

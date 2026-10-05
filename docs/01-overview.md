@@ -42,6 +42,8 @@
   — انظر [`15-mcp-server.md`](./15-mcp-server.md).
 - **`apps/web`** — واجهة المستخدم (Frontend) مبنية بـ **React + Vite + Tailwind**،
   وتستخدم مكتبة **dnd-kit** للسحب والإفلات و **TanStack Query** لإدارة حالة الخادم.
+  وتضمّ صفحة «دليل الاستخدام» (`/guide`، ولها نظير في الجوال) تشرح للمستخدم طريقة
+  العمل، أولها قسم حالات المهام (انظر [`09-list-status-templates.md`](./09-list-status-templates.md)).
 - **`apps/mobile`** — تطبيق الجوال الأصيل مبني بـ **Expo / React Native** مع
   **expo-router**، ينفّذ تصميم الجوال (RTL، خط Cairo). يشترك مع الويب في
   `packages/types` و`packages/api-client`، ويستبدل السحب والإفلات بإيماءات أبسط
