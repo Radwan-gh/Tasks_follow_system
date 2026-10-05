@@ -5,4 +5,5 @@ export * from "./reports";
 export * from "./my-tasks";
 export * from "./notifications";
 export * from "./notification-content";
+export * from "./card-activity-content";
 export * from "./oversight";

@@ -1,4 +1,10 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+  PayloadTooLargeException,
+} from "@nestjs/common";
 import type { Attachment } from "@app/types";
 import { PrismaService } from "../prisma/prisma.service";
 import { BoardsService, canAccessCard, canManageCard } from "../boards/boards.service";
@@ -53,18 +59,47 @@ export class AttachmentsService {
     return board.ownerId;
   }
 
-  async list(userId: string, cardId: string): Promise<Attachment[]> {
+  /** Whoever can open the card can see its attachments — a viewer, or a supervisor on any card. */
+  private async assertCanRead(userId: string, cardId: string) {
     const card = await this.loadCard(cardId);
     const access = await this.boards.assertMembership(userId, card.boardId, "VIEWER");
     const ownerId = await this.boardOwnerId(card.boardId);
     if (!access.supervised && !canAccessCard(userId, ownerId, card)) throw new NotFoundException("Card not found");
+  }
 
+  async list(userId: string, cardId: string): Promise<Attachment[]> {
+    await this.assertCanRead(userId, cardId);
     const rows = await this.prisma.attachment.findMany({
       where: { cardId },
       orderBy: { createdAt: "asc" },
       include: { uploader: { select: { id: true, username: true, displayName: true } } },
     });
     return rows.map(serialize);
+  }
+
+  /**
+   * One attachment with its bytes, for the MCP `read_attachment` tool — the
+   * apps fetch `Attachment.url` instead. Files over `maxBytes` are refused
+   * before anything is read from storage.
+   */
+  async read(
+    userId: string,
+    cardId: string,
+    attachmentId: string,
+    maxBytes: number,
+  ): Promise<{ attachment: Attachment; data: Buffer }> {
+    await this.assertCanRead(userId, cardId);
+    const row = await this.prisma.attachment.findUnique({
+      where: { id: attachmentId },
+      include: { uploader: { select: { id: true, username: true, displayName: true } } },
+    });
+    if (!row || row.cardId !== cardId) throw new NotFoundException("Attachment not found");
+    if (row.sizeBytes > maxBytes) {
+      throw new PayloadTooLargeException(`Attachment is larger than ${Math.floor(maxBytes / (1024 * 1024))}MB`);
+    }
+    const data = await this.storage.read(row.filename);
+    if (!data) throw new NotFoundException("Attachment file is missing from storage");
+    return { attachment: serialize(row), data };
   }
 
   /** `file` is still in memory — it is only written to storage once access and the count cap pass. */
@@ -109,6 +144,9 @@ export class AttachmentsService {
     if (!attachment || attachment.cardId !== cardId) throw new NotFoundException("Attachment not found");
 
     const card = await this.loadCard(cardId);
+    // A former member's uploads are no longer theirs to delete; an archived board is read-only.
+    await this.boards.assertMembership(userId, card.boardId);
+    await this.boards.assertBoardMutable(card.boardId);
     const ownerId = await this.boardOwnerId(card.boardId);
     const canDelete = attachment.uploaderId === userId || canManageCard(userId, ownerId, card);
     if (!canDelete) throw new ForbiddenException("Only the uploader or the task's manager can delete this attachment");

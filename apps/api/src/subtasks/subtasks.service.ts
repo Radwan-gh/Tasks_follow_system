@@ -103,7 +103,8 @@ export class SubtasksService {
 
   async remove(userId: string, subtaskId: string) {
     const subtask = await this.loadSubtask(subtaskId);
-    await this.assertCardAccess(userId, subtask.cardId);
+    const card = await this.assertCardAccess(userId, subtask.cardId);
+    await this.boards.assertBoardMutable(card.boardId);
     await this.prisma.subtask.delete({ where: { id: subtaskId } });
   }
 

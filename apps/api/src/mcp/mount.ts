@@ -1,8 +1,21 @@
 import { Logger } from "@nestjs/common";
 import type { NestExpressApplication } from "@nestjs/platform-express";
+import { json, type RequestHandler } from "express";
 import { requireBearerAuth } from "@modelcontextprotocol/sdk/server/auth/middleware/bearerAuth.js";
 import { getOAuthProtectedResourceMetadataUrl, mcpAuthRouter } from "@modelcontextprotocol/sdk/server/auth/router.js";
+import { MCP_MAX_ATTACHMENT_BYTES } from "./mcp-server.factory";
 import { McpOAuthProvider } from "./oauth/oauth.provider";
+
+/**
+ * `add_attachment` carries the file as base64 inside the JSON-RPC body (4/3 of
+ * its size), far past Nest's default 100kb JSON limit — so `/mcp` gets its own
+ * parser with room for the largest file plus the envelope. Every other route
+ * keeps Nest's default.
+ */
+const parseMcpJson = json({ limit: Math.ceil((MCP_MAX_ATTACHMENT_BYTES * 4) / 3) + 1024 * 1024 });
+// Not called `jsonParser`: Nest skips registering its own global JSON parser
+// when a middleware by that name is already mounted (`isMiddlewareApplied`).
+const mcpJsonParser: RequestHandler = (req, res, next) => parseMcpJson(req, res, next);
 
 /**
  * Mounts the MCP SDK's Express routers, which live outside Nest's router:
@@ -12,7 +25,9 @@ import { McpOAuthProvider } from "./oauth/oauth.provider";
  *   `/register`, `/revoke`;
  * - on `/mcp`: the bearer check, which answers an unauthenticated request with
  *   401 + `WWW-Authenticate` pointing at that metadata — the cue for Claude to
- *   start the sign-in flow. `McpController` handles what gets through.
+ *   start the sign-in flow — and only then the larger JSON parser, so an
+ *   anonymous client can't make the API buffer a big body. `McpController`
+ *   handles what gets through.
  *
  * Must run before `app.listen()`, so these sit ahead of Nest's routes.
  */
@@ -42,4 +57,5 @@ export function mountMcp(app: NestExpressApplication) {
       expectedResource: resource,
     }),
   );
+  app.use("/mcp", mcpJsonParser);
 }

@@ -54,6 +54,21 @@ export class AttachmentStorageService {
     await fs.writeFile(this.diskPath(key), body);
   }
 
+  /** The object's bytes, or `null` if it is missing. Only the MCP `read_attachment` tool needs them in-process. */
+  async read(key: string): Promise<Buffer | null> {
+    try {
+      if (this.s3) {
+        const object = await this.s3.send(new GetObjectCommand({ Bucket: this.bucket, Key: key }));
+        return object.Body ? Buffer.from(await object.Body.transformToByteArray()) : null;
+      }
+      return await fs.readFile(this.diskPath(key));
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException).code ?? (err as { name?: string }).name;
+      if (code === "ENOENT" || code === "NoSuchKey") return null;
+      throw err;
+    }
+  }
+
   /** Best-effort: a missing object is not an error (the row is what matters). */
   async remove(key: string): Promise<void> {
     try {

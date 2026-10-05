@@ -1,7 +1,15 @@
-import { ForbiddenException, HttpException, Injectable } from "@nestjs/common";
+import {
+  BadRequestException,
+  ForbiddenException,
+  HttpException,
+  Injectable,
+  PayloadTooLargeException,
+} from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult, ToolAnnotations } from "@modelcontextprotocol/sdk/types.js";
 import {
+  type Attachment,
   CreateBoardRequestSchema,
   CreateCardRequestSchema,
   CreateCommentRequestSchema,
@@ -19,6 +27,7 @@ import { MyTasksService } from "../my-tasks/my-tasks.service";
 import { OversightService } from "../oversight/oversight.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { SubtasksService } from "../subtasks/subtasks.service";
+import { mcpUrls } from "./mcp.config";
 
 const SERVER_INSTRUCTIONS = `غِراس (Ghiras) is a Kanban task tracker: boards contain lists, lists contain cards (tasks).
 A card's status IS the list it sits in — to change a task's status, move the card with move_card.
@@ -26,6 +35,21 @@ Every board starts with five status lists (جديد/NEW, جاهز/READY, قيد 
 People are shown by displayName with username as their unique handle; tools take user ids, which get_board lists under members.
 All actions run as the signed-in user with their own board permissions.
 A supervisor (an admin, or a user granted «الاطلاع على كل اللوحات») can also read every board and task through list_all_boards and search_all_tasks, and open any board or card read-only — they still cannot change boards they are not a member of.`;
+
+/**
+ * Largest file `add_attachment` accepts and `read_attachment` returns. The
+ * bytes travel as base64 inside a tool call or result, so this sits well
+ * under the app's 20MB (`MAX_ATTACHMENT_BYTES`); `mountMcp` sizes the `/mcp`
+ * body limit from it.
+ */
+export const MCP_MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
+const MCP_MAX_ATTACHMENT_MB = MCP_MAX_ATTACHMENT_BYTES / (1024 * 1024);
+
+/** Types `read_attachment` returns as an image the model can see. */
+const IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp"]);
+/** Returned as plain text; anything else comes back as a base64 blob. */
+const TEXT_TYPES = /^text\/|^application\/(json|xml|x-yaml|yaml|csv)$|\+(json|xml)$/;
+const TEXT_EXTENSIONS = /\.(txt|md|markdown|csv|tsv|json|xml|ya?ml|html?|log)$/i;
 
 /** Editable card fields, straight from the shared request schema; moving has its own tool. */
 const cardUpdateFields = UpdateCardRequestSchema.omit({ targetListId: true, move: true }).shape;
@@ -54,6 +78,28 @@ function toolRegistrar(server: McpServer) {
   ) => void;
   return <S extends z.ZodRawShape = {}>(name: string, config: ToolConfig<S>, handler: ToolHandler<S>) =>
     register(name, config, handler as unknown as (args: Record<string, unknown>) => Promise<CallToolResult>);
+}
+
+/** Where to place an item among its siblings: an end, or after the sibling whose id is under `afterKey`. */
+const placement = (afterKey: string) => z.union([z.enum(["top", "bottom"]), z.object({ [afterKey]: z.string() })]);
+
+/**
+ * Neighbour ids for a move to `position` among `siblingIds` (in order, without
+ * the item being moved). Ids only — the service re-reads their positions
+ * inside its transaction and computes the key (`computeMovePosition`).
+ */
+function neighbours(
+  siblingIds: string[],
+  position: "top" | "bottom" | Record<string, string> | undefined,
+  notASiblingMessage: string,
+): { beforeId: string | null; afterId: string | null } {
+  if (position === "top") return { beforeId: null, afterId: siblingIds[0] ?? null };
+  if (position && typeof position === "object") {
+    const index = siblingIds.indexOf(Object.values(position)[0]);
+    if (index === -1) throw new BadRequestException(notASiblingMessage);
+    return { beforeId: siblingIds[index], afterId: siblingIds[index + 1] ?? null };
+  }
+  return { beforeId: siblingIds[siblingIds.length - 1] ?? null, afterId: null };
 }
 
 const ok = (data: unknown): CallToolResult => ({
@@ -86,7 +132,11 @@ async function run(body: () => Promise<unknown>): Promise<CallToolResult> {
  */
 @Injectable()
 export class McpServerFactory {
+  /** Attachment links are handed to Claude absolute, on the API's public address. */
+  private readonly publicBase: URL;
+
   constructor(
+    config: ConfigService,
     private readonly prisma: PrismaService,
     private readonly boards: BoardsService,
     private readonly cards: CardsService,
@@ -95,7 +145,22 @@ export class McpServerFactory {
     private readonly subtasks: SubtasksService,
     private readonly myTasks: MyTasksService,
     private readonly oversight: OversightService,
-  ) {}
+  ) {
+    this.publicBase = mcpUrls(config).issuer;
+  }
+
+  /** `url` is the same public, unguessable `/uploads/<file>` link the apps load (docs/14). */
+  private attachmentView(a: Attachment) {
+    return {
+      id: a.id,
+      fileName: a.fileName,
+      mimeType: a.mimeType,
+      sizeBytes: a.sizeBytes,
+      url: new URL(a.url.replace(/^\//, ""), this.publicBase).toString(),
+      uploadedBy: a.uploader.displayName,
+      createdAt: a.createdAt,
+    };
+  }
 
   /** Oversight tools sit outside `assertMembership`, so they check the system-level grant themselves — the same check as `SupervisorGuard`. */
   private async assertSupervisor(userId: string) {
@@ -108,6 +173,7 @@ export class McpServerFactory {
     const server = new McpServer({ name: "ghiras", title: "غِراس", version: "1.0.0" }, { instructions: SERVER_INSTRUCTIONS });
     const readOnly = { readOnlyHint: true, openWorldHint: false };
     const write = { readOnlyHint: false, destructiveHint: false, openWorldHint: false };
+    const destructive = { readOnlyHint: false, destructiveHint: true, openWorldHint: false };
     const tool = toolRegistrar(server);
 
     // ── Read ──────────────────────────────────────────────────────────────
@@ -176,7 +242,7 @@ export class McpServerFactory {
       "get_card",
       {
         title: "Get card",
-        description: "Everything about one card: all fields, its list (status), assignees, access, subtasks, comments and attachments.",
+        description: "Everything about one card: all fields, its list (status), assignees, access, subtasks, comments and attachments (with ids and links — open one with read_attachment).",
         inputSchema: { cardId: z.string() },
         annotations: readOnly,
       },
@@ -208,7 +274,7 @@ export class McpServerFactory {
               assignees: s.assigneeIds.map((id) => people.get(id)),
             })),
             comments: comments.map((c) => ({ id: c.id, body: c.body, createdAt: c.createdAt, author: c.author.displayName })),
-            attachments: attachments.map((a) => ({ fileName: a.fileName, mimeType: a.mimeType, sizeBytes: a.sizeBytes })),
+            attachments: attachments.map((a) => this.attachmentView(a)),
           };
         }),
     );
@@ -217,7 +283,7 @@ export class McpServerFactory {
       "get_card_history",
       {
         title: "Get card history",
-        description: "The card's audit trail: who created, moved (status changes), renamed, edited or archived it, and when.",
+        description: "The card's audit trail: who created, moved (status changes), renamed, assigned or archived it, or changed its description, due date, priority, repeat rule or cost — and when. Due dates are YYYY-MM-DD when date-only, a full timestamp when timed; priorities are LOW/NORMAL/URGENT; repeat rules are Arabic summaries.",
         inputSchema: { cardId: z.string() },
         annotations: readOnly,
       },
@@ -331,7 +397,7 @@ export class McpServerFactory {
       {
         title: "Create card",
         description:
-          "Add a card (task) to a list, with any of its details. dueDate is ISO 8601; set dueDateHasTime when the time of day matters. costAmount is a decimal string. assigneeIds must be board members.",
+          "Add a card (task) to a list, with any of its details. dueDate is ISO 8601; set dueDateHasTime when the time of day matters. costAmount is a decimal string. assigneeIds must be board members. recurrence makes it a repeating task — read that field's description for when the next one appears.",
         inputSchema: {
           listId: z.string(),
           ...CreateCardRequestSchema.shape,
@@ -353,7 +419,7 @@ export class McpServerFactory {
       {
         title: "Update card",
         description:
-          "Edit any card details: title, description, dueDate, dueDateHasTime, priority, costAmount, costNote, recurrence, or isArchived. Pass null to clear a field. To change status use move_card.",
+          "Edit any card details: title, description, dueDate, dueDateHasTime, priority, costAmount, costNote, recurrence, or isArchived. Pass null to clear a field. To change status use move_card. A repeating card spawns its next instance only when moved to CLOSED (see the recurrence field).",
         inputSchema: { cardId: z.string(), ...cardUpdateFields },
         annotations: write,
       },
@@ -369,30 +435,22 @@ export class McpServerFactory {
         inputSchema: {
           cardId: z.string(),
           targetListId: z.string(),
-          position: z.union([z.enum(["top", "bottom"]), z.object({ afterCardId: z.string() })]).optional(),
+          position: placement("afterCardId").optional(),
         },
         annotations: write,
       },
       ({ cardId, targetListId, position }) =>
         run(async () => {
-          // Neighbours only — the service re-reads their positions inside its
-          // transaction and computes the key (`computeMovePosition`).
           const siblings = await this.prisma.card.findMany({
             where: { listId: targetListId, isArchived: false, id: { not: cardId } },
             orderBy: { position: "asc" },
             select: { id: true },
           });
-          const ids = siblings.map((s) => s.id);
-          let move: { beforeId: string | null; afterId: string | null };
-          if (position === "top") {
-            move = { beforeId: null, afterId: ids[0] ?? null };
-          } else if (position && typeof position === "object") {
-            const index = ids.indexOf(position.afterCardId);
-            if (index === -1) throw new HttpException("afterCardId is not a card in the target list", 400);
-            move = { beforeId: ids[index], afterId: ids[index + 1] ?? null };
-          } else {
-            move = { beforeId: ids[ids.length - 1] ?? null, afterId: null };
-          }
+          const move = neighbours(
+            siblings.map((s) => s.id),
+            position,
+            "afterCardId is not a card in the target list",
+          );
           return this.cards.update(userId, cardId, { targetListId, move });
         }),
     );
@@ -437,15 +495,49 @@ export class McpServerFactory {
       "update_subtask",
       {
         title: "Update subtask",
-        description: "Rename a subtask or tick/untick it (isDone).",
+        description:
+          "Rename a subtask, tick/untick it (isDone), or reorder it within its card's checklist. position: 'top', 'bottom', or the id of another subtask on the same card to place it after.",
         inputSchema: {
           subtaskId: z.string(),
           title: z.string().min(1).max(300).optional(),
           isDone: z.boolean().optional(),
+          position: placement("afterSubtaskId").optional(),
         },
         annotations: write,
       },
-      ({ subtaskId, ...input }) => run(() => this.subtasks.update(userId, subtaskId, input)),
+      ({ subtaskId, position, ...input }) =>
+        run(async () => {
+          if (!position) return this.subtasks.update(userId, subtaskId, input);
+          const subtask = await this.prisma.subtask.findUnique({ where: { id: subtaskId }, select: { cardId: true } });
+          const siblings = subtask
+            ? await this.prisma.subtask.findMany({
+                where: { cardId: subtask.cardId, id: { not: subtaskId } },
+                orderBy: { position: "asc" },
+                select: { id: true },
+              })
+            : [];
+          const move = neighbours(
+            siblings.map((s) => s.id),
+            position,
+            "afterSubtaskId is not another subtask of the same card",
+          );
+          return this.subtasks.update(userId, subtaskId, { ...input, move });
+        }),
+    );
+
+    tool(
+      "delete_subtask",
+      {
+        title: "Delete subtask",
+        description: "Permanently remove a checklist item (subtask) from its card. This cannot be undone.",
+        inputSchema: { subtaskId: z.string() },
+        annotations: destructive,
+      },
+      ({ subtaskId }) =>
+        run(async () => {
+          await this.subtasks.remove(userId, subtaskId);
+          return { deleted: subtaskId };
+        }),
     );
 
     tool(
@@ -468,6 +560,106 @@ export class McpServerFactory {
         annotations: write,
       },
       ({ cardId, ...input }) => run(() => this.comments.create(userId, cardId, input)),
+    );
+
+    // ── Attachments ───────────────────────────────────────────────────────
+
+    tool(
+      "read_attachment",
+      {
+        title: "Read attachment",
+        description: `Open a file attached to a card (attachment id from get_card). Images come back as images, text files as text, and other files (PDF, Word…) as a base64 resource. Files over ${MCP_MAX_ATTACHMENT_MB}MB are refused — share their url instead.`,
+        inputSchema: { cardId: z.string(), attachmentId: z.string() },
+        annotations: readOnly,
+      },
+      async ({ cardId, attachmentId }) => {
+        let file: Awaited<ReturnType<AttachmentsService["read"]>> | undefined;
+        const failure = await run(async () => {
+          file = await this.attachments.read(userId, cardId, attachmentId, MCP_MAX_ATTACHMENT_BYTES);
+        });
+        if (!file) return failure;
+
+        const view = this.attachmentView(file.attachment);
+        const header = { type: "text" as const, text: JSON.stringify(view, null, 2) };
+        const mimeType = file.attachment.mimeType.split(";")[0].trim().toLowerCase();
+        if (IMAGE_TYPES.has(mimeType)) {
+          return { content: [header, { type: "image", data: file.data.toString("base64"), mimeType }] };
+        }
+        if (TEXT_TYPES.test(mimeType) || TEXT_EXTENSIONS.test(file.attachment.fileName)) {
+          return { content: [header, { type: "text", text: file.data.toString("utf8") }] };
+        }
+        return {
+          content: [header, { type: "resource", resource: { uri: view.url, mimeType, blob: file.data.toString("base64") } }],
+        };
+      },
+    );
+
+    tool(
+      "add_attachment",
+      {
+        title: "Add attachment",
+        description: `Attach a file to a card as the signed-in user. Send the file itself, as exactly one of: contentBase64 (any file) or text (a plain-text file such as .txt, .md or .csv). Up to ${MCP_MAX_ATTACHMENT_MB}MB, and at most 10 attachments per card.`,
+        inputSchema: {
+          cardId: z.string(),
+          fileName: z
+            .string()
+            .min(1)
+            .max(255)
+            .describe("Name shown in the app, with its extension (e.g. report.docx) — the extension decides how it opens"),
+          mimeType: z
+            .string()
+            .max(255)
+            .optional()
+            .describe("e.g. application/pdf; defaults to text/plain for text, application/octet-stream otherwise"),
+          contentBase64: z.string().optional().describe("The file's bytes, base64-encoded"),
+          text: z.string().optional().describe("The file's content, for a text file; stored as UTF-8"),
+        },
+        annotations: write,
+      },
+      ({ cardId, fileName, mimeType, contentBase64, text }) =>
+        run(async () => {
+          let buffer: Buffer;
+          if (text !== undefined && contentBase64 === undefined) {
+            buffer = Buffer.from(text, "utf8");
+          } else if (contentBase64 !== undefined && text === undefined) {
+            const base64 = contentBase64.replace(/^data:[^,]*;base64,/, "").replace(/\s+/g, "");
+            if (!/^[A-Za-z0-9+/]*={0,2}$/.test(base64) || base64.length % 4 === 1) {
+              throw new BadRequestException("contentBase64 is not valid base64");
+            }
+            buffer = Buffer.from(base64, "base64");
+          } else {
+            throw new BadRequestException("Pass exactly one of contentBase64 or text");
+          }
+          if (buffer.length === 0) throw new BadRequestException("The file is empty");
+          if (buffer.length > MCP_MAX_ATTACHMENT_BYTES) {
+            throw new PayloadTooLargeException(
+              `Files over ${MCP_MAX_ATTACHMENT_MB}MB can't be attached through Claude — upload it from the app`,
+            );
+          }
+          const attachment = await this.attachments.create(userId, cardId, {
+            originalname: fileName,
+            mimetype: mimeType ?? (text !== undefined ? "text/plain" : "application/octet-stream"),
+            size: buffer.length,
+            buffer,
+          });
+          return this.attachmentView(attachment);
+        }),
+    );
+
+    tool(
+      "delete_attachment",
+      {
+        title: "Delete attachment",
+        description:
+          "Permanently remove a file from a card. Allowed for whoever uploaded it, the card's creator, or the board owner. This cannot be undone.",
+        inputSchema: { cardId: z.string(), attachmentId: z.string() },
+        annotations: destructive,
+      },
+      ({ cardId, attachmentId }) =>
+        run(async () => {
+          await this.attachments.remove(userId, cardId, attachmentId);
+          return { deleted: attachmentId };
+        }),
     );
 
     // ── Boards & members ──────────────────────────────────────────────────

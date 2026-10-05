@@ -177,8 +177,9 @@ target list.
 Every card carries an append-only audit trail in the `CardActivity` table
 (`apps/api/prisma/schema.prisma`): who created it and its initial status, and
 who later changed its status (moved it between lists), renamed it, updated its
-description, changed the due date, or archived/unarchived it — each with an
-actor and timestamp. A card's **status is the list it lives in**, so a status
+description, changed the due date (or switched its time of day on/off), the
+priority, the repeat rule or the cost, assigned it, or archived/unarchived it —
+each with an actor and timestamp. A card's **status is the list it lives in**, so a status
 change is a `MOVED` activity whose `fromValue`/`toValue` snapshot the old/new
 *list names* at the time of the move. `CardsService`
 (`apps/api/src/cards/cards.service.ts`) writes these rows *inside the same
@@ -187,7 +188,9 @@ diffs the incoming patch against current state via `diffActivities` so a no-op
 PATCH records nothing and every real change is captured atomically. History is
 read-only over `GET /cards/:id/history` (auth via the same
 `assertMembership`), typed by `CardActivitySchema` in `packages/types`, and
-rendered as a timeline in `CardDetailModal.tsx`. Rows are never mutated, only
+worded by `describeCardActivity` (`packages/types/src/card-activity-content.ts`)
+— imported by mobile, mirrored by hand in web's `CardDetailPanel.tsx`; a new
+activity type needs the Prisma enum, the zod enum and both wordings. Rows are never mutated, only
 inserted, and cascade-delete with their card.
 
 ### Authorization: single source of truth

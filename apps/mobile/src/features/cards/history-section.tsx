@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Pressable, TextInput, View } from "react-native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { CardActivity, Comment } from "@app/types";
+import { describeCardActivity, type CardActivity, type Comment } from "@app/types";
 import { AppText } from "@/components/text";
 import { ConfirmSheet } from "@/components/confirm-sheet";
 import { Skeleton } from "@/components/skeleton";
@@ -204,7 +204,7 @@ function ActivityRow({ activity }: { activity: CardActivity }) {
           <AppText size="small" weight="bold">
             {activity.actor.displayName}
           </AppText>{" "}
-          {describeActivity(activity)}
+          {describeCardActivity(activity)}
         </AppText>
         <AppText size="caption" color={colors.muted}>
           {formatTimestamp(activity.createdAt)}
@@ -266,40 +266,6 @@ function CommentBubble({
   );
 }
 
-/** Arabic, human-readable description of a single history event — ported from `CardDetailModal.tsx`. */
-function describeActivity(activity: CardActivity): string {
-  switch (activity.type) {
-    case "CREATED":
-      return activity.toValue ? `أنشأ البطاقة في «${activity.toValue}»` : "أنشأ البطاقة";
-    case "MOVED":
-      return `نقل البطاقة من «${activity.fromValue ?? "؟"}» إلى «${activity.toValue ?? "؟"}»`;
-    case "RENAMED":
-      return `غيّر العنوان من «${activity.fromValue ?? ""}» إلى «${activity.toValue ?? ""}»`;
-    case "DESCRIPTION_UPDATED":
-      return "حدّث الوصف";
-    case "DUE_DATE_CHANGED":
-      return activity.toValue
-        ? `عيّن تاريخ الاستحقاق إلى ${formatDate(activity.toValue)}`
-        : "أزال تاريخ الاستحقاق";
-    case "ARCHIVED":
-      return "أرشف البطاقة";
-    case "UNARCHIVED":
-      return "أعاد البطاقة من الأرشيف";
-    case "ASSIGNED":
-      return activity.toValue ? `أسند المهمة إلى ${activity.toValue}` : "أسند المهمة";
-    case "UNASSIGNED":
-      return "أزال إسناد المهمة";
-    case "COST_UPDATED":
-      return activity.toValue ? `حدّث التكلفة إلى ${activity.toValue}` : "أزال التكلفة";
-    default:
-      return "حدّث البطاقة";
-  }
-}
-
 function formatTimestamp(iso: string): string {
   return new Date(iso).toLocaleString("ar", { dateStyle: "medium", timeStyle: "short" });
-}
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("ar", { dateStyle: "medium" });
 }

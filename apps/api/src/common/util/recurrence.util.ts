@@ -1,34 +1,37 @@
 import type { RecurrenceRule } from "@app/types";
+import { appTimeZone, fromWallClock, toWallClock } from "./time-zone.util";
 
 /**
  * Given a card's repeat rule and the due date of the instance that was just
  * moved into «انتهى», compute the due date of the next instance
  * (`design-prompt-group-3.md` §3): "موعدها = الموعد السابق + الدورة".
+ * Days are counted on the users' calendar (`appTimeZone`), not the server's
+ * UTC one, and the wall-clock time of day is kept, so a timed due date keeps
+ * its local hour.
  */
-export function nextRecurrenceDate(rule: RecurrenceRule, from: Date): Date {
+export function nextRecurrenceDate(rule: RecurrenceRule, from: Date, timeZone = appTimeZone()): Date {
+  const next = toWallClock(from, timeZone);
   switch (rule.freq) {
     case "DAILY": {
-      const next = new Date(from);
-      next.setDate(next.getDate() + 1);
-      return next;
+      next.setUTCDate(next.getUTCDate() + 1);
+      break;
     }
     case "WEEKLY": {
       const weekdays = new Set(rule.weekdays);
-      const next = new Date(from);
+      // `weekdays` is non-empty (schema enforces `.min(1)`), so a match always comes within 7 days.
       for (let i = 0; i < 7; i++) {
-        next.setDate(next.getDate() + 1);
-        if (weekdays.has(next.getDay())) return next;
+        next.setUTCDate(next.getUTCDate() + 1);
+        if (weekdays.has(next.getUTCDay())) break;
       }
-      // Unreachable when `weekdays` is non-empty (schema enforces `.min(1)`).
-      return next;
+      break;
     }
     case "MONTHLY": {
-      const next = new Date(from);
-      next.setDate(1);
-      next.setMonth(next.getMonth() + 1);
-      const lastDayOfMonth = new Date(next.getFullYear(), next.getMonth() + 1, 0).getDate();
-      next.setDate(Math.min(rule.dayOfMonth, lastDayOfMonth));
-      return next;
+      next.setUTCDate(1);
+      next.setUTCMonth(next.getUTCMonth() + 1);
+      const lastDayOfMonth = new Date(Date.UTC(next.getUTCFullYear(), next.getUTCMonth() + 1, 0)).getUTCDate();
+      next.setUTCDate(Math.min(rule.dayOfMonth, lastDayOfMonth));
+      break;
     }
   }
+  return fromWallClock(next, timeZone);
 }
