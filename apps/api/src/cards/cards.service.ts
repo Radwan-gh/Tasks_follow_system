@@ -1,6 +1,7 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
 import {
   RecurrenceRuleSchema,
+  describeRecurrence,
   type CardActivityType,
   type CreateCardRequest,
   type UpdateAssigneesRequest,
@@ -11,12 +12,22 @@ import { Prisma, type CardPriority } from "@prisma/client";
 import { generateKeyBetween } from "@app/ordering";
 import { computeMovePosition } from "../common/util/position.util";
 import { nextRecurrenceDate } from "../common/util/recurrence.util";
+import { calendarDate } from "../common/util/time-zone.util";
 import { PrismaService } from "../prisma/prisma.service";
 import { BoardsService, canAccessCard, canManageCard, serializeCard } from "../boards/boards.service";
 import { NotificationsService } from "../notifications/notifications.service";
 
 /** Prisma transaction client — the subset of PrismaService usable inside `$transaction`. */
 type Tx = Prisma.TransactionClient;
+
+/**
+ * A due date as `DUE_DATE_CHANGED` records it (`CardActivitySchema`): the full
+ * timestamp when the time of day matters, otherwise just the users' calendar day.
+ */
+function dueDateValue(dueDate: Date | null, hasTime: boolean): string | null {
+  if (!dueDate) return null;
+  return hasTime ? dueDate.toISOString() : calendarDate(dueDate);
+}
 
 interface ActivityInput {
   type: CardActivityType;
@@ -72,20 +83,31 @@ export class CardsService {
    * current instance is moved into «انتهى». Carries forward title,
    * description, priority, assignees, and the same recurrence rule (so the
    * chain continues one-in-one-out — never more than one open instance).
+   * Also carried: whether the due date has a time of day (the time itself is
+   * kept by `nextRecurrenceDate`), the checklist — same titles, order and
+   * assignees, all unticked, since a weekly task's checklist is usually the
+   * task itself — and the access restriction, so a private task never comes
+   * back visible to the whole board.
    * The spawned instance is a *new* task, so assignees deactivated since the
    * previous one was assigned are dropped rather than carried over.
+   * Cost is deliberately not carried: each instance's spend is its own
+   * (docs/05-boards-lists-cards.md).
    */
   private async spawnNextRecurrence(
     tx: Tx,
     card: {
+      id: string;
       boardId: string;
       title: string;
       description: string | null;
       dueDate: Date | null;
+      dueDateHasTime: boolean;
       priority: CardPriority;
       recurrence: Prisma.JsonValue;
+      isRestricted: boolean;
       createdById: string;
       assignees: { userId: string }[];
+      members: { userId: string }[];
     },
   ): Promise<void> {
     const rule = RecurrenceRuleSchema.safeParse(card.recurrence);
@@ -113,20 +135,53 @@ export class CardsService {
         title: card.title,
         description: card.description,
         dueDate: nextDueDate,
+        // Without a previous due date the next one is "now + period", whose time is arbitrary.
+        dueDateHasTime: card.dueDate ? card.dueDateHasTime : false,
         priority: card.priority,
         recurrence: card.recurrence as Prisma.InputJsonValue,
+        isRestricted: card.isRestricted,
         createdById: card.createdById,
         position,
       },
     });
-    if (card.assignees.length > 0) {
-      const stillActive = await tx.user.findMany({
-        where: { id: { in: card.assignees.map((a) => a.userId) }, isActive: true },
-        select: { id: true },
+
+    const subtasks = await tx.subtask.findMany({
+      where: { cardId: card.id },
+      orderBy: { position: "asc" },
+      include: { assignees: { select: { userId: true } } },
+    });
+    const assigneeIds = [...card.assignees, ...subtasks.flatMap((st) => st.assignees)].map((a) => a.userId);
+    const active = new Set(
+      assigneeIds.length > 0
+        ? (
+            await tx.user.findMany({
+              where: { id: { in: [...new Set(assigneeIds)] }, isActive: true },
+              select: { id: true },
+            })
+          ).map((u) => u.id)
+        : [],
+    );
+
+    const cardAssignees = card.assignees.filter((a) => active.has(a.userId));
+    if (cardAssignees.length > 0) {
+      await tx.cardAssignee.createMany({
+        data: cardAssignees.map((a) => ({ cardId: created.id, userId: a.userId })),
       });
-      if (stillActive.length > 0) {
-        await tx.cardAssignee.createMany({
-          data: stillActive.map((u) => ({ cardId: created.id, userId: u.id })),
+    }
+    if (card.isRestricted && card.members.length > 0) {
+      await tx.cardMember.createMany({
+        data: card.members.map((m) => ({ cardId: created.id, userId: m.userId })),
+      });
+    }
+    for (const subtask of subtasks) {
+      // Positions are only ever compared within one card, so the old keys keep their order as-is.
+      const copy = await tx.subtask.create({
+        data: { cardId: created.id, title: subtask.title, position: subtask.position, createdById: subtask.createdById },
+      });
+      const subtaskAssignees = subtask.assignees.filter((a) => active.has(a.userId));
+      if (subtaskAssignees.length > 0) {
+        await tx.subtaskAssignee.createMany({
+          data: subtaskAssignees.map((a) => ({ subtaskId: copy.id, userId: a.userId })),
         });
       }
     }
@@ -414,8 +469,11 @@ export class CardsService {
       title: string;
       description: string | null;
       dueDate: Date | null;
+      dueDateHasTime: boolean;
       isArchived: boolean;
       costAmount: Prisma.Decimal | null;
+      priority: CardPriority;
+      recurrence: Prisma.JsonValue;
     },
     input: UpdateCardRequest,
     targetListId: string,
@@ -439,11 +497,31 @@ export class CardsService {
       activities.push({ type: "DESCRIPTION_UPDATED" });
     }
 
-    if (input.dueDate !== undefined) {
-      const nextDue = input.dueDate ? new Date(input.dueDate).toISOString() : null;
-      const prevDue = card.dueDate ? card.dueDate.toISOString() : null;
+    if (input.dueDate !== undefined || input.dueDateHasTime !== undefined) {
+      // Compared as displayed: switching the time on or off is a change, while a
+      // date-only due date that moves within the same day is not.
+      const prevDue = dueDateValue(card.dueDate, card.dueDateHasTime);
+      const nextDue = dueDateValue(
+        input.dueDate === undefined ? card.dueDate : input.dueDate ? new Date(input.dueDate) : null,
+        input.dueDateHasTime ?? card.dueDateHasTime,
+      );
       if (nextDue !== prevDue) {
         activities.push({ type: "DUE_DATE_CHANGED", fromValue: prevDue, toValue: nextDue });
+      }
+    }
+
+    if (input.priority !== undefined && input.priority !== card.priority) {
+      activities.push({ type: "PRIORITY_CHANGED", fromValue: card.priority, toValue: input.priority });
+    }
+
+    if (input.recurrence !== undefined) {
+      // Snapshotted as the Arabic summary, the way a move snapshots list names.
+      // Comparing summaries also makes reordered weekdays a no-op.
+      const prev = RecurrenceRuleSchema.safeParse(card.recurrence);
+      const prevRule = prev.success ? describeRecurrence(prev.data) : null;
+      const nextRule = input.recurrence ? describeRecurrence(input.recurrence) : null;
+      if (nextRule !== prevRule) {
+        activities.push({ type: "RECURRENCE_CHANGED", fromValue: prevRule, toValue: nextRule });
       }
     }
 

@@ -20,7 +20,8 @@
 
 1. **كل أداة تعمل باسم المستخدم الذي سجّل الدخول، وبصلاحياته هو فقط.** الأدوات
    تستدعي **نفس دوال الخدمات** التي تستدعيها متحكّمات الـ REST (`BoardsService`،
-   `CardsService`، `SubtasksService`، `CommentsService`، `MyTasksService`)، فتسري
+   `CardsService`، `SubtasksService`، `CommentsService`، `AttachmentsService`،
+   `MyTasksService`)، فتسري
    تلقائيًا كل قواعد [`04-authorization.md`](./04-authorization.md): `assertMembership`،
    البطاقات المقيّدة، قاعدة النقل إلى «انتهى»… طبقة MCP **لا تضيف أي منطق صلاحيات
    خاص بها**.
@@ -109,13 +110,20 @@ Server) و**خادم الموارد** (`/mcp`). الموجّهات القياس�
 بالمستخدم (`McpServerFactory.create(userId)`)، فلا يوجد مخزن جلسات وأي نسخة من الـ API
 تستطيع الرد. `GET`/`DELETE` تُرجع `405`.
 
+**حجم الطلب:** `/mcp` له محلّل JSON خاص به (`mcpJsonParser` في `mount.ts`) بحدّ يتّسع
+لأكبر مرفق بترميز base64 (`MCP_MAX_ATTACHMENT_BYTES` × 4/3 + 1MB)، بينما تبقى بقية
+المسارات على حدّ Nest الافتراضي (100kb). يُركَّب **بعد** فحص الرمز، فلا يستطيع عميل
+مجهول أن يجعل الـ API يحمّل جسمًا كبيرًا في الذاكرة. واسمه ليس `jsonParser` عمدًا:
+Nest يتخطّى تسجيل محلّله العام إن وجد وسيطًا بهذا الاسم (`isMiddlewareApplied`).
+
 **الأخطاء:** استثناءات الخدمات (`403` ليس عضوًا، `404` بطاقة مقيّدة، `400` نقل غير
 صالح…) تُعاد كنتيجة أداة بـ `isError: true` ونصّ مفهوم، لا كخطأ بروتوكول، كي يشرح
 المساعد السبب للمستخدم.
 
 **مخطّطات المدخلات** مأخوذة من مخطّطات zod في `packages/types` نفسها
 (`CreateCardRequestSchema`، `UpdateCardRequestSchema`…)، فأي حقل جديد في البطاقة يظهر
-تلقائيًا في أدوات MCP.
+تلقائيًا في أدوات MCP. وما يُكتب في `.describe()` على تلك المخطّطات يصل إلى Claude
+كتوثيق للحقل — هكذا يُشرح التكرار (انظر أدناه).
 
 ## الأدوات
 
@@ -123,7 +131,7 @@ Server) و**خادم الموارد** (`/mcp`). الموجّهات القياس�
 |---|---|---|
 | `list_boards` | `BoardsService.listForUser` | لوحات المستخدم غير المؤرشفة |
 | `get_board` | `BoardsService.getDetail` | الأعضاء (بمعرّفاتهم وأدوارهم) والقوائم بالترتيب وبطاقاتها — منها تُعرف معرّفات القوائم والبطاقات والأشخاص |
-| `get_card` | `CardsService.getDetail` + المهام الفرعية + التعليقات + المرفقات | كل حقول البطاقة، قائمتها (حالتها)، المُسنَدون، الوصول، المهام الفرعية، التعليقات، وأسماء المرفقات |
+| `get_card` | `CardsService.getDetail` + المهام الفرعية + التعليقات + المرفقات | كل حقول البطاقة، قائمتها (حالتها)، المُسنَدون، الوصول، المهام الفرعية، التعليقات، والمرفقات (المعرّف، الاسم، النوع، الحجم، الرافع، والرابط المطلق `/uploads/...` على `PUBLIC_API_URL`) |
 | `get_card_history` | `CardsService.getHistory` | سجلّ النشاط |
 | `my_tasks` | `MyTasksService.list` | مهامي المفتوحة عبر كل اللوحات |
 | `list_all_boards` | `OversightService.boardsList` | **للمتابع فقط** (`isSupervisor`): كل لوحات النظام مع مالكها — انظر [`16-oversight.md`](./16-oversight.md) |
@@ -133,13 +141,37 @@ Server) و**خادم الموارد** (`/mcp`). الموجّهات القياس�
 | `move_card` | `CardsService.update` (`targetListId` + `move`) | تغيير الحالة = النقل إلى قائمة أخرى؛ الموضع `top`/`bottom`/بعد بطاقة معيّنة. الأداة تحسب **معرّفات الجيران فقط** والخادم يحسب المفتاح عبر `computeMovePosition` (انظر [`06-ordering.md`](./06-ordering.md)) |
 | `set_card_assignees` | `CardsService.updateAssignees` | |
 | `set_card_access` | `CardsService.updateAccess` | تقييد البطاقة بأعضاء محدّدين أو فتحها للوحة |
-| `add_subtask` / `update_subtask` / `set_subtask_assignees` | `SubtasksService` | إضافة، إعادة تسمية، إنجاز/إلغاء إنجاز، إسناد |
+| `add_subtask` / `update_subtask` / `set_subtask_assignees` | `SubtasksService` | إضافة، إعادة تسمية، إنجاز/إلغاء إنجاز، إعادة ترتيب، إسناد. `update_subtask` يقبل `position` (`top`/`bottom`/`{ afterSubtaskId }`) ويحوّله إلى `move` بمعرّفات الجيران كما في `move_card` (الدالة المشتركة `neighbours`) |
+| `delete_subtask` | `SubtasksService.remove` | حذف نهائي؛ `destructiveHint: true` |
 | `add_comment` | `CommentsService.create` | تُطلق الإشعارات المعتادة |
+| `read_attachment` | `AttachmentsService.read` | يفتح مرفقًا: الصور (`png`/`jpeg`/`gif`/`webp`) تعود صورةً يراها النموذج، والملفات النصّية نصًّا، وغيرها (PDF، Word…) موردًا بترميز base64. ما فوق `MCP_MAX_ATTACHMENT_BYTES` (5MB) يُرفض بـ 413 قبل القراءة من التخزين |
+| `add_attachment` | `AttachmentsService.create` | خادم MCP البعيد لا يرى ملفّات المستخدم، فيُرسَل **المحتوى نفسه**: إمّا `contentBase64` أو `text` (لملفّ نصّي) — واحد فقط. حتى 5MB (أقل من 20MB في التطبيق لأن الملف يمرّ داخل استدعاء الأداة)، وتسري قاعدة 10 مرفقات للبطاقة وكل فحوص الرفع العادي |
+| `delete_attachment` | `AttachmentsService.remove` | للرافع أو منشئ البطاقة أو مالك اللوحة؛ `destructiveHint: true` |
 | `create_board` | `BoardsService.create` | المستخدم يصبح المالك؛ **`template` غير مكشوف** فتأتي اللوحة دائمًا بالقوائم الخمس |
 | `find_users_to_add` | `BoardsService.listMemberCandidates` | للمالك فقط |
 | `add_board_member` | `BoardsService.addMember` | للمالك فقط؛ الدور `MEMBER` أو `VIEWER` |
 
-**غير متاح عمدًا:** إنشاء القوائم أو تعديلها، الحذف (بطاقات/مهام فرعية/تعليقات)، رفع
-المرفقات، وإدارة المستخدمين.
+**غير متاح عمدًا:** إنشاء القوائم أو تعديلها، حذف البطاقات والتعليقات (البطاقة تُؤرشَف
+بـ `update_card`)، وإدارة المستخدمين. حذف المهام الفرعية والمرفقات متاح لأنه لا بديل له:
+بدونه اضطرّ Claude إلى إعادة إنشاء البطاقة كاملة لحذف بنود منها، فضاع معرّفها وسجلّها.
+أدوات الحذف مُعلَّمة `destructiveHint: true` فيطلب العميل تأكيد المستخدم.
+
+## المهام المتكرّرة كما يراها Claude
+
+حقل `recurrence` في `create_card`/`update_card` بلا شرح لا يكفي النموذج ليعرف متى
+تعود المهمة، لذلك يحمل `RecurrenceRuleSchema` (`packages/types/src/domain.ts`)
+وصفًا (`.describe()`) يصل إلى Claude مع مخطّط الأداة:
+
+- `weekdays`: ‏0 = الأحد … 6 = السبت (ترقيم `getDay()`).
+- النسخة التالية تُولَّد **فقط** عند النقل إلى «انتهى» (`CLOSED`) لا «منجز» (`DONE`)،
+  وتظهر في «جديد».
+- موعدها = الموعد السابق + الدورة، لا تاريخ اليوم — فإغلاق بطاقة متأخرًا قد يولّد نسخة
+  متأخرة أصلًا.
+- ما يُنقل إليها: العنوان، الوصف، الأولوية، المُسنَدون، وجود وقت للموعد، تقييد الوصول،
+  القاعدة، والمهام الفرعية (غير منجزة)؛ التكلفة لا تُنسخ.
+
+تفاصيل الحساب (ومنها المنطقة الزمنية) في
+[`14-notifications-comments-attachments.md`](./14-notifications-comments-attachments.md#توليد-المهمة-المتكررة-recurrence).
+إن تغيّر ما تنقله `spawnNextRecurrence` فحدّث هذا الوصف معه.
 
 </div>

@@ -794,31 +794,43 @@ function AttachmentsSection({
   );
 }
 
-/** Arabic, human-readable description of a single history event. */
+const HISTORY_PRIORITY_LABEL: Record<CardPriority, string> = { LOW: "منخفض", NORMAL: "عادي", URGENT: "عاجل" };
+
+/**
+ * Arabic, human-readable description of a single history event. Mirrors
+ * `packages/types/src/card-activity-content.ts`'s `describeCardActivity`, which
+ * the mobile app imports — a local copy for the same bundle-size reason as
+ * `lib/describe-notification.ts`. Keep the two in sync by hand.
+ */
 function describeActivity(activity: CardActivity): string {
+  const { fromValue, toValue } = activity;
+  const priority = (value: string | null) => HISTORY_PRIORITY_LABEL[value as CardPriority] ?? value ?? "؟";
   switch (activity.type) {
     case "CREATED":
-      return activity.toValue ? `أنشأ البطاقة في «${activity.toValue}»` : "أنشأ البطاقة";
+      return toValue ? `أنشأ البطاقة في «${toValue}»` : "أنشأ البطاقة";
     case "MOVED":
-      return `نقل البطاقة من «${activity.fromValue ?? "؟"}» إلى «${activity.toValue ?? "؟"}»`;
+      return `نقل البطاقة من «${fromValue ?? "؟"}» إلى «${toValue ?? "؟"}»`;
     case "RENAMED":
-      return `غيّر العنوان من «${activity.fromValue ?? ""}» إلى «${activity.toValue ?? ""}»`;
+      return `غيّر العنوان من «${fromValue ?? ""}» إلى «${toValue ?? ""}»`;
     case "DESCRIPTION_UPDATED":
       return "حدّث الوصف";
     case "DUE_DATE_CHANGED":
-      return activity.toValue
-        ? `عيّن تاريخ الاستحقاق إلى ${formatDate(activity.toValue)}`
-        : "أزال تاريخ الاستحقاق";
+      return toValue ? `عيّن تاريخ الاستحقاق إلى ${formatDueValue(toValue)}` : "أزال تاريخ الاستحقاق";
     case "ARCHIVED":
       return "أرشف البطاقة";
     case "UNARCHIVED":
       return "أعاد البطاقة من الأرشيف";
     case "ASSIGNED":
-      return activity.toValue ? `أسند المهمة إلى ${activity.toValue}` : "أسند المهمة";
+      return toValue ? `أسند المهمة إلى ${toValue}` : "أسند المهمة";
     case "UNASSIGNED":
       return "أزال إسناد المهمة";
     case "COST_UPDATED":
-      return activity.toValue ? `حدّث التكلفة إلى ${activity.toValue}` : "أزال التكلفة";
+      return toValue ? `حدّث التكلفة إلى ${toValue}` : "أزال التكلفة";
+    case "PRIORITY_CHANGED":
+      return `غيّر الأولوية من «${priority(fromValue)}» إلى «${priority(toValue)}»`;
+    case "RECURRENCE_CHANGED":
+      if (!toValue) return "أوقف تكرار المهمة";
+      return fromValue ? `غيّر التكرار من «${fromValue}» إلى «${toValue}»` : `عيّن التكرار «${toValue}»`;
     default:
       return "حدّث البطاقة";
   }
@@ -828,6 +840,11 @@ function formatTimestamp(iso: string): string {
   return new Date(iso).toLocaleString("ar", { dateStyle: "medium", timeStyle: "short" });
 }
 
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("ar", { dateStyle: "medium" });
+/** A `DUE_DATE_CHANGED` value: `YYYY-MM-DD` when date-only, a full ISO timestamp when it has a time. */
+function formatDueValue(value: string): string {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    // Noon UTC keeps the calendar day the same in every time zone.
+    return new Date(`${value}T12:00:00Z`).toLocaleDateString("ar", { dateStyle: "medium" });
+  }
+  return formatTimestamp(value);
 }

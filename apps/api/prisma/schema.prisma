@@ -30,6 +30,8 @@ enum CardActivityType {
   ASSIGNED
   UNASSIGNED
   COST_UPDATED
+  PRIORITY_CHANGED
+  RECURRENCE_CHANGED
 }
 
 /// Semantic status of a list, set when a board is seeded from a built-in

@@ -37,11 +37,34 @@ export type CardPriority = z.infer<typeof CardPriority>;
  * next instance into the board's `NEW` list with `dueDate` advanced by one
  * interval — see `design-prompt-group-3.md` §3a-3/§9 ("لا تتراكم نسخ متعددة").
  */
-export const RecurrenceRuleSchema = z.discriminatedUnion("freq", [
-  z.object({ freq: z.literal("DAILY") }),
-  z.object({ freq: z.literal("WEEKLY"), weekdays: z.array(z.number().int().min(0).max(6)).min(1) }),
-  z.object({ freq: z.literal("MONTHLY"), dayOfMonth: z.number().int().min(1).max(31) }),
-]);
+export const RecurrenceRuleSchema = z
+  .discriminatedUnion("freq", [
+    z.object({ freq: z.literal("DAILY") }),
+    z.object({
+      freq: z.literal("WEEKLY"),
+      weekdays: z
+        .array(z.number().int().min(0).max(6))
+        .min(1)
+        .describe("Days of the week: 0=Sunday, 1=Monday, 2=Tuesday, 3=Wednesday, 4=Thursday, 5=Friday, 6=Saturday"),
+    }),
+    z.object({
+      freq: z.literal("MONTHLY"),
+      dayOfMonth: z
+        .number()
+        .int()
+        .min(1)
+        .max(31)
+        .describe("Day of the month; months without it use their last day"),
+    }),
+  ])
+  // Read by MCP clients as the field's documentation (docs/15-mcp-server.md).
+  .describe(
+    "Repeat rule. The next instance is created only when this card is moved to the CLOSED list (انتهى) — not DONE (منجز) — " +
+      "and it lands in the NEW list. Its due date is the previous due date plus one period (the next listed weekday, " +
+      "the next day, or the same day next month), counted in local time from the old due date, not from today — so closing " +
+      "a card late can create an instance that is already overdue. Carries over title, description, priority, assignees, " +
+      "whether the due date has a time, the access restriction, this rule, and the subtasks (unticked); cost is not copied.",
+  );
 export type RecurrenceRule = z.infer<typeof RecurrenceRuleSchema>;
 
 /** Three notification-category toggles, all default `true` — `account.tsx`'s "الإشعارات" section. */
@@ -269,14 +292,19 @@ export const CardActivityType = z.enum([
   "ASSIGNED",
   "UNASSIGNED",
   "COST_UPDATED",
+  // `fromValue`/`toValue` are `CardPriority` codes.
+  "PRIORITY_CHANGED",
+  // `fromValue`/`toValue` are `describeRecurrence` summaries, null when the card doesn't repeat.
+  "RECURRENCE_CHANGED",
 ]);
 export type CardActivityType = z.infer<typeof CardActivityType>;
 
 /**
  * One immutable entry in a card's history. `fromValue`/`toValue` hold a
  * human-readable snapshot captured at the time of the change (list names for
- * moves, titles for renames, ISO dates for due-date changes); they are null
- * where a before/after value doesn't apply.
+ * moves, titles for renames, due dates as `YYYY-MM-DD` — or a full ISO
+ * timestamp when the due date has a time of day); they are null where a
+ * before/after value doesn't apply. `describeCardActivity` renders one.
  */
 export const CardActivitySchema = z.object({
   id: z.string(),

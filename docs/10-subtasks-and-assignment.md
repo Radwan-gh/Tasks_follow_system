@@ -35,7 +35,8 @@ DELETE /subtasks/:id                  حذف
 المهام الفرعية **ترث صلاحية البطاقة الأمّ**: أي مستخدم يستطيع فتح البطاقة يستطيع
 إدارة مهامها الفرعية. لذلك تمرّ كل عملية عبر `assertMembership` ثم نفس دالة
 `canAccessCard` المستخدمة للبطاقة نفسها — لا منطق صلاحية مستقل (انظر
-[`04-authorization.md`](./04-authorization.md)).
+[`04-authorization.md`](./04-authorization.md)). وكل تعديل — بما فيه الحذف — يُرفض على
+لوحة مؤرشفة (`assertBoardMutable`).
 
 ## الإسناد (Assignment) — لعدة أشخاص
 
