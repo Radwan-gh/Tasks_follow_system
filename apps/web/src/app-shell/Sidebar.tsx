@@ -23,6 +23,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: "/oversight", label: "المتابعة", icon: "◉", supervisorOnly: true },
   { to: "/reports", label: "التقارير", icon: "◫", adminOnly: true },
   { to: "/admin/users", label: "المستخدمون", icon: "◎", adminOnly: true },
+  { to: "/guide", label: "دليل الاستخدام", icon: "◇" },
 ];
 
 const BOARD_DOT_COLORS = ["bg-accent", "bg-line", "bg-line", "bg-line", "bg-line"];
