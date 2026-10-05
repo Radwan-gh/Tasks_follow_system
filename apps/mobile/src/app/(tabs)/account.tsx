@@ -3,7 +3,7 @@ import { Pressable, ScrollView, View } from "react-native";
 import { useRouter } from "expo-router";
 import { useMutation } from "@tanstack/react-query";
 import { ApiError } from "@app/api-client";
-import { canSendPush } from "@app/types";
+import { canSendPush, canSupervise } from "@app/types";
 import { Screen } from "@/components/screen";
 import { AppText } from "@/components/text";
 import { AppVersionSection } from "@/features/account/app-version-section";
@@ -147,6 +147,25 @@ export default function AccountScreen() {
         <NotificationPrefsSection />
 
         {user?.role === "ADMIN" ? <CurrencySettingSection /> : null}
+
+        {user && canSupervise(user) ? (
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => router.push("/oversight")}
+            style={{
+              minHeight: MIN_TOUCH_TARGET,
+              borderRadius: radii.field,
+              borderWidth: 1,
+              borderColor: colors.line,
+              backgroundColor: colors.surface,
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <AppText weight="semibold">المتابعة — كل اللوحات والمهام</AppText>
+          </Pressable>
+        ) : null}
 
         {user?.role === "ADMIN" ? (
           <Pressable

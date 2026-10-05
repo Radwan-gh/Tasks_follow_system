@@ -30,6 +30,10 @@ import type {
   NotificationPrefs,
   NotificationsResponse,
   OverdueTasksReport,
+  OversightBoard,
+  OversightTasksQuery,
+  OversightTasksResponse,
+  OversightUser,
   PushDevice,
   RegisterPushDeviceRequest,
   ReportOverview,
@@ -330,6 +334,20 @@ export function createApiClient({ baseUrl, storage, onUnauthorized }: ApiClientO
     },
     myTasks: {
       list: () => request<MyTasksResponse>("/my-tasks"),
+    },
+    /** «المتابعة» — requires ADMIN or `canViewAllBoards` (`canSupervise()`). Read-only. */
+    oversight: {
+      boards: (params: { archived?: boolean } = {}) =>
+        request<OversightBoard[]>(`/oversight/boards${params.archived ? "?archived=true" : ""}`),
+      tasks: (params: OversightTasksQuery = {}) => {
+        const query = new URLSearchParams();
+        for (const [key, value] of Object.entries(params)) {
+          if (value !== undefined && value !== null && value !== "") query.set(key, String(value));
+        }
+        const qs = query.toString();
+        return request<OversightTasksResponse>(`/oversight/tasks${qs ? `?${qs}` : ""}`);
+      },
+      users: () => request<OversightUser[]>("/oversight/users"),
     },
     comments: {
       list: (cardId: string) => request<Comment[]>(`/cards/${cardId}/comments`),

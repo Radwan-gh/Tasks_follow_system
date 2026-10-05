@@ -28,8 +28,14 @@ BoardsService.assertMembership(userId, boardId, minRole = "MEMBER")
 ```
 
 - تبحث عن عضوية المستخدم في اللوحة.
-- ترفض بـ `Forbidden` إن لم توجد عضوية، أو إن كان دور العضو **أقل** من `minRole`
-  المطلوب.
+- ترفض بـ `Forbidden` إن كان دور العضو **أقل** من `minRole` المطلوب.
+- إن **لم** توجد عضوية: تُقبل فقط حين يكون `minRole === "VIEWER"` (مسار قراءة) والمستخدم
+  صاحب صلاحية «المتابعة» (`canSupervise()`: `ADMIN` أو `canViewAllBoards`، تُقرأ من قاعدة
+  البيانات عبر `isSupervisor`)، فيُعاد `{ role: "VIEWER", supervised: true }`. وإلا
+  `Forbidden`. لأن كل مسارات الكتابة تطلب `MEMBER`/`OWNER`، يبقى المتابع للقراءة فقط
+  تلقائيًا. التفاصيل في [`16-oversight.md`](./16-oversight.md).
+- تُرجِع `BoardAccess { role, supervised }`؛ مسارات القراءة تستعمل `supervised` لتُظهر
+  البطاقات المقيّدة أيضًا للمتابع.
 
 **قاعدة معمارية مهمّة:** خدمتا القوائم (`ListsService`) والبطاقات (`CardsService`)
 لا تُعيدان تنفيذ منطق الصلاحيات؛ بل تستخرجان أولًا `boardId` الخاص بالقائمة/البطاقة، ثم
@@ -101,8 +107,11 @@ BoardsService.assertMembership(userId, boardId, minRole = "MEMBER")
 
 ## ب) صلاحيات على مستوى النظام (System Roles)
 
-الأدوار: **`USER`** و **`ADMIN`** (مخزّنة في `User.role`). هذه منفصلة تمامًا عن أدوار
-اللوحة — كون المستخدم ADMIN لا يمنحه عضوية في لوحة لم يُضَف إليها، والعكس صحيح.
+الأدوار: **`USER`** و **`ADMIN`** (مخزّنة في `User.role`). هذه منفصلة عن أدوار
+اللوحة — كون المستخدم ADMIN لا يمنحه **عضوية** في لوحة لم يُضَف إليها، والعكس صحيح.
+الاستثناء الوحيد هو **الاطلاع للقراءة فقط**: ADMIN، أو `USER` منحه ADMIN صلاحية
+`canViewAllBoards`، يستطيع قراءة كل اللوحات والمهام دون أن يصير عضوًا ودون أي قدرة على
+التعديل — انظر «المتابعة» في [`16-oversight.md`](./16-oversight.md).
 
 ### `AdminGuard`
 - يتطلّب أن يكون دور المستخدم `ADMIN`، وإلا يرفض بـ `Forbidden`.
@@ -121,6 +130,15 @@ BoardsService.assertMembership(userId, boardId, minRole = "MEMBER")
   الذهبية أدناه. انظر [`07-admin.md`](./07-admin.md).
 - الاستثناء الوحيد بلا مصادقة في منظومة الـ push هو `POST /devices`، وهو يسجّل رمزًا
   فقط ولا يرسل.
+
+### `SupervisorGuard`
+- يحمي `oversight/*` («المتابعة»). يسمح لـ `ADMIN` دائمًا، أو لمستخدم منحه ADMIN
+  `canViewAllBoards`. القاعدة `canSupervise()` في `packages/types`.
+- يُستخدم بعد `JwtAuthGuard`: `@UseGuards(JwtAuthGuard, SupervisorGuard)`.
+- يفوّض إلى `BoardsService.isSupervisor` — نفس الفحص الذي يستعمله المسار الاحتياطي في
+  `assertMembership` — فيقرأ الدور والصلاحية و`isActive` من قاعدة البيانات.
+- منح `canViewAllBoards` وسحبها مقصوران على ADMIN (`PATCH /admin/users/:id/permissions`
+  تحت `AdminGuard`)؛ صاحب الصلاحية لا يستطيع منحها لأحد.
 
 ## قاعدة ذهبية للصلاحيات
 

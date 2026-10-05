@@ -171,10 +171,11 @@ export class CardsService {
 
   async getDetail(userId: string, cardId: string) {
     const card = await this.loadCard(cardId);
-    await this.boards.assertMembership(userId, card.boardId, "VIEWER");
+    const access = await this.boards.assertMembership(userId, card.boardId, "VIEWER");
     const ownerId = await this.boardOwnerId(card.boardId);
-    // Hide existence of restricted cards from members without access.
-    if (!canAccessCard(userId, ownerId, card)) throw new NotFoundException("Card not found");
+    // Hide existence of restricted cards from members without access. A
+    // supervisor oversees every card, restricted or not.
+    if (!access.supervised && !canAccessCard(userId, ownerId, card)) throw new NotFoundException("Card not found");
     return serializeCard(card);
   }
 
@@ -481,9 +482,9 @@ export class CardsService {
 
   async getHistory(userId: string, cardId: string) {
     const card = await this.loadCard(cardId);
-    await this.boards.assertMembership(userId, card.boardId, "VIEWER");
+    const access = await this.boards.assertMembership(userId, card.boardId, "VIEWER");
     const ownerId = await this.boardOwnerId(card.boardId);
-    if (!canAccessCard(userId, ownerId, card)) throw new NotFoundException("Card not found");
+    if (!access.supervised && !canAccessCard(userId, ownerId, card)) throw new NotFoundException("Card not found");
 
     const activities = await this.prisma.cardActivity.findMany({
       where: { cardId },

@@ -4,6 +4,7 @@ import type {
   AdminUserList,
   CreateUserRequest,
   ListUsersQuery,
+  UpdateUserPermissionsRequest,
   UpdateUserRequest,
   UserRole,
 } from "@app/types";
@@ -38,6 +39,7 @@ function serialize(user: UserWithCounts): AdminUser {
     isActive: user.isActive,
     mustChangePassword: user.mustChangePassword,
     canSendNotifications: user.canSendNotifications,
+    canViewAllBoards: user.canViewAllBoards,
     createdAt: user.createdAt.toISOString(),
     boardCount: user._count.boardMemberships,
     hasContent: CONTENT_RELATIONS.some((relation) => user._count[relation] > 0),
@@ -248,16 +250,19 @@ export class UsersService {
   }
 
   /**
-   * Grants or revokes "can send notifications". No session revocation needed:
-   * `CanSendPushGuard` reads the flag from the database on every request, so a
-   * revoke takes effect immediately.
+   * Grants or revokes per-user permissions — "can send notifications" and
+   * "can view all boards" (oversight). Only the flags present in `input` are
+   * touched. No session revocation needed: `CanSendPushGuard`,
+   * `SupervisorGuard` and `BoardsService.assertMembership` all read the flags
+   * from the database on every request, so a revoke takes effect immediately.
+   * Reachable only through the ADMIN-guarded `/admin/users` controller.
    */
-  async updatePermissions(targetId: string, canSendNotifications: boolean): Promise<AdminUser> {
+  async updatePermissions(targetId: string, input: UpdateUserPermissionsRequest): Promise<AdminUser> {
     const target = await this.prisma.user.findUnique({ where: { id: targetId }, select: { id: true } });
     if (!target) throw new NotFoundException("User not found");
     const updated = await this.prisma.user.update({
       where: { id: targetId },
-      data: { canSendNotifications },
+      data: { canSendNotifications: input.canSendNotifications, canViewAllBoards: input.canViewAllBoards },
       include: COUNT_INCLUDE,
     });
     return serialize(updated);

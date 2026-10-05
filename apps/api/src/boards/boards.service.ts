@@ -6,6 +6,7 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import type { Prisma } from "@prisma/client";
+import { canSupervise } from "@app/types";
 import type { BoardRole, CardPriority, CreateBoardRequest, RecurrenceRule, UpdateBoardRequest } from "@app/types";
 import { generateKeyBetween, generateNKeysBetween } from "@app/ordering";
 import { PrismaService } from "../prisma/prisma.service";
@@ -21,6 +22,16 @@ interface BoardAggregate {
 }
 const EMPTY_AGGREGATE: BoardAggregate = { memberCount: 0, cardCount: 0, doneCount: 0, memberPreviews: [] };
 
+/**
+ * What `assertMembership` granted. `supervised` is true when the caller is not
+ * a member at all and was admitted read-only through oversight — read paths
+ * use it to also show restricted cards, which a supervisor sees in full.
+ */
+export interface BoardAccess {
+  role: BoardRole;
+  supervised: boolean;
+}
+
 // §3c-4 "دور «مشاهد»": a viewer can read a board but not mutate anything on
 // it. Every *read* call site below passes `minRole: "VIEWER"` explicitly;
 // every *write* call site keeps the default `"MEMBER"` (or `"OWNER"` where
@@ -34,15 +45,42 @@ export class BoardsService {
     private readonly storage: AttachmentStorageService,
   ) {}
 
-  /** Single source of truth for "can user X do Y on board Z", reused by lists/cards services. */
-  async assertMembership(userId: string, boardId: string, minRole: BoardRole = "MEMBER") {
+  /**
+   * Single source of truth for "can user X do Y on board Z", reused by
+   * lists/cards services.
+   *
+   * Oversight («المتابعة»): a non-member who `canSupervise()` (an ADMIN, or a
+   * user granted `canViewAllBoards`) is admitted as a `VIEWER` — but only when
+   * the caller asked for `VIEWER`, i.e. on read paths. Every write path asks
+   * for `MEMBER`/`OWNER` and so still rejects them; read-only falls out of the
+   * existing role ranking rather than a separate check. A real membership
+   * always wins, so a supervisor who is also a member keeps their own role.
+   * Role and flag are read from the database, not the JWT, so revoking takes
+   * effect on the next request.
+   */
+  async assertMembership(userId: string, boardId: string, minRole: BoardRole = "MEMBER"): Promise<BoardAccess> {
     const membership = await this.prisma.boardMember.findUnique({
       where: { boardId_userId: { boardId, userId } },
     });
-    if (!membership || ROLE_RANK[membership.role] < ROLE_RANK[minRole]) {
-      throw new ForbiddenException("You do not have access to this board");
+    if (membership) {
+      if (ROLE_RANK[membership.role] < ROLE_RANK[minRole]) {
+        throw new ForbiddenException("You do not have access to this board");
+      }
+      return { role: membership.role, supervised: false };
     }
-    return membership;
+    if (minRole === "VIEWER" && (await this.isSupervisor(userId))) {
+      return { role: "VIEWER", supervised: true };
+    }
+    throw new ForbiddenException("You do not have access to this board");
+  }
+
+  /** `canSupervise()` against the live database row; a deactivated account never qualifies. */
+  async isSupervisor(userId: string): Promise<boolean> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true, canViewAllBoards: true, isActive: true },
+    });
+    return !!user?.isActive && canSupervise(user);
   }
 
   async listForUser(userId: string) {
@@ -62,6 +100,24 @@ export class BoardsService {
     });
     const aggregates = await this.boardAggregates(boards.map((b) => b.id));
     return boards.map((b) => serializeBoard(b, aggregates.get(b.id) ?? EMPTY_AGGREGATE));
+  }
+
+  /**
+   * Oversight's "كل اللوحات" — every board in the system regardless of
+   * membership, with its owner. No access check here: callers sit behind
+   * `SupervisorGuard` (REST) or an explicit `isSupervisor` check (MCP).
+   */
+  async listAll(archived: boolean) {
+    const boards = await this.prisma.board.findMany({
+      where: { isArchived: archived },
+      orderBy: { updatedAt: "desc" },
+      include: { owner: { select: { id: true, username: true, displayName: true } } },
+    });
+    const aggregates = await this.boardAggregates(boards.map((b) => b.id));
+    return boards.map((b) => ({
+      ...serializeBoard(b, aggregates.get(b.id) ?? EMPTY_AGGREGATE),
+      owner: b.owner,
+    }));
   }
 
   /**
@@ -176,7 +232,7 @@ export class BoardsService {
    * list is unaffected — this never filters `DONE`, `NEW`, etc.
    */
   async getDetail(userId: string, boardId: string, closedSince?: Date) {
-    await this.assertMembership(userId, boardId, "VIEWER");
+    const access = await this.assertMembership(userId, boardId, "VIEWER");
 
     const board = await this.prisma.board.findUnique({
       where: { id: boardId },
@@ -220,8 +276,11 @@ export class BoardsService {
 
     let hiddenClosedCount = 0;
     const lists = board.lists.map((list) => {
-      // Restricted cards the requesting user can't access are hidden entirely.
-      const accessible = list.cards.filter((card) => canAccessCard(userId, board.ownerId, card));
+      // Restricted cards the requesting user can't access are hidden entirely
+      // — except from a supervisor, who oversees every card.
+      const accessible = access.supervised
+        ? list.cards
+        : list.cards.filter((card) => canAccessCard(userId, board.ownerId, card));
       const visible =
         list.id === closedList?.id && closedAtByCardId
           ? accessible.filter((card) => (closedAtByCardId.get(card.id) ?? card.updatedAt) >= closedSince!)
@@ -247,6 +306,7 @@ export class BoardsService {
     return {
       ...serializeBoard(board, aggregate),
       hiddenClosedCount,
+      supervised: access.supervised,
       members: board.members.map((m) => ({
         userId: m.userId,
         boardId: m.boardId,

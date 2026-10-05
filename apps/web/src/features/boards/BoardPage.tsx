@@ -178,7 +178,10 @@ export function BoardPage() {
   const currentMembership = board.members.find((m) => m.userId === user?.id);
   const isOwner = currentMembership?.role === "OWNER";
   const isViewer = currentMembership?.role === "VIEWER";
-  const readOnly = board.isArchived || isViewer;
+  // Not a member — opened from «المتابعة» (oversight). The server rejects every write
+  // anyway; this just keeps the UI from offering them.
+  const isSupervised = board.supervised;
+  const readOnly = board.isArchived || isViewer || isSupervised;
   const previewMembers = board.members.slice(0, 3);
   const filtersActive = hasActiveFilters(filters);
 
@@ -247,19 +250,32 @@ export function BoardPage() {
               + مهمة
             </button>
           )}
-          <button
-            onClick={() => setSettingsOpen(true)}
-            className="min-h-[38px] rounded-field border border-line px-3 text-sm font-semibold text-ink hover:bg-canvas"
-            title="إعدادات اللوحة"
-          >
-            الإعدادات
-          </button>
+          {!isSupervised && (
+            <button
+              onClick={() => setSettingsOpen(true)}
+              className="min-h-[38px] rounded-field border border-line px-3 text-sm font-semibold text-ink hover:bg-canvas"
+              title="إعدادات اللوحة"
+            >
+              الإعدادات
+            </button>
+          )}
         </div>
       </header>
 
-      {(board.isArchived || isViewer) && (
+      {readOnly && (
         <div className="flex items-center justify-between gap-4 bg-ink px-6 py-2 text-sm text-white">
-          <span>{board.isArchived ? "مؤرشفة — للقراءة فقط" : "للعرض فقط — لا يمكنك التعديل على هذه اللوحة"}</span>
+          <span>
+            {board.isArchived
+              ? "مؤرشفة — للقراءة فقط"
+              : isSupervised
+                ? "وضع المتابعة — لست عضوًا في هذه اللوحة، فهي معروضة للقراءة فقط"
+                : "للعرض فقط — لا يمكنك التعديل على هذه اللوحة"}
+          </span>
+          {isSupervised && (
+            <Link to="/oversight" className="rounded-field bg-white/10 px-3 py-1 text-xs font-semibold hover:bg-white/20">
+              العودة إلى المتابعة
+            </Link>
+          )}
           {board.isArchived && isOwner && (
             <button
               onClick={async () => {

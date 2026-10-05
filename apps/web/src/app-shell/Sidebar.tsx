@@ -1,5 +1,6 @@
 import { Link, useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
+import { canSupervise } from "../lib/can-supervise";
 import ghirasMark from "../assets/ghiras-mark.svg";
 import { api } from "../lib/api-client";
 import { useAuth } from "../features/auth/AuthContext";
@@ -12,11 +13,14 @@ interface NavItem {
   label: string;
   icon: string;
   adminOnly?: boolean;
+  /** ADMIN, or a user granted `canViewAllBoards`. */
+  supervisorOnly?: boolean;
 }
 
 const NAV_ITEMS: NavItem[] = [
   { to: "/boards", label: "اللوحات", icon: "▤" },
   { to: "/my-tasks", label: "مهامي", icon: "◔" },
+  { to: "/oversight", label: "المتابعة", icon: "◉", supervisorOnly: true },
   { to: "/reports", label: "التقارير", icon: "◫", adminOnly: true },
   { to: "/admin/users", label: "المستخدمون", icon: "◎", adminOnly: true },
 ];
@@ -48,7 +52,10 @@ export function Sidebar() {
       </div>
 
       <nav className="flex flex-col gap-1">
-        {NAV_ITEMS.filter((item) => !item.adminOnly || user?.role === "ADMIN").map((item) => {
+        {NAV_ITEMS.filter(
+          (item) =>
+            (!item.adminOnly || user?.role === "ADMIN") && (!item.supervisorOnly || (user && canSupervise(user))),
+        ).map((item) => {
           const active = location.pathname.startsWith(item.to);
           return (
             <Link

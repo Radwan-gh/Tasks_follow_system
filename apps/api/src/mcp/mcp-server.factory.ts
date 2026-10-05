@@ -1,4 +1,4 @@
-import { HttpException, Injectable } from "@nestjs/common";
+import { ForbiddenException, HttpException, Injectable } from "@nestjs/common";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult, ToolAnnotations } from "@modelcontextprotocol/sdk/types.js";
 import {
@@ -6,6 +6,7 @@ import {
   CreateCardRequestSchema,
   CreateCommentRequestSchema,
   CreateSubtaskRequestSchema,
+  ListStatusCategory,
   UpdateCardAccessRequestSchema,
   UpdateCardRequestSchema,
 } from "@app/types";
@@ -15,6 +16,7 @@ import { AttachmentsService } from "../cards/attachments.service";
 import { CardsService } from "../cards/cards.service";
 import { CommentsService } from "../cards/comments.service";
 import { MyTasksService } from "../my-tasks/my-tasks.service";
+import { OversightService } from "../oversight/oversight.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { SubtasksService } from "../subtasks/subtasks.service";
 
@@ -22,7 +24,8 @@ const SERVER_INSTRUCTIONS = `غِراس (Ghiras) is a Kanban task tracker: board
 A card's status IS the list it sits in — to change a task's status, move the card with move_card.
 Every board starts with five status lists (جديد/NEW, جاهز/READY, قيد التنفيذ/IN_PROGRESS, منجز/DONE, انتهى/CLOSED); lists cannot be created here.
 People are shown by displayName with username as their unique handle; tools take user ids, which get_board lists under members.
-All actions run as the signed-in user with their own board permissions.`;
+All actions run as the signed-in user with their own board permissions.
+A supervisor (an admin, or a user granted «الاطلاع على كل اللوحات») can also read every board and task through list_all_boards and search_all_tasks, and open any board or card read-only — they still cannot change boards they are not a member of.`;
 
 /** Editable card fields, straight from the shared request schema; moving has its own tool. */
 const cardUpdateFields = UpdateCardRequestSchema.omit({ targetListId: true, move: true }).shape;
@@ -91,7 +94,15 @@ export class McpServerFactory {
     private readonly attachments: AttachmentsService,
     private readonly subtasks: SubtasksService,
     private readonly myTasks: MyTasksService,
+    private readonly oversight: OversightService,
   ) {}
+
+  /** Oversight tools sit outside `assertMembership`, so they check the system-level grant themselves — the same check as `SupervisorGuard`. */
+  private async assertSupervisor(userId: string) {
+    if (!(await this.boards.isSupervisor(userId))) {
+      throw new ForbiddenException("Permission to view all boards required");
+    }
+  }
 
   create(userId: string): McpServer {
     const server = new McpServer({ name: "ghiras", title: "غِراس", version: "1.0.0" }, { instructions: SERVER_INSTRUCTIONS });
@@ -137,6 +148,8 @@ export class McpServerFactory {
             description: board.description,
             dueDate: board.dueDate,
             myRole: board.members.find((m) => m.userId === userId)?.role,
+            // Not a member — seen through oversight, so read-only.
+            supervised: board.supervised,
             members: board.members.map((m) => ({
               userId: m.userId,
               username: m.user.username,
@@ -228,6 +241,87 @@ export class McpServerFactory {
         annotations: readOnly,
       },
       () => run(async () => (await this.myTasks.list(userId)).items),
+    );
+
+    // ── Oversight (supervisors only) ──────────────────────────────────────
+
+    tool(
+      "list_all_boards",
+      {
+        title: "List all boards (oversight)",
+        description:
+          "Every board in the system, regardless of membership, with owner and card counts. Supervisors only (an admin, or a user granted view-all-boards). Open one with get_board — read-only unless you are a member.",
+        inputSchema: { archived: z.boolean().optional().describe("true lists archived boards instead of active ones") },
+        annotations: readOnly,
+      },
+      ({ archived }) =>
+        run(async () => {
+          await this.assertSupervisor(userId);
+          return (await this.oversight.boardsList(archived ?? false)).map((b) => ({
+            id: b.id,
+            name: b.name,
+            owner: b.owner.displayName,
+            dueDate: b.dueDate,
+            isArchived: b.isArchived,
+            memberCount: b.memberCount,
+            cardCount: b.cardCount,
+            doneCount: b.doneCount,
+          }));
+        }),
+    );
+
+    tool(
+      "search_all_tasks",
+      {
+        title: "Search all tasks (oversight)",
+        description:
+          "Cards across every board, regardless of membership. Supervisors only. Filters combine; completed cards are excluded unless includeCompleted or a done status is asked for. Returns up to `limit` rows and a nextCursor for the next page.",
+        inputSchema: {
+          assigneeId: z.string().optional().describe("only cards assigned to this user id"),
+          boardId: z.string().optional(),
+          status: ListStatusCategory.optional(),
+          overdue: z.boolean().optional().describe("past due and not done/closed"),
+          dueFrom: z.string().datetime().optional(),
+          dueTo: z.string().datetime().optional(),
+          includeCompleted: z.boolean().optional(),
+          query: z.string().max(200).optional().describe("case-insensitive title search"),
+          cursor: z.string().optional(),
+          limit: z.number().int().min(1).max(100).optional(),
+        },
+        annotations: readOnly,
+      },
+      (args) =>
+        run(async () => {
+          await this.assertSupervisor(userId);
+          const page = await this.oversight.tasks({
+            assigneeId: args.assigneeId,
+            boardId: args.boardId,
+            statusCategory: args.status,
+            overdue: args.overdue ?? false,
+            dueFrom: args.dueFrom,
+            dueTo: args.dueTo,
+            includeCompleted: args.includeCompleted ?? false,
+            q: args.query,
+            cursor: args.cursor,
+            limit: args.limit ?? 50,
+          });
+          return {
+            nextCursor: page.nextCursor,
+            items: page.items.map((t) => ({
+              id: t.id,
+              title: t.title,
+              board: t.boardName,
+              boardId: t.boardId,
+              list: t.listName,
+              status: t.statusCategory,
+              priority: t.priority,
+              dueDate: t.dueDate,
+              assignees: t.assignees.map((a) => a.displayName),
+              createdBy: t.createdBy.displayName,
+              subtasks: t.subtaskTotal ? `${t.subtaskDone}/${t.subtaskTotal}` : null,
+            })),
+          };
+        }),
     );
 
     // ── Cards ─────────────────────────────────────────────────────────────

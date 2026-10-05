@@ -1,4 +1,5 @@
 import { Navigate, Route, Routes } from "react-router-dom";
+import { canSupervise } from "./lib/can-supervise";
 import { useAuth } from "./features/auth/AuthContext";
 import { LoginPage } from "./features/auth/LoginPage";
 import { AccountPage } from "./features/auth/AccountPage";
@@ -9,6 +10,7 @@ import { ReportsPage } from "./features/reports/ReportsPage";
 import { AppShell } from "./app-shell/AppShell";
 import { MyTasksPage } from "./features/my-tasks/MyTasksPage";
 import { ArchivedBoardsPage } from "./features/boards/ArchivedBoardsPage";
+import { OversightPage } from "./features/oversight/OversightPage";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
@@ -22,6 +24,15 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
   if (isLoading) return <div className="p-8 text-slate-500">جارٍ التحميل...</div>;
   if (!user) return <Navigate to="/login" replace />;
   if (user.role !== "ADMIN") return <Navigate to="/boards" replace />;
+  return <>{children}</>;
+}
+
+/** «المتابعة» — an ADMIN or a user granted `canViewAllBoards`. The server's `SupervisorGuard` is the real gate. */
+function SupervisorRoute({ children }: { children: React.ReactNode }) {
+  const { user, isLoading } = useAuth();
+  if (isLoading) return <div className="p-8 text-slate-500">جارٍ التحميل...</div>;
+  if (!user) return <Navigate to="/login" replace />;
+  if (!canSupervise(user)) return <Navigate to="/boards" replace />;
   return <>{children}</>;
 }
 
@@ -68,6 +79,14 @@ export function App() {
             <ProtectedRoute>
               <MyTasksPage />
             </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/oversight"
+          element={
+            <SupervisorRoute>
+              <OversightPage />
+            </SupervisorRoute>
           }
         />
         <Route

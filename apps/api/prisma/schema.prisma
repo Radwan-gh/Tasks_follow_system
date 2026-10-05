@@ -78,6 +78,11 @@ model User {
   /// `common/guards/can-send-push.guard.ts`. Granted via
   /// `PATCH /admin/users/:id/permissions`.
   canSendNotifications Boolean @default(false)
+  /// Lets a non-admin oversee every board and task read-only («المتابعة»),
+  /// including boards they are not a member of. Admins always can — see
+  /// `canSupervise()` in `packages/types`. Only an ADMIN can grant it, via
+  /// `PATCH /admin/users/:id/permissions`.
+  canViewAllBoards Boolean @default(false)
   createdAt    DateTime @default(now())
 
   /// Three notification-category toggles (assignment/comments,

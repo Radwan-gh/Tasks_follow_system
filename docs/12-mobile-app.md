@@ -204,6 +204,19 @@ createApiClient({ baseUrl, storage, onUnauthorized })
 ويملؤهما في المرة القادمة؛ تفاصيله وقواعده في
 [`03-authentication.md`](./03-authentication.md) (قسم «تذكّرني» في شاشة الدخول).
 
+## «المتابعة» (`app/oversight.tsx`)
+
+لمن `canSupervise()` (ADMIN أو `canViewAllBoards`) صفّ «المتابعة — كل اللوحات
+والمهام» في «حسابي» يفتح شاشة `/oversight` (شاشة Stack، لا تبويب). فيها مبدّل
+«اللوحات / المهام»: اللوحات `BoardCard` مع اسم المالك ومبدّل «النشطة/المؤرشفة»؛
+والمهام قائمة `FlatList` تُحمّل الصفحة التالية عند الاقتراب من نهايتها
+(`useInfiniteQuery` + `nextCursor`)، مع بحث وشريحة «المتأخّرة فقط» وورقة «ترشيح»
+(`features/oversight/oversight-filter-sheet.tsx`) للمسؤول واللوحة والحالة و«إظهار
+المكتملة». فتح لوحة أو مهمة يمرّ بالشاشات العادية؛ `board/[id].tsx` و`card/[id].tsx`
+يعاملان `board.supervised` كدور المشاهد (لا نقل، لا تعديل، لا تعليق، لا إعدادات) مع
+شريط «وضع المتابعة». منح الصلاحية زرّ في `admin/users.tsx` لصفوف `USER` فقط. انظر
+[`16-oversight.md`](./16-oversight.md).
+
 ## «التقارير» في الشريط السفلي
 
 الشريط يعرض أربع شاشات، و«التقارير» تظهر لصاحب دور `ADMIN` فقط. تُخفى بـ

@@ -24,13 +24,14 @@ export class SubtasksService {
       include: { members: { select: { userId: true } } },
     });
     if (!card) throw new NotFoundException("Card not found");
-    await this.boards.assertMembership(userId, card.boardId, minRole);
+    const access = await this.boards.assertMembership(userId, card.boardId, minRole);
     const board = await this.prisma.board.findUnique({
       where: { id: card.boardId },
       select: { ownerId: true },
     });
     if (!board) throw new NotFoundException("Board not found");
-    if (!canAccessCard(userId, board.ownerId, card)) throw new NotFoundException("Card not found");
+    // A supervisor (only ever admitted on a `VIEWER` read) oversees restricted cards too.
+    if (!access.supervised && !canAccessCard(userId, board.ownerId, card)) throw new NotFoundException("Card not found");
     return card;
   }
 

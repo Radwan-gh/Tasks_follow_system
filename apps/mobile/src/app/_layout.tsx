@@ -66,6 +66,7 @@ function RootNavigator() {
         <Stack.Screen name="push" options={{ presentation: "modal" }} />
         <Stack.Screen name="notifications" />
         <Stack.Screen name="archived-boards" />
+        <Stack.Screen name="oversight" />
       </Stack.Protected>
       <Stack.Protected guard={!user}>
         <Stack.Screen name="login" />

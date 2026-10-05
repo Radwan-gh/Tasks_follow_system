@@ -260,7 +260,9 @@ export default function CardDetailScreen() {
   const overdue = dueDate ? isOverdue(dueDate) : false;
   // §3c-4 "اللوحة بعين المشاهد ... تفاصيل البطاقة قراءة كاملة بلا حقل تعليق".
   const myRole = board.data.members.find((m) => m.userId === user?.id)?.role;
-  const isViewer = myRole === "VIEWER";
+  // Opened from «المتابعة» without being a member: read-only like a viewer.
+  const isSupervised = board.data.supervised;
+  const isViewer = myRole === "VIEWER" || isSupervised;
   const canManageAccess = !isViewer && (user?.id === board.data.ownerId || user?.id === card.data.createdById);
   // §3c-4 "منتقي المسؤولين لا يعرض المشاهدين".
   const assignableMembers = board.data.members.filter((m) => m.role !== "VIEWER");
@@ -374,7 +376,7 @@ export default function CardDetailScreen() {
           }}
         >
           <AppText size="small" color={colors.muted}>
-            للعرض فقط — أنت مشاهد في هذه اللوحة
+            {isSupervised ? "وضع المتابعة — للقراءة فقط" : "للعرض فقط — أنت مشاهد في هذه اللوحة"}
           </AppText>
         </View>
       ) : null}

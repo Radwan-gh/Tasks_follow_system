@@ -328,8 +328,13 @@ export const SendPushRequestSchema = z.object({
 });
 export type SendPushRequest = z.infer<typeof SendPushRequestSchema>;
 
-/** `PATCH /admin/users/:id/permissions`. */
-export const UpdateUserPermissionsRequestSchema = z.object({
-  canSendNotifications: z.boolean(),
-});
+/** `PATCH /admin/users/:id/permissions` — ADMIN only. Send just the flag(s) being changed. */
+export const UpdateUserPermissionsRequestSchema = z
+  .object({
+    canSendNotifications: z.boolean().optional(),
+    canViewAllBoards: z.boolean().optional(),
+  })
+  .refine((v) => v.canSendNotifications !== undefined || v.canViewAllBoards !== undefined, {
+    message: "At least one permission must be provided",
+  });
 export type UpdateUserPermissionsRequest = z.infer<typeof UpdateUserPermissionsRequestSchema>;
