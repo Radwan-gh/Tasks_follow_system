@@ -81,6 +81,9 @@ export const UserSchema = z.object({
   // Granted by an admin; lets a USER open «إرسال إشعار». Admins can always
   // send regardless of this flag — check with `canSendPush()`, not the flag.
   canSendNotifications: z.boolean(),
+  // Granted by an admin; lets a USER see every board and task read-only
+  // («المتابعة»). Admins always can — check with `canSupervise()`, not the flag.
+  canViewAllBoards: z.boolean(),
   createdAt: z.string().datetime(),
 });
 export type User = z.infer<typeof UserSchema>;
@@ -88,6 +91,15 @@ export type User = z.infer<typeof UserSchema>;
 /** Whether a user may send push notifications from the app. Mirrors the server's `CanSendPushGuard`. */
 export function canSendPush(user: Pick<User, "role" | "canSendNotifications">): boolean {
   return user.role === "ADMIN" || user.canSendNotifications;
+}
+
+/**
+ * Whether a user may oversee every board and task read-only, including boards
+ * they are not a member of. Mirrors the server's `SupervisorGuard` and the
+ * supervision fallback in `BoardsService.assertMembership`.
+ */
+export function canSupervise(user: Pick<User, "role" | "canViewAllBoards">): boolean {
+  return user.role === "ADMIN" || user.canViewAllBoards;
 }
 
 /** Shape returned by GET /auth/me and stored client-side as the logged-in user. */
@@ -296,6 +308,10 @@ export const BoardDetailSchema = BoardSummarySchema.extend({
   // filter was passed). Lets a client show "عرض الأقدم" only when there is
   // actually something older to load.
   hiddenClosedCount: z.number().int(),
+  // True when the caller is not a member and sees the board only through
+  // oversight (`canSupervise`). Clients render it read-only — every write
+  // would be rejected server-side anyway.
+  supervised: z.boolean(),
 });
 export type BoardDetail = z.infer<typeof BoardDetailSchema>;
 

@@ -62,6 +62,9 @@ import {
   SendPushRequestSchema,
   SendPushResponseSchema,
   UpdateUserPermissionsRequestSchema,
+  OversightBoardSchema,
+  OversightTasksResponseSchema,
+  OversightUserSchema,
 } from "@app/types";
 
 // Enables `.openapi()` on any zod schema. `apps/api` and `packages/types`
@@ -136,6 +139,9 @@ registry.register("PushDevice", PushDeviceSchema);
 registry.register("SendPushRequest", SendPushRequestSchema);
 registry.register("SendPushResponse", SendPushResponseSchema);
 registry.register("UpdateUserPermissionsRequest", UpdateUserPermissionsRequestSchema);
+registry.register("OversightBoard", OversightBoardSchema);
+registry.register("OversightTasksResponse", OversightTasksResponseSchema);
+registry.register("OversightUser", OversightUserSchema);
 
 /**
  * Component schemas generated from the registrations above, keyed by the

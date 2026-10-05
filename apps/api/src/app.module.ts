@@ -7,6 +7,7 @@ import { ListsModule } from "./lists/lists.module";
 import { McpModule } from "./mcp/mcp.module";
 import { MyTasksModule } from "./my-tasks/my-tasks.module";
 import { NotificationsModule } from "./notifications/notifications.module";
+import { OversightModule } from "./oversight/oversight.module";
 import { PrismaModule } from "./prisma/prisma.module";
 import { ReportsModule } from "./reports/reports.module";
 import { SettingsModule } from "./settings/settings.module";
@@ -25,6 +26,7 @@ import { UsersModule } from "./users/users.module";
     SubtasksModule,
     ReportsModule,
     MyTasksModule,
+    OversightModule,
     NotificationsModule,
     UsersModule,
     TemplatesModule,

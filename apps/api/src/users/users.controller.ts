@@ -120,7 +120,7 @@ export class UsersController {
   }
 
   @Patch(":id/permissions")
-  @ApiOperation({ summary: "Grant or revoke a user's permissions (e.g. sending push notifications)" })
+  @ApiOperation({ summary: "Grant or revoke a user's permissions (sending push notifications, viewing all boards)" })
   @ApiParam({ name: "id", description: "User ID" })
   @ApiBody({ schema: zodRef("UpdateUserPermissionsRequest") })
   @ApiResponse({ status: 200, schema: zodRef("AdminUser") })
@@ -128,6 +128,6 @@ export class UsersController {
     @Param("id") id: string,
     @Body(new ZodValidationPipe(UpdateUserPermissionsRequestSchema)) body: UpdateUserPermissionsRequest,
   ) {
-    return this.users.updatePermissions(id, body.canSendNotifications);
+    return this.users.updatePermissions(id, body);
   }
 }

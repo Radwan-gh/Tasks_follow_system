@@ -302,7 +302,9 @@ export default function BoardScreen() {
   const isOwner = !!user && board.data?.ownerId === user.id;
   // §3c-4 "اللوحة بعين المشاهد ... بلا أسهم نقل ولا «+ إضافة مهمة» ولا سحب".
   const myRole = board.data?.members.find((m) => m.userId === user?.id)?.role;
-  const isViewer = myRole === "VIEWER";
+  // Opened from «المتابعة» without being a member: read-only like a viewer.
+  const isSupervised = !!board.data?.supervised;
+  const isViewer = myRole === "VIEWER" || isSupervised;
   const boardReadOnly = !!board.data?.isArchived || isViewer;
   /** Board owner or this card's own assignees may move it into «انتهى» — §3b-4. */
   function canCloseCard(card: Card): boolean {
@@ -438,14 +440,16 @@ export default function BoardScreen() {
         >
           <Ionicons name={searchOpen ? "close" : "search"} size={20} color={colors.muted} />
         </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="إعدادات اللوحة"
-          onPress={() => (isOwner ? setMenuVisible(true) : router.push(`/board/${id}/settings`))}
-          style={{ minWidth: MIN_TOUCH_TARGET, minHeight: MIN_TOUCH_TARGET, alignItems: "flex-end", justifyContent: "center" }}
-        >
-          <Ionicons name="ellipsis-horizontal" size={22} color={colors.muted} />
-        </Pressable>
+        {!isSupervised ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="إعدادات اللوحة"
+            onPress={() => (isOwner ? setMenuVisible(true) : router.push(`/board/${id}/settings`))}
+            style={{ minWidth: MIN_TOUCH_TARGET, minHeight: MIN_TOUCH_TARGET, alignItems: "flex-end", justifyContent: "center" }}
+          >
+            <Ionicons name="ellipsis-horizontal" size={22} color={colors.muted} />
+          </Pressable>
+        ) : null}
       </View>
 
       {board.data?.isArchived ? (
@@ -483,7 +487,9 @@ export default function BoardScreen() {
           }}
         >
           <AppText size="small" color={colors.muted}>
-            للعرض فقط — أنت مشاهد في هذه اللوحة
+            {isSupervised
+              ? "وضع المتابعة — لست عضوًا في هذه اللوحة، فهي معروضة للقراءة فقط"
+              : "للعرض فقط — أنت مشاهد في هذه اللوحة"}
           </AppText>
         </View>
       ) : null}

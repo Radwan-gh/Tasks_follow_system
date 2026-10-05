@@ -143,6 +143,23 @@ export function UsersAdminPage() {
     onError: onMutationError,
   });
 
+  // Only an ADMIN reaches this page (and the server's AdminGuard backs that up),
+  // so only an ADMIN can grant or revoke «الاطلاع على كل اللوحات».
+  const updateViewAll = useMutation({
+    mutationFn: ({ id, canViewAllBoards }: { id: string; canViewAllBoards: boolean }) =>
+      api.admin.updateUserPermissions(id, { canViewAllBoards }),
+    onSuccess: onMutationSuccess,
+    onError: onMutationError,
+  });
+
+  function onViewAllToggle(id: string, username: string, canViewAllBoards: boolean) {
+    const label = canViewAllBoards
+      ? `السماح لـ ${username} بالاطلاع على كل اللوحات والمهام (للقراءة فقط)؟`
+      : `سحب صلاحية الاطلاع على كل اللوحات من ${username}؟`;
+    if (!window.confirm(label)) return;
+    updateViewAll.mutate({ id, canViewAllBoards });
+  }
+
   function onStatusToggle(id: string, username: string, isActive: boolean) {
     const label = isActive
       ? `إعادة تفعيل ${username}؟ سيتمكن من تسجيل الدخول مرة أخرى.`
@@ -166,6 +183,7 @@ export function UsersAdminPage() {
     updateStatus.isPending ||
     setPassword.isPending ||
     updateUser.isPending ||
+    updateViewAll.isPending ||
     deleteUser.isPending;
 
   return (
@@ -282,6 +300,11 @@ export function UsersAdminPage() {
                         >
                           {u.role === "ADMIN" ? "مشرف" : "مستخدم"}
                         </span>
+                        {u.role !== "ADMIN" && u.canViewAllBoards && (
+                          <span className="ms-1.5 rounded bg-accent-soft px-2 py-0.5 text-xs font-medium text-accent">
+                            يطّلع على كل اللوحات
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-3">
                         <span
@@ -312,6 +335,16 @@ export function UsersAdminPage() {
                           >
                             {u.isActive ? "إلغاء التفعيل" : "إعادة التفعيل"}
                           </button>
+                          {/* Admins always see every board — the flag only matters for a USER. */}
+                          {u.role !== "ADMIN" && (
+                            <button
+                              onClick={() => onViewAllToggle(u.id, u.username, !u.canViewAllBoards)}
+                              disabled={isMutating}
+                              className="rounded border border-slate-300 px-2 py-1 text-xs text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                            >
+                              {u.canViewAllBoards ? "سحب الاطلاع على الكل" : "الاطلاع على كل اللوحات"}
+                            </button>
+                          )}
                           <button
                             onClick={() => {
                               setEditError(null);

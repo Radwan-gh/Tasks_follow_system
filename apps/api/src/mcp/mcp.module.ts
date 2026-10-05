@@ -4,6 +4,7 @@ import { AuthModule } from "../auth/auth.module";
 import { BoardsModule } from "../boards/boards.module";
 import { CardsModule } from "../cards/cards.module";
 import { MyTasksModule } from "../my-tasks/my-tasks.module";
+import { OversightModule } from "../oversight/oversight.module";
 import { SubtasksModule } from "../subtasks/subtasks.module";
 import { McpController } from "./mcp.controller";
 import { McpServerFactory } from "./mcp-server.factory";
@@ -17,7 +18,7 @@ import { McpOAuthProvider } from "./oauth/oauth.provider";
  * Nest's router by `mountMcp` (mount.ts), called from `main.ts`.
  */
 @Module({
-  imports: [AuthModule, JwtModule.register({}), BoardsModule, CardsModule, SubtasksModule, MyTasksModule],
+  imports: [AuthModule, JwtModule.register({}), BoardsModule, CardsModule, SubtasksModule, MyTasksModule, OversightModule],
   controllers: [McpController, OAuthLoginController],
   providers: [McpOAuthProvider, McpServerFactory],
 })

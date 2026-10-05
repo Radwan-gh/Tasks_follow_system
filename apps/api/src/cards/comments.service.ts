@@ -51,9 +51,9 @@ export class CommentsService {
 
   async list(userId: string, cardId: string): Promise<Comment[]> {
     const card = await this.loadCard(cardId);
-    await this.boards.assertMembership(userId, card.boardId, "VIEWER");
+    const access = await this.boards.assertMembership(userId, card.boardId, "VIEWER");
     const ownerId = await this.boardOwnerId(card.boardId);
-    if (!canAccessCard(userId, ownerId, card)) throw new NotFoundException("Card not found");
+    if (!access.supervised && !canAccessCard(userId, ownerId, card)) throw new NotFoundException("Card not found");
 
     const rows = await this.prisma.comment.findMany({
       where: { cardId },

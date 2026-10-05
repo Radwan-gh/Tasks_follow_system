@@ -19,12 +19,15 @@ export function BoardCard({
   isOwner,
   onPress,
   archived,
+  ownerName,
 }: {
   board: BoardSummary;
   isOwner: boolean;
   onPress: () => void;
   /** Grey "مؤرشفة" badge for the archived-boards list — §3b-3. */
   archived?: boolean;
+  /** «المتابعة» shows whose board it is, since the viewer usually isn't a member. */
+  ownerName?: string;
 }) {
   const overdue = board.dueDate ? isOverdue(board.dueDate) : false;
   const doneRatio = board.cardCount > 0 ? board.doneCount / board.cardCount : 0;
@@ -48,6 +51,11 @@ export function BoardCard({
           <AppText size="title" weight="semibold" numberOfLines={1}>
             {board.name}
           </AppText>
+          {ownerName ? (
+            <AppText size="caption" color={colors.muted} numberOfLines={1}>
+              المالك: {ownerName}
+            </AppText>
+          ) : null}
           {board.description ? (
             <AppText size="small" color={colors.muted} numberOfLines={2}>
               {board.description}

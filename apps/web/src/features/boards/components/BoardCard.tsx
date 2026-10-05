@@ -2,8 +2,12 @@ import { Link } from "react-router-dom";
 import type { BoardSummary } from "@app/types";
 import { UserAvatar } from "./MemberPicker";
 
-/** One board tile on `/boards` — enriched with the aggregates `GET /boards` already returns. */
-export function BoardCard({ board, isOwner }: { board: BoardSummary; isOwner: boolean }) {
+/**
+ * One board tile on `/boards` — enriched with the aggregates `GET /boards`
+ * already returns. «المتابعة» reuses it with `ownerName`, since there the
+ * viewer is usually not the owner and the owner is what they need to know.
+ */
+export function BoardCard({ board, isOwner, ownerName }: { board: BoardSummary; isOwner: boolean; ownerName?: string }) {
   const progress = board.cardCount > 0 ? Math.round((board.doneCount / board.cardCount) * 100) : 0;
   const previews = board.memberPreviews.slice(0, 3);
   const extraMembers = board.memberCount - previews.length;
@@ -23,6 +27,7 @@ export function BoardCard({ board, isOwner }: { board: BoardSummary; isOwner: bo
               </span>
             )}
           </div>
+          {ownerName && <p className="mt-1 truncate text-xs text-muted">المالك: {ownerName}</p>}
           {board.description && <p className="mt-1 truncate text-sm text-muted">{board.description}</p>}
         </div>
       </div>

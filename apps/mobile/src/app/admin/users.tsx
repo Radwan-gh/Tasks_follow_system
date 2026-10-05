@@ -3,7 +3,7 @@ import { Pressable, ScrollView, TextInput, View } from "react-native";
 import { useRouter } from "expo-router";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError } from "@app/api-client";
-import type { AdminUser, UpdateUserRequest, UserRole } from "@app/types";
+import type { AdminUser, UpdateUserPermissionsRequest, UpdateUserRequest, UserRole } from "@app/types";
 import { Screen } from "@/components/screen";
 import { AppText } from "@/components/text";
 import { ConfirmSheet } from "@/components/confirm-sheet";
@@ -152,8 +152,8 @@ export default function AdminUsersScreen() {
   });
 
   const updatePermissions = useMutation({
-    mutationFn: (input: { id: string; canSendNotifications: boolean }) =>
-      api.admin.updateUserPermissions(input.id, { canSendNotifications: input.canSendNotifications }),
+    mutationFn: ({ id, ...permissions }: { id: string } & UpdateUserPermissionsRequest) =>
+      api.admin.updateUserPermissions(id, permissions),
     onSuccess: invalidate,
     onError: reportError,
   });
@@ -341,6 +341,9 @@ export default function AdminUsersScreen() {
                   {u.role !== "ADMIN" && u.canSendNotifications ? (
                     <Badge label="يرسل الإشعارات" background={colors.accentSoft} color={colors.accent} />
                   ) : null}
+                  {u.role !== "ADMIN" && u.canViewAllBoards ? (
+                    <Badge label="يطّلع على كل اللوحات" background={colors.accentSoft} color={colors.accent} />
+                  ) : null}
                   <AppText size="caption" color={colors.muted}>
                     {u.boardCount} لوحة
                   </AppText>
@@ -391,6 +394,14 @@ export default function AdminUsersScreen() {
                       label={u.canSendNotifications ? "منع إرسال الإشعارات" : "السماح بإرسال الإشعارات"}
                       disabled={isMutating}
                       onPress={() => updatePermissions.mutate({ id: u.id, canSendNotifications: !u.canSendNotifications })}
+                    />
+                  ) : null}
+                  {/* Same for «المتابعة»: admins always see every board. Only an admin reaches this screen. */}
+                  {u.role !== "ADMIN" ? (
+                    <ActionButton
+                      label={u.canViewAllBoards ? "سحب الاطلاع على كل اللوحات" : "الاطلاع على كل اللوحات"}
+                      disabled={isMutating}
+                      onPress={() => updatePermissions.mutate({ id: u.id, canViewAllBoards: !u.canViewAllBoards })}
                     />
                   ) : null}
                 </View>

@@ -126,6 +126,8 @@ Server) و**خادم الموارد** (`/mcp`). الموجّهات القياس�
 | `get_card` | `CardsService.getDetail` + المهام الفرعية + التعليقات + المرفقات | كل حقول البطاقة، قائمتها (حالتها)، المُسنَدون، الوصول، المهام الفرعية، التعليقات، وأسماء المرفقات |
 | `get_card_history` | `CardsService.getHistory` | سجلّ النشاط |
 | `my_tasks` | `MyTasksService.list` | مهامي المفتوحة عبر كل اللوحات |
+| `list_all_boards` | `OversightService.boardsList` | **للمتابع فقط** (`isSupervisor`): كل لوحات النظام مع مالكها — انظر [`16-oversight.md`](./16-oversight.md) |
+| `search_all_tasks` | `OversightService.tasks` | **للمتابع فقط**: البطاقات عبر كل اللوحات بمرشّحات `GET /oversight/tasks` و`nextCursor`. `get_board`/`get_card` تعمل للمتابع على أي لوحة للقراءة فقط (`supervised: true`)، وأدوات الكتابة تُرفض |
 | `create_card` | `CardsService.create` (+ `updateAssignees`) | كل حقول الإنشاء: العنوان، الوصف، الاستحقاق ووقته، الأولوية، التكلفة وملاحظتها، التكرار، والمُسنَدون |
 | `update_card` | `CardsService.update` | أي حقل قابل للتعديل بما فيه الأرشفة؛ `null` يمسح الحقل |
 | `move_card` | `CardsService.update` (`targetListId` + `move`) | تغيير الحالة = النقل إلى قائمة أخرى؛ الموضع `top`/`bottom`/بعد بطاقة معيّنة. الأداة تحسب **معرّفات الجيران فقط** والخادم يحسب المفتاح عبر `computeMovePosition` (انظر [`06-ordering.md`](./06-ordering.md)) |

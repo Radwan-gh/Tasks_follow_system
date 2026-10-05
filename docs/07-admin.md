@@ -23,7 +23,7 @@
 | `POST /admin/users/:id/reset-password` | توليد كلمة مرور مؤقتة عشوائية (يستخدمها `apps/mobile`) — انظر [`14-notifications-comments-attachments.md`](./14-notifications-comments-attachments.md) |
 | `PATCH /admin/users/:id/role` | تغيير دور المستخدم (USER/ADMIN) |
 | `PATCH /admin/users/:id/status` | تفعيل/تعطيل المستخدم |
-| `PATCH /admin/users/:id/permissions` | منح/سحب صلاحية «إرسال الإشعارات» (`canSendNotifications`) |
+| `PATCH /admin/users/:id/permissions` | منح/سحب صلاحية «إرسال الإشعارات» (`canSendNotifications`) و/أو «الاطلاع على كل اللوحات» (`canViewAllBoards`) — يُرسَل الحقل المتغيّر فقط، وحقل واحد على الأقل |
 
 ## صلاحية «إرسال الإشعارات» (Permissions)
 
@@ -39,6 +39,19 @@
   والصلاحيات»، يظهر لصفوف `USER` فقط، مع شارة «يرسل الإشعارات» لمن مُنحها.
 - تفاصيل الإرسال نفسه في
   [`14-notifications-comments-attachments.md`](./14-notifications-comments-attachments.md).
+
+## صلاحية «الاطلاع على كل اللوحات» (المتابعة)
+
+- `User.canViewAllBoards` (افتراضيًا `false`) يسمح لمستخدم `USER` بقراءة **كل** اللوحات
+  والمهام في النظام دون أن يكون عضوًا فيها ودون أي قدرة على التعديل. القاعدة
+  `canSupervise()` = `role === "ADMIN" || canViewAllBoards`، فالـ ADMIN يملكها دائمًا.
+- **لا يمنحها أو يسحبها إلا ADMIN** من هذا المتحكّم المحمي بـ `AdminGuard`.
+- تُقرأ من قاعدة البيانات في كل طلب (`BoardsService.isSupervisor`)، فالسحب يسري من
+  الطلب التالي دون إبطال الجلسات.
+- في الويب: زرّ «الاطلاع على كل اللوحات» / «سحب الاطلاع على الكل» وشارة «يطّلع على كل
+  اللوحات» في `UsersAdminPage.tsx`. في الجوال: زرّ مماثل وشارة في `admin/users.tsx`.
+  كلاهما لصفوف `USER` فقط.
+- منطق الميزة كاملًا في [`16-oversight.md`](./16-oversight.md).
 
 ## إنشاء مستخدم (Create) — بديل التسجيل الذاتي
 

@@ -65,6 +65,7 @@ OAuthAuthorizationCode ─ client, user
 | `notificationPrefs` | optional JSON | Three notification-preference toggles (assignment/comments · due-dates/overdue · my cards moved), all `true` by default — see `NotificationPrefsSchema` |
 | `mustChangePassword` | boolean | Set by `POST /admin/users/:id/reset-password` (default `false`), cleared automatically by `POST /auth/change-password` — see [`14-notifications-comments-attachments.md`](./14-notifications-comments-attachments.md#password-reset) |
 | `canSendNotifications` | boolean | Lets a `USER` send manual push from the app's «إرسال إشعار» screen (default `false`). `ADMIN`s can always send regardless — the rule is `canSendPush()` in `packages/types`. Granted via `PATCH /admin/users/:id/permissions` — see [`07-admin.md`](./07-admin.md) |
+| `canViewAllBoards` | boolean | Lets a `USER` read every board and task read-only («المتابعة»), including boards they are not a member of (default `false`). `ADMIN`s always can — the rule is `canSupervise()` in `packages/types`. Only an ADMIN grants it, via `PATCH /admin/users/:id/permissions` — see [`16-oversight.md`](./16-oversight.md) |
 | `createdAt` | date | Creation time |
 
 ### RefreshToken
