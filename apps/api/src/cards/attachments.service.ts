@@ -2,9 +2,11 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
   PayloadTooLargeException,
 } from "@nestjs/common";
+import { Cron, CronExpression } from "@nestjs/schedule";
 import type { Attachment } from "@app/types";
 import { PrismaService } from "../prisma/prisma.service";
 import { BoardsService, canAccessCard, canManageCard } from "../boards/boards.service";
@@ -13,7 +15,23 @@ import { buildStoredFilename, displayNameFromStored } from "../common/util/uploa
 
 /** Any file type may be attached (originally images only, `design-prompt-group-3.md` §3) — the caps below still apply. */
 export const MAX_ATTACHMENTS_PER_CARD = 10;
-export const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
+export const MAX_ATTACHMENT_BYTES = 30 * 1024 * 1024;
+
+/** How long a staged upload (`stage`) waits to be attached before it is purged. */
+export const PENDING_UPLOAD_TTL_MS = 60 * 60 * 1000;
+/** Staged-but-unattached files one user may hold at once, so upload links can't fill the bucket. */
+export const MAX_PENDING_UPLOADS_PER_USER = 10;
+
+type UploadedFile = { originalname: string; mimetype: string; size: number; buffer: Buffer };
+
+/** A staged upload as `POST /mcp-uploads/:token` returns it. */
+export interface StagedUpload {
+  uploadId: string;
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
+  expiresAt: string;
+}
 
 function serialize(row: {
   id: string;
@@ -38,6 +56,8 @@ function serialize(row: {
 
 @Injectable()
 export class AttachmentsService {
+  private readonly logger = new Logger(AttachmentsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly boards: BoardsService,
@@ -102,12 +122,8 @@ export class AttachmentsService {
     return { attachment: serialize(row), data };
   }
 
-  /** `file` is still in memory — it is only written to storage once access and the count cap pass. */
-  async create(
-    userId: string,
-    cardId: string,
-    file: { originalname: string; mimetype: string; size: number; buffer: Buffer },
-  ): Promise<Attachment> {
+  /** Who may add a file to a card: an editing member who can open it, on a live board, under the per-card cap. */
+  private async assertCanAttach(userId: string, cardId: string) {
     const card = await this.loadCard(cardId);
     await this.boards.assertMembership(userId, card.boardId);
     const ownerId = await this.boardOwnerId(card.boardId);
@@ -118,6 +134,11 @@ export class AttachmentsService {
     if (count >= MAX_ATTACHMENTS_PER_CARD) {
       throw new BadRequestException(`Cards can have at most ${MAX_ATTACHMENTS_PER_CARD} attachments`);
     }
+  }
+
+  /** `file` is still in memory — it is only written to storage once access and the count cap pass. */
+  async create(userId: string, cardId: string, file: UploadedFile): Promise<Attachment> {
+    await this.assertCanAttach(userId, cardId);
 
     const filename = buildStoredFilename(file.originalname);
     await this.storage.put(filename, file.buffer, file.mimetype);
@@ -137,6 +158,93 @@ export class AttachmentsService {
       await this.storage.remove(filename);
       throw err;
     }
+  }
+
+  /**
+   * First half of attaching a file over MCP (docs/15-mcp-server.md): store the
+   * bytes now, attach them later with `attachStaged`. Not tied to a card yet,
+   * so the only checks here are the uploader's own cap on unclaimed files and
+   * the size limit multer already enforced.
+   */
+  async stage(userId: string, file: UploadedFile): Promise<StagedUpload> {
+    if (file.size === 0) throw new BadRequestException("The file is empty");
+    const pending = await this.prisma.pendingUpload.count({ where: { userId, expiresAt: { gt: new Date() } } });
+    if (pending >= MAX_PENDING_UPLOADS_PER_USER) {
+      throw new BadRequestException(
+        `At most ${MAX_PENDING_UPLOADS_PER_USER} uploads can wait to be attached — attach them, or wait an hour for them to expire`,
+      );
+    }
+
+    const filename = buildStoredFilename(file.originalname);
+    await this.storage.put(filename, file.buffer, file.mimetype);
+    try {
+      const row = await this.prisma.pendingUpload.create({
+        data: {
+          userId,
+          filename,
+          mimeType: file.mimetype,
+          sizeBytes: file.size,
+          expiresAt: new Date(Date.now() + PENDING_UPLOAD_TTL_MS),
+        },
+      });
+      return {
+        uploadId: row.id,
+        fileName: displayNameFromStored(row.filename),
+        mimeType: row.mimeType,
+        sizeBytes: row.sizeBytes,
+        expiresAt: row.expiresAt.toISOString(),
+      };
+    } catch (err) {
+      await this.storage.remove(filename);
+      throw err;
+    }
+  }
+
+  /**
+   * Second half: turn the caller's own staged upload into an attachment, under
+   * the same rules as `create`. The storage object is reused as-is (its key is
+   * the stored filename), so nothing is copied. Single use: the pending row is
+   * claimed with a conditional delete, so two concurrent calls can't both win.
+   */
+  async attachStaged(userId: string, cardId: string, uploadId: string): Promise<Attachment> {
+    await this.assertCanAttach(userId, cardId);
+    const created = await this.prisma.$transaction(async (tx) => {
+      const pending = await tx.pendingUpload.findFirst({
+        where: { id: uploadId, userId, expiresAt: { gt: new Date() } },
+      });
+      if (!pending) throw new NotFoundException("Upload not found or expired — upload the file again");
+      const claimed = await tx.pendingUpload.deleteMany({ where: { id: pending.id } });
+      if (claimed.count !== 1) throw new NotFoundException("Upload was already attached");
+      return tx.attachment.create({
+        data: {
+          cardId,
+          uploaderId: userId,
+          filename: pending.filename,
+          mimeType: pending.mimeType,
+          sizeBytes: pending.sizeBytes,
+        },
+        include: { uploader: { select: { id: true, username: true, displayName: true } } },
+      });
+    });
+    return serialize(created);
+  }
+
+  /** Deletes staged uploads nobody attached in time, with their storage objects. */
+  @Cron(CronExpression.EVERY_HOUR)
+  async purgeExpiredUploads(): Promise<void> {
+    const expired = await this.prisma.pendingUpload.findMany({
+      where: { expiresAt: { lte: new Date() } },
+      select: { id: true, filename: true },
+    });
+    let purged = 0;
+    for (const upload of expired) {
+      // Claimed by `attachStaged` in the meantime? Then the object is an attachment's now.
+      const { count } = await this.prisma.pendingUpload.deleteMany({ where: { id: upload.id, expiresAt: { lte: new Date() } } });
+      if (count === 0) continue;
+      await this.storage.remove(upload.filename);
+      purged++;
+    }
+    if (purged > 0) this.logger.log(`Purged ${purged} expired upload(s)`);
   }
 
   async remove(userId: string, cardId: string, attachmentId: string): Promise<void> {

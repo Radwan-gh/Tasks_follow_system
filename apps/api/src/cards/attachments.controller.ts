@@ -21,7 +21,7 @@ import { zodArrayRef, zodRef } from "../swagger/zod-ref";
 
 // No `fileFilter`: any file type is accepted. Safety comes from how files are
 // named (`buildStoredFilename`) and served (`setUploadHeaders`/signed-URL headers).
-// Buffered in memory (capped at 20MB) so nothing is stored until the service has
+// Buffered in memory (capped at 30MB) so nothing is stored until the service has
 // checked access and the per-card cap — see `AttachmentsService.create`.
 const upload = FileInterceptor("file", {
   storage: memoryStorage(),
@@ -45,7 +45,7 @@ export class AttachmentsController {
 
   @Post()
   @UseInterceptors(upload)
-  @ApiOperation({ summary: "Upload a file attachment (any type, max 20MB) to a card" })
+  @ApiOperation({ summary: "Upload a file attachment (any type, max 30MB) to a card" })
   @ApiParam({ name: "cardId", description: "Card ID" })
   @ApiConsumes("multipart/form-data")
   @ApiBody({ schema: { type: "object", properties: { file: { type: "string", format: "binary" } } } })

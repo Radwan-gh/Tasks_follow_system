@@ -13,7 +13,7 @@ export function attachmentUrl(path: string): string {
 }
 
 /** Mirrors `MAX_ATTACHMENT_BYTES` in `apps/api/src/cards/attachments.service.ts` — checked before uploading so an oversized file fails fast. */
-export const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
+export const MAX_ATTACHMENT_BYTES = 30 * 1024 * 1024;
 
 const PREVIEWABLE_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
 

@@ -111,8 +111,9 @@ Server) و**خادم الموارد** (`/mcp`). الموجّهات القياس�
 تستطيع الرد. `GET`/`DELETE` تُرجع `405`.
 
 **حجم الطلب:** `/mcp` له محلّل JSON خاص به (`mcpJsonParser` في `mount.ts`) بحدّ يتّسع
-لأكبر مرفق بترميز base64 (`MCP_MAX_ATTACHMENT_BYTES` × 4/3 + 1MB)، بينما تبقى بقية
-المسارات على حدّ Nest الافتراضي (100kb). يُركَّب **بعد** فحص الرمز، فلا يستطيع عميل
+لأكبر ملاحظة نصّية يقبلها `add_attachment` مباشرة (`MCP_MAX_INLINE_TEXT_BYTES` = 1MB ×
+2، لأن النص غير اللاتيني قد يكبر عند ترميزه)، بينما تبقى بقية المسارات على حدّ Nest
+الافتراضي (100kb). الملفات الحقيقية لا تمرّ من هنا بل عبر رابط الرفع (أدناه). يُركَّب **بعد** فحص الرمز، فلا يستطيع عميل
 مجهول أن يجعل الـ API يحمّل جسمًا كبيرًا في الذاكرة. واسمه ليس `jsonParser` عمدًا:
 Nest يتخطّى تسجيل محلّله العام إن وجد وسيطًا بهذا الاسم (`isMiddlewareApplied`).
 
@@ -144,8 +145,9 @@ Nest يتخطّى تسجيل محلّله العام إن وجد وسيطًا ب
 | `add_subtask` / `update_subtask` / `set_subtask_assignees` | `SubtasksService` | إضافة، إعادة تسمية، إنجاز/إلغاء إنجاز، إعادة ترتيب، إسناد. `update_subtask` يقبل `position` (`top`/`bottom`/`{ afterSubtaskId }`) ويحوّله إلى `move` بمعرّفات الجيران كما في `move_card` (الدالة المشتركة `neighbours`) |
 | `delete_subtask` | `SubtasksService.remove` | حذف نهائي؛ `destructiveHint: true` |
 | `add_comment` | `CommentsService.create` | تُطلق الإشعارات المعتادة |
-| `read_attachment` | `AttachmentsService.read` | يفتح مرفقًا: الصور (`png`/`jpeg`/`gif`/`webp`) تعود صورةً يراها النموذج، والملفات النصّية نصًّا، وغيرها (PDF، Word…) موردًا بترميز base64. ما فوق `MCP_MAX_ATTACHMENT_BYTES` (5MB) يُرفض بـ 413 قبل القراءة من التخزين |
-| `add_attachment` | `AttachmentsService.create` | خادم MCP البعيد لا يرى ملفّات المستخدم، فيُرسَل **المحتوى نفسه**: إمّا `contentBase64` أو `text` (لملفّ نصّي) — واحد فقط. حتى 5MB (أقل من 20MB في التطبيق لأن الملف يمرّ داخل استدعاء الأداة)، وتسري قاعدة 10 مرفقات للبطاقة وكل فحوص الرفع العادي |
+| `read_attachment` | `AttachmentsService.read` | يفتح مرفقًا: الصور (`png`/`jpeg`/`gif`/`webp`) تعود صورةً يراها النموذج، والملفات النصّية نصًّا، وغيرها (PDF، Word…) موردًا بترميز base64. ما فوق `MCP_MAX_READ_BYTES` (5MB) يُرفض بـ 413 قبل القراءة من التخزين، لأن البايتات تمرّ داخل نتيجة الأداة |
+| `create_upload_link` | `UploadLinkService.create` | الخطوة 1 لإرفاق ملف: رابط رفع موقَّع صالح 15 دقيقة (انظر «رفع الملفات» أدناه) |
+| `add_attachment` | `AttachmentsService.attachStaged` / `create` | الخطوة 2: إمّا `uploadId` من الرفع (يُحوَّل إلى مرفق)، أو `text` + `fileName` لملاحظة نصّية قصيرة (حتى 1MB) — واحد فقط. تسري قاعدة 10 مرفقات للبطاقة وكل فحوص الرفع العادي |
 | `delete_attachment` | `AttachmentsService.remove` | للرافع أو منشئ البطاقة أو مالك اللوحة؛ `destructiveHint: true` |
 | `create_board` | `BoardsService.create` | المستخدم يصبح المالك؛ **`template` غير مكشوف** فتأتي اللوحة دائمًا بالقوائم الخمس |
 | `find_users_to_add` | `BoardsService.listMemberCandidates` | للمالك فقط |
@@ -155,6 +157,37 @@ Nest يتخطّى تسجيل محلّله العام إن وجد وسيطًا ب
 بـ `update_card`)، وإدارة المستخدمين. حذف المهام الفرعية والمرفقات متاح لأنه لا بديل له:
 بدونه اضطرّ Claude إلى إعادة إنشاء البطاقة كاملة لحذف بنود منها، فضاع معرّفها وسجلّها.
 أدوات الحذف مُعلَّمة `destructiveHint: true` فيطلب العميل تأكيد المستخدم.
+
+## رفع الملفات: رابط رفع ثم `uploadId`
+
+خادم MCP البعيد لا يرى ملفّات المستخدم، وإرسال الملف داخل استدعاء الأداة (base64) يضخّم
+الطلب ويصطدم بحدود العملاء. لذلك يُرفع الملف **خارج** MCP على خطوتين:
+
+1. **`create_upload_link`** يعيد `uploadUrl` = `<PUBLIC_API_URL>/mcp-uploads/<token>`.
+   الرمز JWT موقَّع بمفتاح خاص (`JWT_ACCESS_SECRET:mcp-upload-link`، لا يصلح لأي شيء
+   آخر)، يحمل معرّف المستخدم، وصالح **15 دقيقة** (`UPLOAD_LINK_TTL_SECONDS`) لعدّة
+   ملفات. الرابط يحلّ محلّ رمز MCP لأن أدوات النموذج نفسها (الطرفية، تنفيذ الكود) لا ترى
+   رمز MCP.
+2. **`POST /mcp-uploads/:token`** (`McpUploadsController`) — `multipart/form-data` بحقل
+   `file`، مثل `curl -F "file=@report.docx" "<uploadUrl>"`. يتحقّق `UploadLinkGuard` من
+   الرمز ومن أن الحساب ما زال نشطًا **قبل** أن يقرأ `multer` الجسم (الحرّاس تسبق
+   المعترِضات)، فرابط مزوَّر يُرفض بـ 401 دون تحميل 30MB في الذاكرة. ثم
+   `AttachmentsService.stage` يخزّن الملف (نفس `buildStoredFilename` والتخزين) وينشئ صفّ
+   `PendingUpload`، ويعيد `{ uploadId, fileName, mimeType, sizeBytes, expiresAt }`.
+   المسار خارج `/mcp` عمدًا، لأن كل ما تحت `/mcp` يشترط رمز MCP.
+3. **`add_attachment({ cardId, uploadId })`** → `AttachmentsService.attachStaged`: نفس فحوص
+   `create` (العضوية، الوصول للبطاقة، اللوحة غير مؤرشفة، حدّ 10 مرفقات)، ثم داخل معاملة
+   يُحذف صفّ `PendingUpload` حذفًا مشروطًا (استعمال واحد — طلبان متزامنان لا ينجحان
+   معًا) ويُنشأ `Attachment` بنفس مفتاح التخزين، **بلا نسخ للبايتات**. لا يقبل إلا
+   رفعًا يخصّ المستخدم نفسه ولم تنتهِ صلاحيته.
+
+**الحدود:** حتى 30MB للملف (`MAX_ATTACHMENT_BYTES`، كالتطبيق). الرفع المعلّق صالح ساعة
+(`PENDING_UPLOAD_TTL_MS`)، وحتى 10 رفوع معلّقة للمستخدم (`MAX_PENDING_UPLOADS_PER_USER`)
+كي لا يُملأ التخزين عبر الروابط. `purgeExpiredUploads` (كل ساعة، `@nestjs/schedule`) يحذف
+الصفوف المنتهية وكائناتها — بحذف مشروط، فرفع أُرفق في اللحظة نفسها لا يُمسّ.
+
+**حدّ معروف:** يحتاج العميل أن يستطيع إرسال طلب HTTP بالملف: Claude Code (عبر `curl`)
+يستطيع؛ أمّا claude.ai فبيئة تنفيذ الكود فيه قد لا تصل إلى عنوان الـ API.
 
 ## المهام المتكرّرة كما يراها Claude
 

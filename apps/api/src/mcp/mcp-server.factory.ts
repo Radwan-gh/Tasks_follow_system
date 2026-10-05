@@ -27,7 +27,9 @@ import { MyTasksService } from "../my-tasks/my-tasks.service";
 import { OversightService } from "../oversight/oversight.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { SubtasksService } from "../subtasks/subtasks.service";
+import { MAX_ATTACHMENT_BYTES, PENDING_UPLOAD_TTL_MS } from "../cards/attachments.service";
 import { mcpUrls } from "./mcp.config";
+import { UploadLinkService } from "./uploads/upload-link.service";
 
 const SERVER_INSTRUCTIONS = `غِراس (Ghiras) is a Kanban task tracker: boards contain lists, lists contain cards (tasks).
 A card's status IS the list it sits in — to change a task's status, move the card with move_card.
@@ -37,13 +39,16 @@ All actions run as the signed-in user with their own board permissions.
 A supervisor (an admin, or a user granted «الاطلاع على كل اللوحات») can also read every board and task through list_all_boards and search_all_tasks, and open any board or card read-only — they still cannot change boards they are not a member of.`;
 
 /**
- * Largest file `add_attachment` accepts and `read_attachment` returns. The
- * bytes travel as base64 inside a tool call or result, so this sits well
- * under the app's 20MB (`MAX_ATTACHMENT_BYTES`); `mountMcp` sizes the `/mcp`
- * body limit from it.
+ * Largest file `read_attachment` returns. Its bytes travel as base64 inside the
+ * tool result, so this sits well under the app's 30MB (`MAX_ATTACHMENT_BYTES`).
  */
-export const MCP_MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
-const MCP_MAX_ATTACHMENT_MB = MCP_MAX_ATTACHMENT_BYTES / (1024 * 1024);
+const MCP_MAX_READ_BYTES = 5 * 1024 * 1024;
+/**
+ * Largest `text` `add_attachment` takes inline. Files go through an upload
+ * link instead; `mountMcp` sizes the `/mcp` body limit from this.
+ */
+export const MCP_MAX_INLINE_TEXT_BYTES = 1024 * 1024;
+const toMb = (bytes: number) => bytes / (1024 * 1024);
 
 /** Types `read_attachment` returns as an image the model can see. */
 const IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp"]);
@@ -145,6 +150,7 @@ export class McpServerFactory {
     private readonly subtasks: SubtasksService,
     private readonly myTasks: MyTasksService,
     private readonly oversight: OversightService,
+    private readonly uploadLinks: UploadLinkService,
   ) {
     this.publicBase = mcpUrls(config).issuer;
   }
@@ -568,14 +574,14 @@ export class McpServerFactory {
       "read_attachment",
       {
         title: "Read attachment",
-        description: `Open a file attached to a card (attachment id from get_card). Images come back as images, text files as text, and other files (PDF, Word…) as a base64 resource. Files over ${MCP_MAX_ATTACHMENT_MB}MB are refused — share their url instead.`,
+        description: `Open a file attached to a card (attachment id from get_card). Images come back as images, text files as text, and other files (PDF, Word…) as a base64 resource. Files over ${toMb(MCP_MAX_READ_BYTES)}MB are refused — share their url instead.`,
         inputSchema: { cardId: z.string(), attachmentId: z.string() },
         annotations: readOnly,
       },
       async ({ cardId, attachmentId }) => {
         let file: Awaited<ReturnType<AttachmentsService["read"]>> | undefined;
         const failure = await run(async () => {
-          file = await this.attachments.read(userId, cardId, attachmentId, MCP_MAX_ATTACHMENT_BYTES);
+          file = await this.attachments.read(userId, cardId, attachmentId, MCP_MAX_READ_BYTES);
         });
         if (!file) return failure;
 
@@ -595,50 +601,61 @@ export class McpServerFactory {
     );
 
     tool(
+      "create_upload_link",
+      {
+        title: "Create upload link",
+        description:
+          `Step 1 of attaching a file: get a short-lived URL to upload it to. POST the file there as multipart/form-data in a field named "file" — e.g. curl -F "file=@report.docx" "<uploadUrl>" — and the response's uploadId goes to add_attachment. ` +
+          `Files up to ${toMb(MAX_ATTACHMENT_BYTES)}MB, any type; the link works for several files until it expires. Only needed for real files — for a short text note, pass text to add_attachment directly.`,
+        annotations: write,
+      },
+      () =>
+        run(async () => ({
+          ...(await this.uploadLinks.create(userId)),
+          method: "POST",
+          field: "file",
+          uploadsExpireAfterMinutes: PENDING_UPLOAD_TTL_MS / 60_000,
+        })),
+    );
+
+    tool(
       "add_attachment",
       {
         title: "Add attachment",
-        description: `Attach a file to a card as the signed-in user. Send the file itself, as exactly one of: contentBase64 (any file) or text (a plain-text file such as .txt, .md or .csv). Up to ${MCP_MAX_ATTACHMENT_MB}MB, and at most 10 attachments per card.`,
+        description:
+          `Attach a file to a card as the signed-in user. Either uploadId — from uploading the file to a create_upload_link URL — or text, to save a short plain-text note as a file (with fileName, e.g. notes.md; up to ${toMb(MCP_MAX_INLINE_TEXT_BYTES)}MB). Exactly one. At most 10 attachments per card.`,
         inputSchema: {
           cardId: z.string(),
+          uploadId: z.string().optional().describe("From the upload link's response; single use"),
+          text: z.string().optional().describe("The content of a plain-text file, stored as UTF-8"),
           fileName: z
             .string()
             .min(1)
             .max(255)
-            .describe("Name shown in the app, with its extension (e.g. report.docx) — the extension decides how it opens"),
-          mimeType: z
-            .string()
-            .max(255)
             .optional()
-            .describe("e.g. application/pdf; defaults to text/plain for text, application/octet-stream otherwise"),
-          contentBase64: z.string().optional().describe("The file's bytes, base64-encoded"),
-          text: z.string().optional().describe("The file's content, for a text file; stored as UTF-8"),
+            .describe("With text only: the name shown in the app, with its extension. An upload keeps its own name"),
         },
         annotations: write,
       },
-      ({ cardId, fileName, mimeType, contentBase64, text }) =>
+      ({ cardId, uploadId, text, fileName }) =>
         run(async () => {
-          let buffer: Buffer;
-          if (text !== undefined && contentBase64 === undefined) {
-            buffer = Buffer.from(text, "utf8");
-          } else if (contentBase64 !== undefined && text === undefined) {
-            const base64 = contentBase64.replace(/^data:[^,]*;base64,/, "").replace(/\s+/g, "");
-            if (!/^[A-Za-z0-9+/]*={0,2}$/.test(base64) || base64.length % 4 === 1) {
-              throw new BadRequestException("contentBase64 is not valid base64");
-            }
-            buffer = Buffer.from(base64, "base64");
-          } else {
-            throw new BadRequestException("Pass exactly one of contentBase64 or text");
+          if ((uploadId === undefined) === (text === undefined)) {
+            throw new BadRequestException("Pass exactly one of uploadId or text");
           }
+          if (uploadId !== undefined) {
+            return this.attachmentView(await this.attachments.attachStaged(userId, cardId, uploadId));
+          }
+          if (!fileName) throw new BadRequestException("fileName is required with text");
+          const buffer = Buffer.from(text!, "utf8");
           if (buffer.length === 0) throw new BadRequestException("The file is empty");
-          if (buffer.length > MCP_MAX_ATTACHMENT_BYTES) {
+          if (buffer.length > MCP_MAX_INLINE_TEXT_BYTES) {
             throw new PayloadTooLargeException(
-              `Files over ${MCP_MAX_ATTACHMENT_MB}MB can't be attached through Claude — upload it from the app`,
+              `Text over ${toMb(MCP_MAX_INLINE_TEXT_BYTES)}MB — upload it as a file through create_upload_link`,
             );
           }
           const attachment = await this.attachments.create(userId, cardId, {
             originalname: fileName,
-            mimetype: mimeType ?? (text !== undefined ? "text/plain" : "application/octet-stream"),
+            mimetype: "text/plain",
             size: buffer.length,
             buffer,
           });

@@ -117,7 +117,7 @@
 - `POST/DELETE /cards/:cardId/comments`، حذف مقصور على الكاتب.
 - `POST/DELETE /cards/:cardId/attachments` (`multer` + قرص محلي +
   `ServeStaticModule` على `/uploads`)، حتى 10 مرفقات · ~~صور فقط · 5MB~~ صار
-  **أي نوع ملف · 20MB** — انظر [`14-notifications-comments-attachments.md`](./14-notifications-comments-attachments.md).
+  **أي نوع ملف · 30MB** (كان 20MB) — انظر [`14-notifications-comments-attachments.md`](./14-notifications-comments-attachments.md).
 - `Card.recurrence` تُكتب فعليًا الآن؛ النقل إلى «انتهى» يولّد النسخة التالية
   في «جديد» عبر `CardsService.spawnNextRecurrence`.
 - `POST /admin/users/:id/reset-password` (كلمة مرور مؤقتة تُولَّد وتُعاد مرة

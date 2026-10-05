@@ -247,7 +247,11 @@ service methods as the REST controllers (so `assertMembership` applies) and take
 their input shapes from `packages/types`. Register tools through the
 `toolRegistrar` helper in `mcp-server.factory.ts`, not `server.registerTool`
 directly — the SDK's own generic typing runs `tsc` out of memory on these
-schemas. Lists are deliberately not creatable over MCP.
+schemas. Lists are deliberately not creatable over MCP. Files are attached in
+two steps: `create_upload_link` hands out a signed `/mcp-uploads/:token` URL,
+the client posts the file there for an `uploadId`, and `add_attachment` claims
+it. That route must stay outside `/mcp` (everything under it requires the MCP
+bearer token, which the model's own shell/code tools never see).
 
 ### Request validation
 

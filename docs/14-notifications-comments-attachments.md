@@ -194,14 +194,14 @@ DELETE /cards/:cardId/attachments/:attachmentId
 ```
 
 - **القيود** (`attachments.service.ts`): **أي نوع ملف** (كانت صورًا فقط)، حتى
-  20MB للملف (`MAX_ATTACHMENT_BYTES`، يُنفَّذ عبر `multer`'s `limits` — تجاوزه
+  30MB للملف (`MAX_ATTACHMENT_BYTES`، كان 20MB؛ يُنفَّذ عبر `multer`'s `limits` — تجاوزه
   يُرجع 413)، وحتى 10 مرفقات للبطاقة (يُتحقَّق منه في الخدمة بعد الرفع — يُحذف
   الملف من القرص فورًا إن تجاوز العدد الحد). لا `fileFilter` بعد الآن.
 - **التخزين** (`AttachmentStorageService` في `common/storage/`): في الإنتاج
   **Railway Bucket** متوافق مع S3 (عند ضبط `AWS_S3_BUCKET_NAME` + بقية متغيّرات
   `AWS_*` — انظر `DEPLOY.md`)، لأن قرص الحاوية يُمسَح مع كل نشر. بدونها (التطوير
   المحلي) تُحفَظ على القرص في `apps/api/uploads/` (قابل للتهيئة عبر `UPLOADS_DIR`).
-  يستقبل `multer` الملف **في الذاكرة** (حتى 20MB)، ولا يُكتَب إلى التخزين إلا بعد
+  يستقبل `multer` الملف **في الذاكرة** (حتى 30MB)، ولا يُكتَب إلى التخزين إلا بعد
   نجاح فحص الصلاحية وحدّ العدد، ثم يُنشأ الصف؛ إن فشل إنشاء الصف يُحذف الكائن. مفتاح
   الكائن هو اسم الملف المخزَّن نفسه:
   `<uuid>__<الاسم الأصلي بعد التنقية><.امتداد>` (`buildStoredFilename` في
@@ -233,7 +233,9 @@ DELETE /cards/:cardId/attachments/:attachmentId
   و`assertBoardMutable`: من غادر اللوحة لم يعد يحذف ما رفعه، واللوحة المؤرشفة للقراءة
   فقط.
 - **عبر MCP**: `add_attachment`/`read_attachment`/`delete_attachment` تستدعي هذه
-  الخدمة نفسها (انظر [`15-mcp-server.md`](./15-mcp-server.md)). القراءة تمرّ عبر
+  الخدمة نفسها (انظر [`15-mcp-server.md`](./15-mcp-server.md)). الرفع عبر MCP على
+  خطوتين: `stage` يخزّن الملف في صفّ `PendingUpload` (من `POST /mcp-uploads/:token`)،
+  ثم `attachStaged` يحوّله إلى مرفق بنفس مفتاح التخزين. القراءة تمرّ عبر
   `AttachmentsService.read`، الذي يتحقّق من الصلاحية كـ `list` ثم يقرأ البايتات بـ
   `AttachmentStorageService.read` — الموضع الوحيد الذي تمرّ فيه بايتات مرفق عبر الـ
   API بدل رابط `/uploads/`.
