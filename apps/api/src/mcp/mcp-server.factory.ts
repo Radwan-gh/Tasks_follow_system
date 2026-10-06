@@ -15,6 +15,8 @@ import {
   CreateCommentRequestSchema,
   CreateSubtaskRequestSchema,
   ListStatusCategory,
+  UpdateBoardMemberRoleRequestSchema,
+  UpdateBoardRequestSchema,
   UpdateCardAccessRequestSchema,
   UpdateCardRequestSchema,
 } from "@app/types";
@@ -36,6 +38,7 @@ A card's status IS the list it sits in — to change a task's status, move the c
 Every board starts with five status lists (جديد/NEW, جاهز/READY, قيد التنفيذ/IN_PROGRESS, منجز/DONE, انتهى/CLOSED); lists cannot be created here.
 People are shown by displayName with username as their unique handle; tools take user ids, which get_board lists under members.
 All actions run as the signed-in user with their own board permissions.
+Only a board's owner can archive it, delete it (archive first) or manage its members; any other member can leave it with leave_board.
 A supervisor (an admin, or a user granted «الاطلاع على كل اللوحات») can also read every board and task through list_all_boards and search_all_tasks, and open any board or card read-only — they still cannot change boards they are not a member of.`;
 
 /**
@@ -184,21 +187,32 @@ export class McpServerFactory {
 
     // ── Read ──────────────────────────────────────────────────────────────
 
+    const boardSummary = (b: Awaited<ReturnType<BoardsService["listForUser"]>>[number]) => ({
+      id: b.id,
+      name: b.name,
+      description: b.description,
+      dueDate: b.dueDate,
+      // Owner-only actions (archive, delete, members) hinge on this.
+      isOwner: b.ownerId === userId,
+      memberCount: b.memberCount,
+      cardCount: b.cardCount,
+      doneCount: b.doneCount,
+    });
+
     tool(
       "list_boards",
       { title: "List my boards", description: "Boards the user is a member of (not archived), with card counts.", annotations: readOnly },
-      () =>
-        run(async () =>
-          (await this.boards.listForUser(userId)).map((b) => ({
-            id: b.id,
-            name: b.name,
-            description: b.description,
-            dueDate: b.dueDate,
-            memberCount: b.memberCount,
-            cardCount: b.cardCount,
-            doneCount: b.doneCount,
-          })),
-        ),
+      () => run(async () => (await this.boards.listForUser(userId)).map(boardSummary)),
+    );
+
+    tool(
+      "list_archived_boards",
+      {
+        title: "List my archived boards",
+        description: "Archived boards the user is a member of. They are read-only; the owner can restore one with update_board (isArchived: false) or delete it for good with delete_board.",
+        annotations: readOnly,
+      },
+      () => run(async () => (await this.boards.listArchivedForUser(userId)).map(boardSummary)),
     );
 
     tool(
@@ -219,6 +233,7 @@ export class McpServerFactory {
             name: board.name,
             description: board.description,
             dueDate: board.dueDate,
+            isArchived: board.isArchived,
             myRole: board.members.find((m) => m.userId === userId)?.role,
             // Not a member — seen through oversight, so read-only.
             supervised: board.supervised,
@@ -721,6 +736,78 @@ export class McpServerFactory {
       },
       ({ boardId, userId: targetUserId, role }) =>
         run(() => this.boards.addMember(userId, boardId, targetUserId, role ?? "MEMBER")),
+    );
+
+    tool(
+      "set_board_member_role",
+      {
+        title: "Set board member role",
+        description: "Switch a board member between MEMBER (can edit) and VIEWER (read-only). Board owner only; the owner's own role can't change.",
+        inputSchema: { boardId: z.string(), userId: z.string(), ...UpdateBoardMemberRoleRequestSchema.shape },
+        annotations: write,
+      },
+      ({ boardId, userId: targetUserId, role }) =>
+        run(() => this.boards.updateMemberRole(userId, boardId, targetUserId, role)),
+    );
+
+    tool(
+      "remove_board_member",
+      {
+        title: "Remove board member",
+        description:
+          "Take a user off a board. They lose access to it and to any restricted cards on it; their task assignments stay. Board owner only, and the owner can't be removed. To take yourself off a board, use leave_board.",
+        inputSchema: { boardId: z.string(), userId: z.string() },
+        annotations: destructive,
+      },
+      ({ boardId, userId: targetUserId }) =>
+        run(async () => {
+          await this.boards.removeMember(userId, boardId, targetUserId);
+          return { removed: targetUserId, boardId };
+        }),
+    );
+
+    tool(
+      "leave_board",
+      {
+        title: "Leave board",
+        description:
+          "Take the signed-in user off a board they are a member or viewer of, archived or not, so it no longer appears in their list. Only the owner can add them back. The owner can't leave — archive the board (update_board) or delete it instead.",
+        inputSchema: { boardId: z.string() },
+        annotations: destructive,
+      },
+      ({ boardId }) =>
+        run(async () => {
+          await this.boards.removeMember(userId, boardId, userId);
+          return { left: boardId };
+        }),
+    );
+
+    tool(
+      "update_board",
+      {
+        title: "Update board",
+        description:
+          "Edit a board's name, description or dueDate (ISO 8601; null clears it), or archive / restore it with isArchived. Any member can edit the details; archiving and restoring are owner only. An archived board is read-only and drops out of list_boards (see list_archived_boards).",
+        inputSchema: { boardId: z.string(), ...UpdateBoardRequestSchema.shape },
+        annotations: write,
+      },
+      ({ boardId, ...input }) => run(() => this.boards.update(userId, boardId, input)),
+    );
+
+    tool(
+      "delete_board",
+      {
+        title: "Delete board",
+        description:
+          "Permanently delete a board with all its lists, cards, comments, attachments and history. Board owner only, and only once the board is archived (update_board with isArchived: true) — a live board is refused. This cannot be undone.",
+        inputSchema: { boardId: z.string() },
+        annotations: destructive,
+      },
+      ({ boardId }) =>
+        run(async () => {
+          await this.boards.remove(userId, boardId);
+          return { deleted: boardId };
+        }),
     );
 
     return server;

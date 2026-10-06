@@ -130,8 +130,9 @@ Nest يتخطّى تسجيل محلّله العام إن وجد وسيطًا ب
 
 | الأداة | تستدعي | ملاحظات |
 |---|---|---|
-| `list_boards` | `BoardsService.listForUser` | لوحات المستخدم غير المؤرشفة |
-| `get_board` | `BoardsService.getDetail` | الأعضاء (بمعرّفاتهم وأدوارهم) والقوائم بالترتيب وبطاقاتها — منها تُعرف معرّفات القوائم والبطاقات والأشخاص |
+| `list_boards` | `BoardsService.listForUser` | لوحات المستخدم غير المؤرشفة، مع `isOwner` (هل هو مالكها) |
+| `list_archived_boards` | `BoardsService.listArchivedForUser` | لوحاته المؤرشفة، بنفس الشكل |
+| `get_board` | `BoardsService.getDetail` | الأعضاء (بمعرّفاتهم وأدوارهم) والقوائم بالترتيب وبطاقاتها، و`isArchived` و`myRole` — منها تُعرف معرّفات القوائم والبطاقات والأشخاص |
 | `get_card` | `CardsService.getDetail` + المهام الفرعية + التعليقات + المرفقات | كل حقول البطاقة، قائمتها (حالتها)، المُسنَدون، الوصول، المهام الفرعية، التعليقات، والمرفقات (المعرّف، الاسم، النوع، الحجم، الرافع، والرابط المطلق `/uploads/...` على `PUBLIC_API_URL`) |
 | `get_card_history` | `CardsService.getHistory` | سجلّ النشاط |
 | `my_tasks` | `MyTasksService.list` | مهامي المفتوحة عبر كل اللوحات |
@@ -152,9 +153,15 @@ Nest يتخطّى تسجيل محلّله العام إن وجد وسيطًا ب
 | `create_board` | `BoardsService.create` | المستخدم يصبح المالك؛ **`template` غير مكشوف** فتأتي اللوحة دائمًا بالقوائم الخمس |
 | `find_users_to_add` | `BoardsService.listMemberCandidates` | للمالك فقط |
 | `add_board_member` | `BoardsService.addMember` | للمالك فقط؛ الدور `MEMBER` أو `VIEWER` |
+| `set_board_member_role` | `BoardsService.updateMemberRole` | للمالك فقط؛ تبديل عضو بين `MEMBER` و`VIEWER` |
+| `remove_board_member` | `BoardsService.removeMember` | للمالك فقط؛ لا يُزال المالك. `destructiveHint: true` |
+| `leave_board` | `BoardsService.removeMember` (بمعرّف المستخدم نفسه) | مغادرة لوحة لأي عضو غير المالك، ولو مؤرشفة. `destructiveHint: true` لأنه لا يعود إلا بإضافة المالك |
+| `update_board` | `BoardsService.update` | الاسم والوصف والموعد (`null` يمسح)، و`isArchived` للأرشفة والاستعادة (للمالك فقط) |
+| `delete_board` | `BoardsService.remove` | للمالك فقط، وللوحة **مؤرشفة** فقط (409 لغيرها)؛ حذف نهائي بكل محتواها. `destructiveHint: true` |
 
 **غير متاح عمدًا:** إنشاء القوائم أو تعديلها، حذف البطاقات والتعليقات (البطاقة تُؤرشَف
-بـ `update_card`)، وإدارة المستخدمين. حذف المهام الفرعية والمرفقات متاح لأنه لا بديل له:
+بـ `update_card`)، وإدارة المستخدمين. أمّا **حذف اللوحة** فمتاح لأنه محميّ بخطوتين كما في
+التطبيق: `update_board` بـ `isArchived: true` أولًا، ثم `delete_board`. حذف المهام الفرعية والمرفقات متاح لأنه لا بديل له:
 بدونه اضطرّ Claude إلى إعادة إنشاء البطاقة كاملة لحذف بنود منها، فضاع معرّفها وسجلّها.
 أدوات الحذف مُعلَّمة `destructiveHint: true` فيطلب العميل تأكيد المستخدم.
 

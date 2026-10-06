@@ -21,7 +21,8 @@ import { MIN_TOUCH_TARGET, colors, fonts, fontSizes, radii, spacing } from "@/th
 /**
  * `/board/:id/settings` — the design's «إعدادات اللوحة والأعضاء» single
  * screen (`v2-new-style.md` §7.2): rename/description/due-date, archive (and,
- * once archived, restore or permanently delete), and
+ * once archived, restore or permanently delete) — or, for anyone but the
+ * owner, leaving the board — and
  * the members — edited with the same inline `PeopleField` as task assignees,
  * saving every add/remove at once (`PUT /boards/:id/members`). Mirrors
  * `apps/web`'s `BoardSettingsModal`/`BoardMembersModal`.
@@ -48,6 +49,7 @@ export default function BoardSettingsScreen() {
   const [pickingDueDate, setPickingDueDate] = useState(false);
   const [confirmingArchive, setConfirmingArchive] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [confirmingLeave, setConfirmingLeave] = useState(false);
   const [memberSearch, setMemberSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -157,6 +159,22 @@ export default function BoardSettingsScreen() {
       api.boards.updateMemberRole(id, input.userId, input.role),
     onSuccess: invalidate,
     onError: reportError,
+  });
+
+  // Anyone but the owner can take themselves off the board, archived or not.
+  const leave = useMutation({
+    mutationFn: () => api.boards.removeMember(id, user!.id),
+    onSuccess: () => {
+      setConfirmingLeave(false);
+      // As with `remove`: this board would only 403 now, so drop it rather than refetch.
+      void queryClient.invalidateQueries({ queryKey: ["boards"] });
+      router.dismissTo(board.data?.isArchived ? "/archived-boards" : "/");
+      queryClient.removeQueries({ queryKey: ["board", id] });
+    },
+    onError: (err) => {
+      setConfirmingLeave(false);
+      reportError(err);
+    },
   });
 
   if (board.isPending) {
@@ -392,7 +410,25 @@ export default function BoardSettingsScreen() {
               </Pressable>
             )}
           </View>
-        ) : null}
+        ) : (
+          <View style={{ borderTopWidth: 1, borderTopColor: colors.line, paddingTop: spacing.lg }}>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => setConfirmingLeave(true)}
+              style={{
+                minHeight: MIN_TOUCH_TARGET,
+                borderRadius: radii.field,
+                backgroundColor: colors.alertSoft,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <AppText weight="semibold" color={colors.alert}>
+                مغادرة اللوحة
+              </AppText>
+            </Pressable>
+          </View>
+        )}
       </RevealScrollView>
 
       <DueDateSheet visible={pickingDueDate} onClose={() => setPickingDueDate(false)} onChange={setDueDate} value={dueDate} />
@@ -416,6 +452,16 @@ export default function BoardSettingsScreen() {
         typeToConfirm={board.data.name}
         confirming={remove.isPending}
         onConfirm={() => remove.mutate()}
+      />
+
+      <ConfirmSheet
+        visible={confirmingLeave}
+        onClose={() => setConfirmingLeave(false)}
+        title="مغادرة اللوحة"
+        consequence="تختفي اللوحة من قائمتك، ولا تعود إليها إلا إن أضافك مالكها من جديد."
+        confirmLabel="مغادرة"
+        confirming={leave.isPending}
+        onConfirm={() => leave.mutate()}
       />
 
     </Screen>

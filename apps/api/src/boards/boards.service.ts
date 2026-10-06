@@ -522,14 +522,25 @@ export class BoardsService {
     };
   }
 
+  /**
+   * Removing someone else is the owner's call; removing yourself is leaving,
+   * which any member or viewer may do — also on an archived board, since
+   * leaving is how they get it off their list. The owner can't leave: the
+   * board would be left without one, so they archive or delete it instead.
+   */
   async removeMember(userId: string, boardId: string, targetUserId: string) {
-    await this.assertMembership(userId, boardId, "OWNER");
+    const leaving = targetUserId === userId;
+    await this.assertMembership(userId, boardId, leaving ? "VIEWER" : "OWNER");
 
     const target = await this.prisma.boardMember.findUnique({
       where: { boardId_userId: { boardId, userId: targetUserId } },
     });
     if (!target) throw new NotFoundException("Membership not found");
-    if (target.role === "OWNER") throw new BadRequestException("Cannot remove the board owner");
+    if (target.role === "OWNER") {
+      throw new BadRequestException(
+        leaving ? "The board owner cannot leave the board; archive or delete it instead" : "Cannot remove the board owner",
+      );
+    }
 
     await this.prisma.$transaction([
       // Drop any per-card access the user held on this board's cards.
