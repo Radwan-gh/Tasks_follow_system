@@ -386,6 +386,13 @@ export function BoardPage() {
             queryClient.invalidateQueries({ queryKey: ["boards"] });
             navigate("/boards/archived");
           }}
+          onLeave={async () => {
+            await api.boards.removeMember(board.id, user!.id);
+            queryClient.invalidateQueries({ queryKey: ["boards"] });
+            navigate(board.isArchived ? "/boards/archived" : "/boards");
+            // After leaving the page, so its query isn't refetched into a 403.
+            queryClient.removeQueries({ queryKey: ["board", board.id] });
+          }}
         />
       )}
       {membersOpen && (

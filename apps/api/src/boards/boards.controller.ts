@@ -163,10 +163,12 @@ export class BoardsController {
 
   @Delete(":id/members/:userId")
   @HttpCode(204)
-  @ApiOperation({ summary: "Remove a member from a board" })
+  @ApiOperation({ summary: "Remove a member from a board (owner-only), or leave it by passing your own user id (any non-owner member)" })
   @ApiParam({ name: "id", description: "Board ID" })
   @ApiParam({ name: "userId", description: "Target user ID" })
   @ApiResponse({ status: 204, description: "Removed" })
+  @ApiResponse({ status: 400, description: "The target is the board owner" })
+  @ApiResponse({ status: 403, description: "Requires OWNER role to remove someone else" })
   async removeMember(
     @CurrentUser() user: AuthUser,
     @Param("id") id: string,

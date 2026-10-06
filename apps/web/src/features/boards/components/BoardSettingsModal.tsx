@@ -10,9 +10,11 @@ interface BoardSettingsModalProps {
   onArchive: () => Promise<void>;
   /** Only offered once the board is archived — the server rejects deleting a live board. */
   onDelete: () => Promise<void>;
+  /** Members and viewers leave the board (the owner can't); takes the place of archive/delete for them. */
+  onLeave: () => Promise<void>;
 }
 
-export function BoardSettingsModal({ board, canArchive, onClose, onSave, onArchive, onDelete }: BoardSettingsModalProps) {
+export function BoardSettingsModal({ board, canArchive, onClose, onSave, onArchive, onDelete, onLeave }: BoardSettingsModalProps) {
   const [name, setName] = useState(board.name);
   const [description, setDescription] = useState(board.description ?? "");
   const [dueDate, setDueDate] = useState(board.dueDate ? board.dueDate.slice(0, 10) : "");
@@ -41,16 +43,37 @@ export function BoardSettingsModal({ board, canArchive, onClose, onSave, onArchi
     }
   }
 
-  // A live board is archived first; only an archived one can be deleted for good.
-  const deleting = board.isArchived;
+  // The owner archives a live board, then may delete it once archived; anyone
+  // else can only take themselves off it.
+  const action = !canArchive ? "leave" : board.isArchived ? "delete" : "archive";
+  const copy = {
+    archive: {
+      button: "أرشفة اللوحة",
+      confirm: "تأكيد الأرشفة",
+      consequence: "تصبح اللوحة للقراءة فقط، ويمكن استعادتها أو حذفها لاحقًا.",
+      failed: "فشلت أرشفة اللوحة",
+    },
+    delete: {
+      button: "حذف اللوحة",
+      confirm: "حذف نهائيًا",
+      consequence: "تُحذف اللوحة بكل قوائمها ومهامها ومرفقاتها وسجلّها، ولا يمكن التراجع عن ذلك.",
+      failed: "فشل حذف اللوحة",
+    },
+    leave: {
+      button: "مغادرة اللوحة",
+      confirm: "تأكيد المغادرة",
+      consequence: "تختفي اللوحة من قائمتك، ولا تعود إليها إلا إن أضافك مالكها من جديد.",
+      failed: "فشلت مغادرة اللوحة",
+    },
+  }[action];
 
   async function handleConfirm() {
     setSaving(true);
     setError(null);
     try {
-      await (deleting ? onDelete() : onArchive());
+      await (action === "delete" ? onDelete() : action === "archive" ? onArchive() : onLeave());
     } catch (err) {
-      setError(err instanceof Error ? err.message : deleting ? "فشل حذف اللوحة" : "فشلت أرشفة اللوحة");
+      setError(err instanceof Error ? err.message : copy.failed);
       setSaving(false);
       setConfirming(false);
     }
@@ -83,43 +106,36 @@ export function BoardSettingsModal({ board, canArchive, onClose, onSave, onArchi
           onChange={(e) => setDueDate(e.target.value)}
           className="rounded border border-slate-300 px-2 py-1 text-sm"
         />
-        {confirming && (
-          <p className="text-sm text-slate-600">
-            {deleting
-              ? "تُحذف اللوحة بكل قوائمها ومهامها ومرفقاتها وسجلّها، ولا يمكن التراجع عن ذلك."
-              : "تصبح اللوحة للقراءة فقط، ويمكن استعادتها أو حذفها لاحقًا."}
-          </p>
-        )}
+        {confirming && <p className="text-sm text-slate-600">{copy.consequence}</p>}
         {error && <p className="text-sm text-red-600">{error}</p>}
         <div className="flex items-center justify-between pt-2">
           <div>
-            {canArchive &&
-              (confirming ? (
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={handleConfirm}
-                    disabled={saving}
-                    className="rounded bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-500 disabled:opacity-50"
-                  >
-                    {deleting ? "حذف نهائيًا" : "تأكيد الأرشفة"}
-                  </button>
-                  <button
-                    onClick={() => setConfirming(false)}
-                    disabled={saving}
-                    className="rounded px-2 py-1.5 text-sm text-slate-600 hover:bg-slate-100"
-                  >
-                    الاحتفاظ
-                  </button>
-                </div>
-              ) : (
+            {confirming ? (
+              <div className="flex items-center gap-2">
                 <button
-                  onClick={() => setConfirming(true)}
+                  onClick={handleConfirm}
                   disabled={saving}
-                  className="rounded px-3 py-1.5 text-sm text-red-600 hover:bg-red-50"
+                  className="rounded bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-500 disabled:opacity-50"
                 >
-                  {deleting ? "حذف اللوحة" : "أرشفة اللوحة"}
+                  {copy.confirm}
                 </button>
-              ))}
+                <button
+                  onClick={() => setConfirming(false)}
+                  disabled={saving}
+                  className="rounded px-2 py-1.5 text-sm text-slate-600 hover:bg-slate-100"
+                >
+                  الاحتفاظ
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setConfirming(true)}
+                disabled={saving}
+                className="rounded px-3 py-1.5 text-sm text-red-600 hover:bg-red-50"
+              >
+                {copy.button}
+              </button>
+            )}
           </div>
           <div className="flex gap-2">
             <button onClick={onClose} className="rounded px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-100">
