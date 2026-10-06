@@ -1,13 +1,13 @@
+import type { ReactNode } from "react";
 import { Pressable, View } from "react-native";
 import type { Card, List } from "@app/types";
 import { AppText } from "@/components/text";
+import { sortByPriority } from "@/lib/reorder";
 import { CardItem } from "./card-item";
+import { DraggableCard, DropPlaceholder } from "./board-drag";
 import { MIN_TOUCH_TARGET, colors, radii, spacing, statusColors } from "@/theme/tokens";
 
-/** «العاجل أولاً، ثم الباقي بترتيبه اليدوي» (§3b-1) — a stable sort, so ties keep their server (position) order. */
-export function sortByPriority<T extends Pick<Card, "priority">>(cards: T[]): T[] {
-  return [...cards].sort((a, b) => (b.priority === "URGENT" ? 1 : 0) - (a.priority === "URGENT" ? 1 : 0));
-}
+export { sortByPriority };
 
 export function ListColumn({
   list,
@@ -22,6 +22,9 @@ export function ListColumn({
   onOpenCard,
   showLoadOlder,
   onLoadOlder,
+  dragEnabled,
+  draggingCardId,
+  dropSlot,
 }: {
   list: List;
   width: number;
@@ -39,7 +42,49 @@ export function ListColumn({
   /** True only for the `CLOSED` list while it's windowed to the last 30 days. */
   showLoadOlder: boolean;
   onLoadOlder: () => void;
+  /** Cards can be lifted and dragged (design §5c) — never on a read-only board. */
+  dragEnabled: boolean;
+  /** The card being dragged right now, anywhere on the board. */
+  draggingCardId: string | null;
+  /** Where the dragged card would land in this column, when it is over it. */
+  dropSlot: { slot: number; height: number } | null;
 }) {
+  const shown = sortByPriority(list.cards);
+  const visibleCount = shown.filter((c) => c.id !== draggingCardId).length;
+  const items: ReactNode[] = [];
+  let slot = 0;
+  for (const card of shown) {
+    const isDragged = card.id === draggingCardId;
+    if (!isDragged) {
+      if (dropSlot && dropSlot.slot === slot) items.push(<DropPlaceholder key="drop-placeholder" height={dropSlot.height} />);
+      slot++;
+    }
+    const blockedByClose = nextListIsClosed && !canCloseCard(card);
+    const draggable = dragEnabled && !readOnly && !card.id.startsWith("temp:");
+    items.push(
+      <DraggableCard
+        key={card.id}
+        cardId={card.id}
+        enabled={draggable}
+        hidden={isDragged}
+        animateLayout={!!draggingCardId}
+      >
+        <CardItem
+          card={card}
+          assignees={resolveAssignees(card.assigneeIds)}
+          hasNext={!readOnly && hasNext && !blockedByClose}
+          onMoveNext={() => onMoveCardNext(card.id)}
+          // On a draggable card the same hold lifts it instead; letting go
+          // without moving opens the sheet from there (`board-drag.tsx`).
+          onLongPress={draggable || readOnly ? undefined : () => onLongPressCard(card.id)}
+          onOpenActions={draggable ? () => onLongPressCard(card.id) : undefined}
+          onOpen={() => onOpenCard(card.id)}
+        />
+      </DraggableCard>,
+    );
+  }
+  if (dropSlot && dropSlot.slot >= slot) items.push(<DropPlaceholder key="drop-placeholder" height={dropSlot.height} />);
+
   return (
     <View style={{ width, gap: spacing.md }}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingHorizontal: spacing.xs }}>
@@ -67,28 +112,12 @@ export function ListColumn({
         </View>
       ) : null}
 
-      {list.cards.length === 0 ? (
+      {visibleCount === 0 && !dropSlot ? (
         <AppText size="small" color={colors.muted} style={{ paddingHorizontal: spacing.xs }}>
           لا مهام في هذه الحالة
         </AppText>
-      ) : (
-        <View style={{ gap: spacing.sm }}>
-          {sortByPriority(list.cards).map((card) => {
-            const blockedByClose = nextListIsClosed && !canCloseCard(card);
-            return (
-              <CardItem
-                key={card.id}
-                card={card}
-                assignees={resolveAssignees(card.assigneeIds)}
-                hasNext={!readOnly && hasNext && !blockedByClose}
-                onMoveNext={() => onMoveCardNext(card.id)}
-                onLongPress={() => (readOnly ? undefined : onLongPressCard(card.id))}
-                onOpen={() => onOpenCard(card.id)}
-              />
-            );
-          })}
-        </View>
-      )}
+      ) : null}
+      {items.length > 0 ? <View style={{ gap: spacing.sm }}>{items}</View> : null}
 
       {showLoadOlder ? (
         <Pressable accessibilityRole="button" onPress={onLoadOlder} style={{ minHeight: MIN_TOUCH_TARGET, alignItems: "center", justifyContent: "center" }}>

@@ -21,17 +21,24 @@ export function CardItem({
   hasNext,
   onMoveNext,
   onLongPress,
+  onOpenActions,
   onOpen,
   highlightQuery,
+  lifted = false,
 }: {
   card: BoardCard;
   assignees: { id: string; displayName: string }[];
   hasNext: boolean;
   onMoveNext: () => void;
-  onLongPress: () => void;
+  /** Unset on a draggable card: there the long-press lifts it (`board-drag.tsx`). */
+  onLongPress?: () => void;
+  /** Opens the move/delete sheet — the screen-reader route to it on a draggable card. */
+  onOpenActions?: () => void;
   onOpen: () => void;
   /** In-board search (§3b-2): highlights the matched substring in the title. */
   highlightQuery?: string;
+  /** Drawn as the copy that follows the finger mid-drag (design §5c). */
+  lifted?: boolean;
 }) {
   const overdue = card.dueDate ? isOverdue(card.dueDate) : false;
   const hasDescription = !!card.description?.trim();
@@ -69,10 +76,14 @@ export function CardItem({
       onPress={onOpen}
       onLongPress={onLongPress}
       delayLongPress={350}
+      accessibilityActions={onOpenActions ? [{ name: "longpress", label: "نقل أو حذف" }] : undefined}
+      onAccessibilityAction={(e) => {
+        if (e.nativeEvent.actionName === "longpress") onOpenActions?.();
+      }}
       style={({ pressed }) => ({
         backgroundColor: colors.surface,
-        borderWidth: 1,
-        borderColor: colors.line,
+        borderWidth: lifted ? 1.5 : 1,
+        borderColor: lifted ? colors.accent : colors.line,
         // §3b-1: a 3px right-edge stripe is the *only* face indicator for
         // priority, and only ever for «عاجل» — normal/low stay unmarked.
         // Written as borderLeft* because RN's default RTL behavior
@@ -80,12 +91,13 @@ export function CardItem({
         // physical left/right border props under forceRTL — this renders
         // on the physical *right* edge, matching the design.
         borderLeftWidth: card.priority === "URGENT" ? 3 : 1,
-        borderLeftColor: card.priority === "URGENT" ? colors.urgent : colors.line,
+        borderLeftColor: card.priority === "URGENT" ? colors.urgent : lifted ? colors.accent : colors.line,
         borderRadius: radii.card,
         paddingHorizontal: spacing.lg,
         paddingVertical: spacing.md,
         gap: spacing.sm,
-        opacity: pressed ? 0.85 : 1,
+        opacity: pressed && !lifted ? 0.85 : 1,
+        ...(lifted ? LIFTED_SHADOW : null),
       })}
     >
       <View
@@ -146,6 +158,14 @@ export function CardItem({
     </Pressable>
   );
 }
+
+const LIFTED_SHADOW = {
+  shadowColor: colors.ink,
+  shadowOpacity: 0.18,
+  shadowRadius: 16,
+  shadowOffset: { width: 0, height: 8 },
+  elevation: 8,
+} as const;
 
 /** One glyph and its count on the card's meta row. */
 function Meta({
