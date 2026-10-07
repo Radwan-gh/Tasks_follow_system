@@ -27,7 +27,7 @@ export class OversightService {
   }
 
   /**
-   * Cards across every board, filtered and cursor-paginated. Archived cards
+   * Cards across every shared board, filtered and cursor-paginated. Archived cards
    * and cards in archived lists never appear; cards on archived boards appear
    * only when the query targets that board by `boardId`. Completed cards are
    * left out unless `includeCompleted` or an explicit `statusCategory` asks
@@ -40,7 +40,12 @@ export class OversightService {
       OR: [{ statusCategory: null }, { statusCategory: { notIn: COMPLETED_CATEGORIES } }],
     };
 
-    const and: Prisma.CardWhereInput[] = [{ isArchived: false }, { list: { isArchived: false } }];
+    // Personal boards are their owner's alone — never overseen, even by id.
+    const and: Prisma.CardWhereInput[] = [
+      { isArchived: false },
+      { list: { isArchived: false } },
+      { list: { board: { kind: "SHARED" } } },
+    ];
     if (query.boardId) and.push({ boardId: query.boardId });
     else and.push({ list: { board: { isArchived: false } } });
     if (query.assigneeId) and.push({ assignees: { some: { userId: query.assigneeId } } });

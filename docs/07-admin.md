@@ -23,7 +23,7 @@
 | `POST /admin/users/:id/reset-password` | توليد كلمة مرور مؤقتة عشوائية (يستخدمها `apps/mobile`) — انظر [`14-notifications-comments-attachments.md`](./14-notifications-comments-attachments.md) |
 | `PATCH /admin/users/:id/role` | تغيير دور المستخدم (USER/ADMIN) |
 | `PATCH /admin/users/:id/status` | تفعيل/تعطيل المستخدم |
-| `PATCH /admin/users/:id/permissions` | منح/سحب صلاحية «إرسال الإشعارات» (`canSendNotifications`) و/أو «الاطلاع على كل اللوحات» (`canViewAllBoards`) — يُرسَل الحقل المتغيّر فقط، وحقل واحد على الأقل |
+| `PATCH /admin/users/:id/permissions` | منح/سحب صلاحية «إرسال الإشعارات» (`canSendNotifications`) و/أو «الاطلاع على كل اللوحات» (`canViewAllBoards`) و/أو «الموافقة على اللوحات المشتركة» (`canApproveBoards`) — يُرسَل الحقل المتغيّر فقط، وحقل واحد على الأقل |
 
 ## صلاحية «إرسال الإشعارات» (Permissions)
 
@@ -52,6 +52,17 @@
   اللوحات» في `UsersAdminPage.tsx`. في الجوال: زرّ مماثل وشارة في `admin/users.tsx`.
   كلاهما لصفوف `USER` فقط.
 - منطق الميزة كاملًا في [`16-oversight.md`](./16-oversight.md).
+
+## صلاحية «الموافقة على اللوحات المشتركة»
+
+- `User.canApproveBoards` (افتراضيًا `false`) يسمح لمستخدم `USER` بأن يرى طلبات جعل
+  اللوحات مشتركة ويوافق عليها أو يرفضها بسبب، وبأن يُنشئ لوحاته المشتركة مباشرة دون
+  طلب. القاعدة `canApproveSharedBoards()` = `role === "ADMIN" || canApproveBoards`،
+  فالـ ADMIN يملكها دائمًا ويصله إشعار كل طلب.
+- **لا يمنحها أو يسحبها إلا ADMIN** من هذا المتحكّم المحمي بـ `AdminGuard`.
+- تُقرأ من قاعدة البيانات في كل طلب (`BoardsService.isApprover`)، فالسحب يسري من
+  الطلب التالي دون إبطال الجلسات.
+- منطق الميزة كاملًا في [`18-board-sharing.md`](./18-board-sharing.md).
 
 ## إنشاء مستخدم (Create) — بديل التسجيل الذاتي
 

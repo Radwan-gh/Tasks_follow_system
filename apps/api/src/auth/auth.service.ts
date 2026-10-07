@@ -51,6 +51,7 @@ function serializeCurrentUser(user: {
   mustChangePassword: boolean;
   canSendNotifications: boolean;
   canViewAllBoards: boolean;
+  canApproveBoards: boolean;
   createdAt: Date;
 }): CurrentUser {
   return {
@@ -63,6 +64,7 @@ function serializeCurrentUser(user: {
     mustChangePassword: user.mustChangePassword,
     canSendNotifications: user.canSendNotifications,
     canViewAllBoards: user.canViewAllBoards,
+    canApproveBoards: user.canApproveBoards,
     createdAt: user.createdAt.toISOString(),
   };
 }

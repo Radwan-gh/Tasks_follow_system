@@ -10,12 +10,15 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult, ToolAnnotations } from "@modelcontextprotocol/sdk/types.js";
 import {
   type Attachment,
+  type BoardShareState,
   CreateBoardCategoryRequestSchema,
   CreateBoardRequestSchema,
+  CreateBoardShareRequestSchema,
   CreateCardRequestSchema,
   CreateCommentRequestSchema,
   CreateSubtaskRequestSchema,
   ListStatusCategory,
+  SimilarBoardsQuerySchema,
   UpdateBoardMemberRoleRequestSchema,
   UpdateBoardRequestSchema,
   UpdateCardAccessRequestSchema,
@@ -23,6 +26,7 @@ import {
 } from "@app/types";
 import { z } from "zod";
 import { BoardCategoriesService } from "../board-categories/board-categories.service";
+import { BoardSharingService } from "../boards/board-sharing.service";
 import { BoardsService } from "../boards/boards.service";
 import { AttachmentsService } from "../cards/attachments.service";
 import { CardsService } from "../cards/cards.service";
@@ -41,7 +45,8 @@ Every board starts with five status lists (جديد/NEW, جاهز/READY, قيد 
 People are shown by displayName with username as their unique handle; tools take user ids, which get_board lists under members.
 All actions run as the signed-in user with their own board permissions.
 Only a board's owner can archive it, delete it (archive first) or manage its members; any other member can leave it with leave_board.
-A supervisor (an admin, or a user granted «الاطلاع على كل اللوحات») can also read every board and task through list_all_boards and search_all_tasks, and open any board or card read-only — they still cannot change boards they are not a member of.`;
+A board is PERSONAL (its owner's alone: no members, hidden from oversight) or SHARED (has members). Making one shared needs a description of its scope and an approver's sign-off: create_board with kind SHARED, or request_board_sharing for an existing personal board, files the request, and the board works as a personal one until it is approved. Before asking, check find_similar_boards — the board may already exist, and its owner can add the user instead.
+A supervisor (an admin, or a user granted «الاطلاع على كل اللوحات») can also read every shared board and its tasks through list_all_boards and search_all_tasks, and open any shared board or card read-only — they still cannot change boards they are not a member of.`;
 
 /**
  * Largest file `read_attachment` returns. Its bytes travel as base64 inside the
@@ -60,6 +65,11 @@ const IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp
 /** Returned as plain text; anything else comes back as a base64 blob. */
 const TEXT_TYPES = /^text\/|^application\/(json|xml|x-yaml|yaml|csv)$|\+(json|xml)$/;
 const TEXT_EXTENSIONS = /\.(txt|md|markdown|csv|tsv|json|xml|ya?ml|html?|log)$/i;
+
+/** A board's sharing state as the model needs it: whether it is waiting, or why it was turned down. */
+function shareRequestView(request: BoardShareState | null) {
+  return request ? { status: request.status, reason: request.reason, requestedAt: request.createdAt } : null;
+}
 
 /** Editable card fields, straight from the shared request schema; moving has its own tool. */
 const cardUpdateFields = UpdateCardRequestSchema.omit({ targetListId: true, move: true }).shape;
@@ -149,6 +159,7 @@ export class McpServerFactory {
     config: ConfigService,
     private readonly prisma: PrismaService,
     private readonly boards: BoardsService,
+    private readonly boardSharing: BoardSharingService,
     private readonly boardCategories: BoardCategoriesService,
     private readonly cards: CardsService,
     private readonly comments: CommentsService,
@@ -196,6 +207,8 @@ export class McpServerFactory {
       description: b.description,
       category: b.category?.name ?? null,
       dueDate: b.dueDate,
+      kind: b.kind,
+      shareRequest: shareRequestView(b.shareRequest),
       // Owner-only actions (archive, delete, members) hinge on this.
       isOwner: b.ownerId === userId,
       memberCount: b.memberCount,
@@ -239,6 +252,8 @@ export class McpServerFactory {
             category: board.category,
             dueDate: board.dueDate,
             isArchived: board.isArchived,
+            kind: board.kind,
+            shareRequest: shareRequestView(board.shareRequest),
             myRole: board.members.find((m) => m.userId === userId)?.role,
             // Not a member — seen through oversight, so read-only.
             supervised: board.supervised,
@@ -342,7 +357,7 @@ export class McpServerFactory {
       {
         title: "List all boards (oversight)",
         description:
-          "Every board in the system, regardless of membership, with owner and card counts. Supervisors only (an admin, or a user granted view-all-boards). Open one with get_board — read-only unless you are a member.",
+          "Every shared board in the system, regardless of membership, with owner and card counts. Personal boards are private and never listed. Supervisors only (an admin, or a user granted view-all-boards). Open one with get_board — read-only unless you are a member.",
         inputSchema: { archived: z.boolean().optional().describe("true lists archived boards instead of active ones") },
         annotations: readOnly,
       },
@@ -367,7 +382,7 @@ export class McpServerFactory {
       {
         title: "Search all tasks (oversight)",
         description:
-          "Cards across every board, regardless of membership. Supervisors only. Filters combine; completed cards are excluded unless includeCompleted or a done status is asked for. Returns up to `limit` rows and a nextCursor for the next page.",
+          "Cards across every shared board, regardless of membership; personal boards are private and never searched. Supervisors only. Filters combine; completed cards are excluded unless includeCompleted or a done status is asked for. Returns up to `limit` rows and a nextCursor for the next page.",
         inputSchema: {
           assigneeId: z.string().optional().describe("only cards assigned to this user id"),
           boardId: z.string().optional(),
@@ -706,18 +721,47 @@ export class McpServerFactory {
       {
         title: "Create board",
         description:
-          "Create a new board owned by the signed-in user. It comes with the five standard status lists, ready for cards.",
+          "Create a new board owned by the signed-in user. It comes with the five standard status lists, ready for cards. " +
+          "PERSONAL (default) is the user's alone. SHARED is for a board other people will join: it needs a description of its scope, " +
+          "and unless the user is an approver it is created personal with a share request filed — check find_similar_boards first.",
         // `template` is deliberately left out: an EMPTY board would have no
         // lists, and lists can't be created over MCP.
         inputSchema: {
           name: CreateBoardRequestSchema.shape.name,
-          description: CreateBoardRequestSchema.shape.description,
+          description: CreateBoardRequestSchema.shape.description.describe("The board's scope; required for SHARED"),
           dueDate: CreateBoardRequestSchema.shape.dueDate,
           categoryId: CreateBoardRequestSchema.shape.categoryId.describe("Id from list_board_categories; omit for none"),
+          kind: CreateBoardRequestSchema.shape.kind,
         },
         annotations: write,
       },
       (input) => run(() => this.boards.create(userId, input)),
+    );
+
+    tool(
+      "find_similar_boards",
+      {
+        title: "Find similar boards",
+        description:
+          "Shared boards (and boards waiting to become shared) whose name resembles the given one, ignoring Arabic diacritics, hamza and ta marbuta spelling. " +
+          "Use it before creating a SHARED board or calling request_board_sharing: if the board already exists, its owner can add the user instead.",
+        inputSchema: SimilarBoardsQuerySchema.shape,
+        annotations: readOnly,
+      },
+      (query) => run(() => this.boardSharing.similar(query)),
+    );
+
+    tool(
+      "request_board_sharing",
+      {
+        title: "Request board sharing",
+        description:
+          "Ask for a personal board to become shared, so members can be added — also to ask again after a rejection. Board owner only. " +
+          "The board needs a description of its scope (pass one to set it). An approver decides; until then the board stays personal and fully usable.",
+        inputSchema: CreateBoardShareRequestSchema.shape,
+        annotations: write,
+      },
+      (input) => run(() => this.boardSharing.request(userId, input)),
     );
 
     tool(
@@ -758,7 +802,7 @@ export class McpServerFactory {
       {
         title: "Add board member",
         description:
-          "Add a user (id from find_users_to_add) to a board. MEMBER can edit, VIEWER can only read. Board owner only.",
+          "Add a user (id from find_users_to_add) to a board. MEMBER can edit, VIEWER can only read. Board owner only, and only on a SHARED board.",
         inputSchema: { boardId: z.string(), userId: z.string(), role: z.enum(["MEMBER", "VIEWER"]).optional() },
         annotations: write,
       },

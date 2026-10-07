@@ -5,14 +5,22 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import type { Prisma } from "@prisma/client";
-import { canSupervise } from "@app/types";
-import type { BoardRole, CardPriority, CreateBoardRequest, RecurrenceRule, UpdateBoardRequest } from "@app/types";
+import type { BoardShareRequest as BoardShareRequestRow, Prisma } from "@prisma/client";
+import { canApproveSharedBoards, canSupervise } from "@app/types";
+import type {
+  BoardRole,
+  BoardShareState,
+  CardPriority,
+  CreateBoardRequest,
+  RecurrenceRule,
+  UpdateBoardRequest,
+} from "@app/types";
 import { generateKeyBetween, generateNKeysBetween } from "@app/ordering";
 import { PrismaService } from "../prisma/prisma.service";
 import { BoardCategoriesService } from "../board-categories/board-categories.service";
 import { AttachmentStorageService } from "../common/storage/attachment-storage.service";
 import { COMPLETED_CATEGORIES } from "../common/util/completed.util";
+import { NotificationsService } from "../notifications/notifications.service";
 import { TASK_WORKFLOW_TEMPLATE } from "./board-templates";
 
 interface BoardAggregate {
@@ -23,8 +31,20 @@ interface BoardAggregate {
 }
 const EMPTY_AGGREGATE: BoardAggregate = { memberCount: 0, cardCount: 0, doneCount: 0, memberPreviews: [] };
 
-/** What `serializeBoard` needs of the board's category — every board read includes this. */
-const CATEGORY_INCLUDE = { category: { select: { id: true, name: true } } } as const;
+/**
+ * What `serializeBoard` needs beyond the board's own columns — its category and
+ * its latest share request — so every board read includes this.
+ */
+const BOARD_INCLUDE = {
+  category: { select: { id: true, name: true } },
+  shareRequests: {
+    orderBy: { createdAt: "desc" },
+    take: 1,
+    select: { id: true, status: true, reason: true, createdAt: true, decidedAt: true },
+  },
+} as const satisfies Prisma.BoardInclude;
+
+type Tx = Prisma.TransactionClient | PrismaService;
 
 /**
  * What `assertMembership` granted. `supervised` is true when the caller is not
@@ -48,6 +68,7 @@ export class BoardsService {
     private readonly prisma: PrismaService,
     private readonly storage: AttachmentStorageService,
     private readonly categories: BoardCategoriesService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   /**
@@ -61,7 +82,8 @@ export class BoardsService {
    * existing role ranking rather than a separate check. A real membership
    * always wins, so a supervisor who is also a member keeps their own role.
    * Role and flag are read from the database, not the JWT, so revoking takes
-   * effect on the next request.
+   * effect on the next request. Personal boards are never supervised: they are
+   * their owner's alone (`docs/18-board-sharing.md`).
    */
   async assertMembership(userId: string, boardId: string, minRole: BoardRole = "MEMBER"): Promise<BoardAccess> {
     const membership = await this.prisma.boardMember.findUnique({
@@ -74,7 +96,8 @@ export class BoardsService {
       return { role: membership.role, supervised: false };
     }
     if (minRole === "VIEWER" && (await this.isSupervisor(userId))) {
-      return { role: "VIEWER", supervised: true };
+      const board = await this.prisma.board.findUnique({ where: { id: boardId }, select: { kind: true } });
+      if (board?.kind === "SHARED") return { role: "VIEWER", supervised: true };
     }
     throw new ForbiddenException("You do not have access to this board");
   }
@@ -88,11 +111,64 @@ export class BoardsService {
     return !!user?.isActive && canSupervise(user);
   }
 
+  /** `canApproveSharedBoards()` against the live database row; a deactivated account never qualifies. */
+  async isApprover(userId: string): Promise<boolean> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true, canApproveBoards: true, isActive: true },
+    });
+    return !!user?.isActive && canApproveSharedBoards(user);
+  }
+
+  /**
+   * Members are for shared boards only — a personal board (also while its
+   * share request waits) is its owner's alone. Guards every path that *adds*
+   * someone; removing or leaving needs no such check.
+   */
+  private async assertCanHaveMembers(boardId: string) {
+    const board = await this.prisma.board.findUnique({ where: { id: boardId }, select: { kind: true } });
+    if (!board) throw new NotFoundException("Board not found");
+    if (board.kind !== "SHARED") {
+      throw new ConflictException("A personal board has no members; ask for it to become shared first");
+    }
+  }
+
+  /**
+   * Files a share request for a personal board and tells every approver, in
+   * the caller's transaction. Callers have already checked the board is
+   * personal, has a description, and has no request pending.
+   */
+  async fileShareRequest(tx: Tx, board: { id: string; name: string }, userId: string) {
+    const request = await tx.boardShareRequest.create({ data: { boardId: board.id, requestedById: userId } });
+    const approvers = await tx.user.findMany({
+      where: { isActive: true, OR: [{ role: "ADMIN" }, { canApproveBoards: true }] },
+      select: { id: true },
+    });
+    for (const approver of approvers) {
+      await this.notifications.notify(tx, {
+        userId: approver.id,
+        actorId: userId,
+        type: "BOARD_SHARE_REQUESTED",
+        boardId: board.id,
+        payload: { boardName: board.name, requestId: request.id },
+      });
+    }
+    return request;
+  }
+
+  /** One board as a `BoardSummary`, aggregates included — what the sharing endpoints return. */
+  async summaryOf(boardId: string) {
+    const board = await this.prisma.board.findUnique({ where: { id: boardId }, include: BOARD_INCLUDE });
+    if (!board) throw new NotFoundException("Board not found");
+    const aggregates = await this.boardAggregates([boardId]);
+    return serializeBoard(board, aggregates.get(boardId) ?? EMPTY_AGGREGATE);
+  }
+
   async listForUser(userId: string) {
     const boards = await this.prisma.board.findMany({
       where: { members: { some: { userId } }, isArchived: false },
       orderBy: { updatedAt: "desc" },
-      include: CATEGORY_INCLUDE,
+      include: BOARD_INCLUDE,
     });
     const aggregates = await this.boardAggregates(boards.map((b) => b.id));
     return boards.map((b) => serializeBoard(b, aggregates.get(b.id) ?? EMPTY_AGGREGATE));
@@ -103,22 +179,23 @@ export class BoardsService {
     const boards = await this.prisma.board.findMany({
       where: { members: { some: { userId } }, isArchived: true },
       orderBy: { updatedAt: "desc" },
-      include: CATEGORY_INCLUDE,
+      include: BOARD_INCLUDE,
     });
     const aggregates = await this.boardAggregates(boards.map((b) => b.id));
     return boards.map((b) => serializeBoard(b, aggregates.get(b.id) ?? EMPTY_AGGREGATE));
   }
 
   /**
-   * Oversight's "كل اللوحات" — every board in the system regardless of
-   * membership, with its owner. No access check here: callers sit behind
-   * `SupervisorGuard` (REST) or an explicit `isSupervisor` check (MCP).
+   * Oversight's "كل اللوحات" — every shared board in the system regardless of
+   * membership, with its owner. Personal boards stay out: they are private.
+   * No access check here: callers sit behind `SupervisorGuard` (REST) or an
+   * explicit `isSupervisor` check (MCP).
    */
   async listAll(archived: boolean) {
     const boards = await this.prisma.board.findMany({
-      where: { isArchived: archived },
+      where: { isArchived: archived, kind: "SHARED" },
       orderBy: { updatedAt: "desc" },
-      include: { owner: { select: { id: true, username: true, displayName: true } }, ...CATEGORY_INCLUDE },
+      include: { owner: { select: { id: true, username: true, displayName: true } }, ...BOARD_INCLUDE },
     });
     const aggregates = await this.boardAggregates(boards.map((b) => b.id));
     return boards.map((b) => ({
@@ -139,7 +216,19 @@ export class BoardsService {
     if (board.isArchived) throw new ForbiddenException("This board is archived and read-only");
   }
 
+  /**
+   * A board is personal unless `kind: "SHARED"` is asked for, which needs a
+   * description (its scope). An approver gets a shared board straight away;
+   * anyone else gets a personal one with a share request filed against it, so
+   * they can work on it while they wait and lose nothing if it is rejected.
+   */
   async create(userId: string, input: CreateBoardRequest) {
+    const wantsShared = input.kind === "SHARED";
+    if (wantsShared && !input.description?.trim()) {
+      throw new BadRequestException("A shared board needs a description of its scope");
+    }
+    const sharedNow = wantsShared && (await this.isApprover(userId));
+
     // Seed the five status lists unless an empty board is explicitly asked for
     // — the apps never send `template`, so every board they create gets them.
     // Positions are generated in one evenly-spaced batch so the fractional
@@ -148,25 +237,33 @@ export class BoardsService {
     const positions = generateNKeysBetween(null, null, templateLists.length);
     if (input.categoryId) await this.categories.assertExists(input.categoryId);
 
-    const board = await this.prisma.board.create({
-      data: {
-        name: input.name,
-        description: input.description ?? null,
-        dueDate: input.dueDate ? new Date(input.dueDate) : null,
-        ownerId: userId,
-        categoryId: input.categoryId ?? null,
-        members: { create: { userId, role: "OWNER" } },
-        lists: templateLists.length
-          ? {
-              create: templateLists.map((list, i) => ({
-                name: list.name,
-                statusCategory: list.statusCategory,
-                position: positions[i],
-              })),
-            }
-          : undefined,
-      },
-      include: { owner: { select: { id: true, displayName: true } }, ...CATEGORY_INCLUDE },
+    const board = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.board.create({
+        data: {
+          name: input.name,
+          description: input.description ?? null,
+          dueDate: input.dueDate ? new Date(input.dueDate) : null,
+          ownerId: userId,
+          categoryId: input.categoryId ?? null,
+          kind: sharedNow ? "SHARED" : "PERSONAL",
+          members: { create: { userId, role: "OWNER" } },
+          lists: templateLists.length
+            ? {
+                create: templateLists.map((list, i) => ({
+                  name: list.name,
+                  statusCategory: list.statusCategory,
+                  position: positions[i],
+                })),
+              }
+            : undefined,
+        },
+        include: { owner: { select: { id: true, displayName: true } }, ...BOARD_INCLUDE },
+      });
+      if (wantsShared && !sharedNow) {
+        const request = await this.fileShareRequest(tx, created, userId);
+        return { ...created, shareRequests: [request] };
+      }
+      return created;
     });
     // A brand-new board always has exactly one member (the owner) and zero
     // cards — no need to round-trip through `boardAggregates` for this.
@@ -246,7 +343,7 @@ export class BoardsService {
     const board = await this.prisma.board.findUnique({
       where: { id: boardId },
       include: {
-        ...CATEGORY_INCLUDE,
+        ...BOARD_INCLUDE,
         members: { include: { user: true } },
         lists: {
           where: { isArchived: false },
@@ -356,7 +453,7 @@ export class BoardsService {
         isArchived: input.isArchived,
         categoryId: input.categoryId,
       },
-      include: CATEGORY_INCLUDE,
+      include: BOARD_INCLUDE,
     });
     const aggregates = await this.boardAggregates([boardId]);
     return serializeBoard(board, aggregates.get(boardId) ?? EMPTY_AGGREGATE);
@@ -435,6 +532,7 @@ export class BoardsService {
 
   async addMember(userId: string, boardId: string, targetUserId: string, role: "MEMBER" | "VIEWER" = "MEMBER") {
     await this.assertMembership(userId, boardId, "OWNER");
+    await this.assertCanHaveMembers(boardId);
 
     const target = await this.prisma.user.findUnique({ where: { id: targetUserId } });
     if (!target) throw new NotFoundException("No such user");
@@ -485,6 +583,7 @@ export class BoardsService {
     const toRemove = current.filter((m) => m.role !== "OWNER" && !wanted.has(m.userId)).map((m) => m.userId);
 
     if (toAdd.length > 0) {
+      await this.assertCanHaveMembers(boardId);
       const users = await this.prisma.user.findMany({
         where: { id: { in: toAdd } },
         select: { id: true, isActive: true },
@@ -660,10 +759,12 @@ function serializeBoard(
     description: string | null;
     dueDate: Date | null;
     ownerId: string;
+    kind: "PERSONAL" | "SHARED";
     isArchived: boolean;
     createdAt: Date;
     updatedAt: Date;
     category: { id: string; name: string } | null;
+    shareRequests: ShareStateRow[];
   },
   aggregate: BoardAggregate,
 ) {
@@ -671,6 +772,8 @@ function serializeBoard(
     id: board.id,
     name: board.name,
     description: board.description,
+    kind: board.kind,
+    shareRequest: board.shareRequests[0] ? serializeShareState(board.shareRequests[0]) : null,
     category: board.category,
     dueDate: board.dueDate ? board.dueDate.toISOString() : null,
     ownerId: board.ownerId,
@@ -681,6 +784,18 @@ function serializeBoard(
     cardCount: aggregate.cardCount,
     doneCount: aggregate.doneCount,
     memberPreviews: aggregate.memberPreviews,
+  };
+}
+
+type ShareStateRow = Pick<BoardShareRequestRow, "id" | "status" | "reason" | "createdAt" | "decidedAt">;
+
+function serializeShareState(request: ShareStateRow): BoardShareState {
+  return {
+    id: request.id,
+    status: request.status,
+    reason: request.reason,
+    createdAt: request.createdAt.toISOString(),
+    decidedAt: request.decidedAt ? request.decidedAt.toISOString() : null,
   };
 }
 

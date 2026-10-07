@@ -12,13 +12,20 @@ const DEFAULT_PREFS: NotificationPrefs = {
   myCardsMoved: true,
 };
 
-/** Which `notificationPrefs` toggle gates each notification type (`account.tsx`'s three switches). */
-const PREF_GATE: Record<NotificationType, keyof NotificationPrefs> = {
+/**
+ * Which `notificationPrefs` toggle gates each notification type (`account.tsx`'s
+ * three switches). `null` is never muted: board-sharing requests and decisions
+ * are work someone is waiting on, not activity to filter.
+ */
+const PREF_GATE: Record<NotificationType, keyof NotificationPrefs | null> = {
   ASSIGNED: "assignmentsAndComments",
   COMMENT: "assignmentsAndComments",
   DUE_SOON: "dueDatesAndOverdue",
   OVERDUE: "dueDatesAndOverdue",
   CARD_CLOSED: "myCardsMoved",
+  BOARD_SHARE_REQUESTED: null,
+  BOARD_SHARE_APPROVED: null,
+  BOARD_SHARE_REJECTED: null,
 };
 
 const MAX_NOTIFICATIONS = 100;
@@ -111,7 +118,8 @@ export class NotificationsService {
     const user = await tx.user.findUnique({ where: { id: input.userId }, select: { notificationPrefs: true } });
     if (!user) return;
     const prefs = parsePrefs(user.notificationPrefs);
-    if (!prefs[PREF_GATE[input.type]]) return;
+    const gate = PREF_GATE[input.type];
+    if (gate && !prefs[gate]) return;
 
     await tx.notification.create({
       data: {

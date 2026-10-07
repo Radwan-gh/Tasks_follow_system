@@ -17,11 +17,12 @@ User
  └── notifications    : notifications         (Notification)
 
 Board
- ├── owner     : the owner (User)
- ├── category  : optional group on the boards list (BoardCategory)
- ├── members   : members (BoardMember[])
- ├── lists     : lists (List[])
- └── templates : board-scoped task templates (Template[])
+ ├── owner         : the owner (User)
+ ├── category      : optional group on the boards list (BoardCategory)
+ ├── members       : members (BoardMember[])
+ ├── lists         : lists (List[])
+ ├── templates     : board-scoped task templates (Template[])
+ └── shareRequests : requests to make it shared (BoardShareRequest[])
 
 List
  ├── board : belongs to a board
@@ -45,6 +46,7 @@ Attachment ─ card, uploader
 Notification ─ user
 Template ─ board
 BoardCategory ─ boards, createdBy (User, nullable)
+BoardShareRequest ─ board, requestedBy (User), decidedBy (User, nullable)
 AppSettings (single global row, no relations)
 
 OAuthClient ─ refreshTokens, authorizationCodes   (MCP clients, e.g. claude.ai)
@@ -67,7 +69,8 @@ OAuthAuthorizationCode ─ client, user
 | `notificationPrefs` | optional JSON | Three notification-preference toggles (assignment/comments · due-dates/overdue · my cards moved), all `true` by default — see `NotificationPrefsSchema` |
 | `mustChangePassword` | boolean | Set by `POST /admin/users/:id/reset-password` (default `false`), cleared automatically by `POST /auth/change-password` — see [`14-notifications-comments-attachments.md`](./14-notifications-comments-attachments.md#password-reset) |
 | `canSendNotifications` | boolean | Lets a `USER` send manual push from the app's «إرسال إشعار» screen (default `false`). `ADMIN`s can always send regardless — the rule is `canSendPush()` in `packages/types`. Granted via `PATCH /admin/users/:id/permissions` — see [`07-admin.md`](./07-admin.md) |
-| `canViewAllBoards` | boolean | Lets a `USER` read every board and task read-only («المتابعة»), including boards they are not a member of (default `false`). `ADMIN`s always can — the rule is `canSupervise()` in `packages/types`. Only an ADMIN grants it, via `PATCH /admin/users/:id/permissions` — see [`16-oversight.md`](./16-oversight.md) |
+| `canViewAllBoards` | boolean | Lets a `USER` read every **shared** board and its tasks read-only («المتابعة»), including boards they are not a member of (default `false`). `ADMIN`s always can — the rule is `canSupervise()` in `packages/types`. Only an ADMIN grants it, via `PATCH /admin/users/:id/permissions` — see [`16-oversight.md`](./16-oversight.md) |
+| `canApproveBoards` | boolean | Lets a `USER` approve or reject share requests for boards, and create shared boards directly (default `false`). `ADMIN`s always can — the rule is `canApproveSharedBoards()` in `packages/types`. Only an ADMIN grants it, via `PATCH /admin/users/:id/permissions` — see [`18-board-sharing.md`](./18-board-sharing.md) |
 | `createdAt` | date | Creation time |
 
 ### RefreshToken
@@ -103,8 +106,20 @@ The remote MCP server's OAuth state — detailed in [`15-mcp-server.md`](./15-mc
 | `dueDate` | Optional board-level target completion date — never rendered when `null` (no placeholder text, no empty field) |
 | `ownerId` | The board's owner (auto-added as a member with role `OWNER` on creation) |
 | `categoryId` | Optional `BoardCategory` — the heading the board is listed under for **every** member. `ON DELETE SET NULL`: deleting the category leaves the board «بلا تصنيف». Returned embedded as `category: { id, name } \| null` on every `BoardSummary`. See [`17-board-categories.md`](./17-board-categories.md) |
+| `kind` | `PERSONAL` (default — the owner's alone: no other members, never visible to oversight) \| `SHARED` (has members). A board becomes `SHARED` only through an approved `BoardShareRequest`, by being created by an approver, or by having had other members before the split; nothing turns it back. Every `BoardSummary` also carries `shareRequest` — its latest request, or `null`. See [`18-board-sharing.md`](./18-board-sharing.md) |
 | `isArchived` | If `true`, the board disappears from normal listings; archiving requires the `OWNER` role |
 | `updatedAt` | Used to sort the boards list (most recently updated first) |
+
+### BoardShareRequest
+
+A request to turn a personal board shared. Rows are never deleted: a rejected request stays as the record of why, and asking again files a new row. At most one is `PENDING` per board (checked in `BoardSharingService.request`). Cascade-deletes with its board.
+
+| Field | Notes |
+|---|---|
+| `status` | `PENDING` → `APPROVED` \| `REJECTED`. Decided only while still `PENDING` (a conditional update), so two approvers can't both decide |
+| `requestedById` | The board owner who asked |
+| `reason` | Why it was rejected — required on rejection, shown to the requester |
+| `decidedById` / `decidedAt` | The approver and when; `decidedById` becomes `null` if that account is deleted |
 
 ### BoardCategory
 

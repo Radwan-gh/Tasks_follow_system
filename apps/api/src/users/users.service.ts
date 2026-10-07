@@ -40,6 +40,7 @@ function serialize(user: UserWithCounts): AdminUser {
     mustChangePassword: user.mustChangePassword,
     canSendNotifications: user.canSendNotifications,
     canViewAllBoards: user.canViewAllBoards,
+    canApproveBoards: user.canApproveBoards,
     createdAt: user.createdAt.toISOString(),
     boardCount: user._count.boardMemberships,
     hasContent: CONTENT_RELATIONS.some((relation) => user._count[relation] > 0),
@@ -250,11 +251,12 @@ export class UsersService {
   }
 
   /**
-   * Grants or revokes per-user permissions — "can send notifications" and
-   * "can view all boards" (oversight). Only the flags present in `input` are
-   * touched. No session revocation needed: `CanSendPushGuard`,
-   * `SupervisorGuard` and `BoardsService.assertMembership` all read the flags
-   * from the database on every request, so a revoke takes effect immediately.
+   * Grants or revokes per-user permissions — "can send notifications", "can
+   * view all boards" (oversight) and "can approve shared boards". Only the
+   * flags present in `input` are touched. No session revocation needed:
+   * `CanSendPushGuard`, `SupervisorGuard`, `BoardsService.assertMembership` and
+   * `BoardsService.isApprover` all read the flags from the database on every
+   * request, so a revoke takes effect immediately.
    * Reachable only through the ADMIN-guarded `/admin/users` controller.
    */
   async updatePermissions(targetId: string, input: UpdateUserPermissionsRequest): Promise<AdminUser> {
@@ -262,7 +264,11 @@ export class UsersService {
     if (!target) throw new NotFoundException("User not found");
     const updated = await this.prisma.user.update({
       where: { id: targetId },
-      data: { canSendNotifications: input.canSendNotifications, canViewAllBoards: input.canViewAllBoards },
+      data: {
+        canSendNotifications: input.canSendNotifications,
+        canViewAllBoards: input.canViewAllBoards,
+        canApproveBoards: input.canApproveBoards,
+      },
       include: COUNT_INCLUDE,
     });
     return serialize(updated);

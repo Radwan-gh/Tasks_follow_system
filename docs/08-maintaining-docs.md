@@ -41,6 +41,7 @@
 | `mcp/*` (أدوات MCP، خادم OAuth، صفحة الدخول) أو `PUBLIC_API_URL` | [`15-mcp-server.md`](./15-mcp-server.md) |
 | `oversight/*`، `supervisor.guard.ts`، `canSupervise`/`canViewAllBoards`، أو المسار الاحتياطي للمتابع في `assertMembership` | [`16-oversight.md`](./16-oversight.md) (+ [`04-authorization.md`](./04-authorization.md)) |
 | `board-categories/*`، `Board.categoryId`، أو `groupBoardsByCategory`/`canManageBoardCategories` (ونسختها في الويب `features/boards/lib/board-sections.ts`) | [`17-board-categories.md`](./17-board-categories.md) |
+| `board-sharing.*`، `Board.kind`، `BoardShareRequest`، `canApproveBoards`/`canApproveSharedBoards`، أو `normalizeBoardName`/`isSimilarBoardName` | [`18-board-sharing.md`](./18-board-sharing.md) (+ [`04-authorization.md`](./04-authorization.md) و[`16-oversight.md`](./16-oversight.md) إن مسّ الوصول) |
 | مسار جديد، مكوّن معماري جديد، أو مصطلح جديد | [`01-overview.md`](./01-overview.md) + الملف المتخصّص |
 
 إن أضفت **موردًا جديدًا كليًا** (مثل التعليقات أو التسميات)، أنشئ ملفًا جديدًا

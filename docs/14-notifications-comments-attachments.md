@@ -31,7 +31,9 @@ POST   /push/send                         إرسال إشعار يدوي (مشر
 
 أنواع الإشعار (`NotificationType` في `packages/types`): `ASSIGNED` (إسناد إليك)،
 `DUE_SOON` (اقتراب الموعد)، `OVERDUE` (تأخّر)، `COMMENT` (تعليق على بطاقة أنت
-معنيّ بها)، `CARD_CLOSED` (نُقلت بطاقة أنشأتها إلى «انتهى»).
+معنيّ بها)، `CARD_CLOSED` (نُقلت بطاقة أنشأتها إلى «انتهى»)، و`BOARD_SHARE_REQUESTED` /
+`BOARD_SHARE_APPROVED` / `BOARD_SHARE_REJECTED` (طلب لوحة مشتركة وقراره — `boardId` بلا
+`cardId`، انظر [`18-board-sharing.md`](./18-board-sharing.md)).
 
 ### آلية الإنشاء: `NotificationsService.notify`
 
@@ -40,7 +42,8 @@ POST   /push/send                         إرسال إشعار يدوي (مشر
    حارس مستقل حتى لو نسي المستدعي استبعاد الفاعل.
 2. **يحترم تفضيلات المستلم** (`User.notificationPrefs`، ثلاثة مفاتيح: `assignmentsAndComments`
    يُغلق `ASSIGNED`/`COMMENT`، `dueDatesAndOverdue` يُغلق `DUE_SOON`/`OVERDUE`،
-   `myCardsMoved` يُغلق `CARD_CLOSED`) — إشعار مُعطَّل التفضيل لا يُكتب أصلًا،
+   `myCardsMoved` يُغلق `CARD_CLOSED`؛ وأنواع مشاركة اللوحات لا يُغلقها أيّ مفتاح:
+   `PREF_GATE` لها `null`) — إشعار مُعطَّل التفضيل لا يُكتب أصلًا،
    لا يُكتب ثم يُخفى.
 3. يقبل عميل معاملة Prisma (`tx`) حتى يُكتب الإشعار **ضمن نفس معاملة** الحدث
    الذي أطلقه (إسناد، تعليق، نقل بطاقة) — لا استدعاء منفصل قد يفشل بعد نجاح

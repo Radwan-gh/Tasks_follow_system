@@ -16,6 +16,9 @@ const ICONS: Record<NotificationType, string> = {
   OVERDUE: "◷",
   COMMENT: "💬",
   CARD_CLOSED: "✓",
+  BOARD_SHARE_REQUESTED: "⇄",
+  BOARD_SHARE_APPROVED: "✓",
+  BOARD_SHARE_REJECTED: "✕",
 };
 
 /**
