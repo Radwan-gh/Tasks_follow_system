@@ -14,6 +14,7 @@ import {
   BOARD_CATEGORIES_KEY,
   CategoryActionsSheet,
   CategoryNameSheet,
+  CategoryOrderSheet,
   useBoardCategories,
 } from "@/features/boards/board-categories";
 import { BoardRow } from "@/features/boards/board-row";
@@ -36,6 +37,7 @@ export default function BoardsScreen() {
   // fresh launch shows everything expanded.
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
   const [creatingCategory, setCreatingCategory] = useState(false);
+  const [reorderingCategories, setReorderingCategories] = useState(false);
   const [actionsFor, setActionsFor] = useState<{ id: string; name: string; boardCount: number } | null>(null);
   const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null);
   const [deleting, setDeleting] = useState<{ id: string; name: string } | null>(null);
@@ -183,21 +185,12 @@ export default function BoardsScreen() {
               : sections.flatMap((section) => section.boards.map(boardCard))}
 
             {isCategoryAdmin ? (
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => setCreatingCategory(true)}
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: spacing.sm,
-                  minHeight: MIN_TOUCH_TARGET,
-                }}
-              >
-                <AppText weight="semibold" color={colors.muted}>
-                  + تصنيف جديد
-                </AppText>
-              </Pressable>
+              <View style={{ flexDirection: "row", justifyContent: "center", gap: spacing.xl }}>
+                <FooterAction label="+ تصنيف جديد" onPress={() => setCreatingCategory(true)} />
+                {(categories.data?.length ?? 0) > 1 ? (
+                  <FooterAction label="ترتيب التصنيفات" onPress={() => setReorderingCategories(true)} />
+                ) : null}
+              </View>
             ) : null}
           </>
         )}
@@ -231,6 +224,7 @@ export default function BoardsScreen() {
       />
 
       <CategoryNameSheet visible={creatingCategory} onClose={() => setCreatingCategory(false)} />
+      <CategoryOrderSheet visible={reorderingCategories} onClose={() => setReorderingCategories(false)} />
       <CategoryNameSheet visible={!!renaming} category={renaming ?? undefined} onClose={() => setRenaming(null)} />
       <CategoryActionsSheet
         visible={!!actionsFor}
@@ -240,6 +234,10 @@ export default function BoardsScreen() {
         onRename={() => {
           setRenaming(actionsFor);
           setActionsFor(null);
+        }}
+        onReorder={() => {
+          setActionsFor(null);
+          setReorderingCategories(true);
         }}
         onDelete={() => {
           setDeleting(actionsFor);
@@ -261,7 +259,7 @@ export default function BoardsScreen() {
 
 /**
  * A category's heading on the boards list — tap folds it, long-press (admins
- * only) opens rename/delete.
+ * only) opens rename/reorder/delete.
  */
 function SectionHeader({
   title,
@@ -281,7 +279,7 @@ function SectionHeader({
       accessibilityRole="button"
       accessibilityState={{ expanded: open }}
       accessibilityLabel={`${title}، ${countLabel(count, BOARDS)}`}
-      accessibilityHint={onLongPress ? "اضغط للطي أو الفتح، واضغط مطوّلًا لإعادة التسمية أو الحذف" : "اضغط للطي أو الفتح"}
+      accessibilityHint={onLongPress ? "اضغط للطي أو الفتح، واضغط مطوّلًا لإعادة التسمية أو الترتيب أو الحذف" : "اضغط للطي أو الفتح"}
       onPress={onPress}
       onLongPress={onLongPress}
       style={{
@@ -302,6 +300,20 @@ function SectionHeader({
       </AppText>
       <View style={{ flex: 1 }} />
       <Ionicons name={open ? "chevron-down" : "chevron-back"} size={15} color={colors.muted} />
+    </Pressable>
+  );
+}
+
+function FooterAction({ label, onPress }: { label: string; onPress: () => void }) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      onPress={onPress}
+      style={{ alignItems: "center", justifyContent: "center", minHeight: MIN_TOUCH_TARGET }}
+    >
+      <AppText weight="semibold" color={colors.muted}>
+        {label}
+      </AppText>
     </Pressable>
   );
 }

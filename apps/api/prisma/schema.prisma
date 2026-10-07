@@ -194,14 +194,18 @@ model Board {
 }
 
 /// A named group of boards — see `docs/17-board-categories.md`. Global rather
-/// than per-board: any user may create one, and its creator (or an ADMIN) may
-/// rename or delete it. Names are unique case-insensitively, enforced in
+/// than per-board: every user sees them; only an ADMIN creates, renames,
+/// reorders or deletes one. Names are unique case-insensitively, enforced in
 /// `BoardCategoriesService`.
 model BoardCategory {
   id          String   @id @default(cuid())
   name        String
-  /// Null once the creator's account is deleted — the category outlives them,
-  /// and from then on only an ADMIN can rename or delete it.
+  /// Fractional-index key (`packages/ordering`), like `List.position` — the
+  /// order of the sections on the boards list, set by an admin. Moving one
+  /// category writes only its own row.
+  position    String
+  /// The admin who made it — a record, not a permission. Null once their
+  /// account is deleted; the category outlives them.
   createdById String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt

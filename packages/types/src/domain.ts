@@ -187,13 +187,15 @@ export const BoardMemberCandidateListSchema = z.object({
 export type BoardMemberCandidateList = z.infer<typeof BoardMemberCandidateListSchema>;
 
 /**
- * A named group of boards on the boards list («التصنيف»). Global: any user
- * may create one; its creator — or an ADMIN — may rename or delete it.
- * `createdById` is null once the creator's account is gone.
+ * A named group of boards on the boards list («التصنيف»). Global: everyone
+ * sees them; only an ADMIN creates, renames, reorders or deletes one.
+ * `createdById` records which admin made it (null once that account is gone).
  */
 export const BoardCategorySchema = z.object({
   id: z.string(),
   name: z.string().min(1).max(60),
+  /** Fractional-index key; `GET /board-categories` returns them in this order. */
+  position: z.string(),
   createdById: z.string().nullable(),
   createdAt: z.string().datetime(),
 });

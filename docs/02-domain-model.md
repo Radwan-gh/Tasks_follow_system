@@ -108,11 +108,12 @@ The remote MCP server's OAuth state — detailed in [`15-mcp-server.md`](./15-mc
 
 ### BoardCategory
 
-A named, **global** group of boards (not owned by any board). Every user can list them; only an ADMIN may create, rename or delete one (`canManageBoardCategories`). Filing a board under one is a board edit (any board MEMBER).
+A named, **global** group of boards (not owned by any board). Every user can list them (in `position` order); only an ADMIN may create, rename, reorder or delete one (`canManageBoardCategories`). Filing a board under one is a board edit (any board MEMBER).
 
 | Field | Notes |
 |---|---|
 | `name` | 1–60 characters, trimmed; **unique ignoring case** (checked in `BoardCategoriesService`, 409 on a clash) |
+| `position` | Fractional-index key (`COLLATE "C"`), like `List.position` — the admin-set order of the sections on everyone's boards list. New categories go last; reordered via `PATCH /board-categories/:id { move }` |
 | `createdById` | The admin who created it — a record, not a permission; `null` once their account is deleted (`ON DELETE SET NULL`) |
 
 ### BoardMember

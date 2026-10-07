@@ -68,15 +68,6 @@ export const UpdateBoardRequestSchema = z.object({
 });
 export type UpdateBoardRequest = z.infer<typeof UpdateBoardRequestSchema>;
 
-/** Trimmed before the length check, so "   " is rejected rather than stored. */
-const BoardCategoryName = z.string().trim().min(1).max(60);
-
-export const CreateBoardCategoryRequestSchema = z.object({ name: BoardCategoryName });
-export type CreateBoardCategoryRequest = z.infer<typeof CreateBoardCategoryRequestSchema>;
-
-export const UpdateBoardCategoryRequestSchema = z.object({ name: BoardCategoryName });
-export type UpdateBoardCategoryRequest = z.infer<typeof UpdateBoardCategoryRequestSchema>;
-
 /**
  * `role` defaults to `MEMBER` server-side when omitted; `OWNER` is never a valid
  * value here (ownership doesn't transfer via this endpoint).
@@ -210,6 +201,18 @@ export const MoveTargetSchema = z.object({
   afterId: z.string().nullable().optional(),
 });
 export type MoveTarget = z.infer<typeof MoveTargetSchema>;
+
+/** Trimmed before the length check, so "   " is rejected rather than stored. */
+const BoardCategoryName = z.string().trim().min(1).max(60);
+
+export const CreateBoardCategoryRequestSchema = z.object({ name: BoardCategoryName });
+export type CreateBoardCategoryRequest = z.infer<typeof CreateBoardCategoryRequestSchema>;
+
+/** Rename, reorder (neighbour ids, as for lists), or both. */
+export const UpdateBoardCategoryRequestSchema = z
+  .object({ name: BoardCategoryName.optional(), move: MoveTargetSchema.optional() })
+  .refine((body) => body.name !== undefined || body.move !== undefined, { message: "Nothing to update" });
+export type UpdateBoardCategoryRequest = z.infer<typeof UpdateBoardCategoryRequestSchema>;
 
 export const UpdateListRequestSchema = z.object({
   name: z.string().min(1).max(200).optional(),

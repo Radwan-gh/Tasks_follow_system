@@ -5,7 +5,12 @@ import type { CreateBoardRequest } from "@app/types";
 import { api } from "../../lib/api-client";
 import { useAuth } from "../auth/AuthContext";
 import { BoardCard } from "./components/BoardCard";
-import { BOARD_CATEGORIES_KEY, categoryErrorMessage, useBoardCategories } from "./components/CategorySelect";
+import {
+  BOARD_CATEGORIES_KEY,
+  categoryErrorMessage,
+  useBoardCategories,
+  useMoveBoardCategory,
+} from "./components/CategorySelect";
 import { CreateBoardModal } from "./components/CreateBoardModal";
 import { canManageBoardCategories, groupBoardsByCategory } from "./lib/board-sections";
 
@@ -16,6 +21,7 @@ export function BoardsListPage() {
   const { data: categories } = useBoardCategories();
   const [creatingOpen, setCreatingOpen] = useState(false);
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
+  const moveCategory = useMoveBoardCategory();
 
   const createBoard = useMutation({
     mutationFn: (input: CreateBoardRequest) => api.boards.create(input),
@@ -83,6 +89,8 @@ export function BoardsListPage() {
           ? sections.map((section) => {
               const key = section.category?.id ?? "NONE";
               const open = !collapsed.has(key);
+              // Admins see every category as a section, so this is the full order.
+              const index = categories?.findIndex((c) => c.id === section.category?.id) ?? -1;
               return (
                 <section key={key} className="space-y-3">
                   <CategoryHeader
@@ -91,6 +99,9 @@ export function BoardsListPage() {
                     open={open}
                     onToggle={() => toggle(key)}
                     manageable={!!section.category && isCategoryAdmin}
+                    onMove={(direction) => section.category && moveCategory(section.category.id, direction)}
+                    canMoveUp={index > 0}
+                    canMoveDown={index >= 0 && index < (categories?.length ?? 0) - 1}
                   />
                   {open &&
                     (section.boards.length > 0 ? (
@@ -119,19 +130,25 @@ export function BoardsListPage() {
   );
 }
 
-/** A section heading: fold/unfold, and — for admins — rename or delete in place. */
+/** A section heading: fold/unfold, and — for admins — move up/down, rename or delete in place. */
 function CategoryHeader({
   category,
   count,
   open,
   onToggle,
   manageable,
+  onMove,
+  canMoveUp,
+  canMoveDown,
 }: {
   category: { id: string; name: string } | null;
   count: number;
   open: boolean;
   onToggle: () => void;
   manageable: boolean;
+  onMove: (direction: "up" | "down") => void;
+  canMoveUp: boolean;
+  canMoveDown: boolean;
 }) {
   const queryClient = useQueryClient();
   const [mode, setMode] = useState<"idle" | "renaming" | "deleting">("idle");
@@ -144,7 +161,7 @@ function CategoryHeader({
   }
 
   const rename = useMutation({
-    mutationFn: (newName: string) => api.boardCategories.rename(category!.id, { name: newName }),
+    mutationFn: (newName: string) => api.boardCategories.update(category!.id, { name: newName }),
     onSuccess: () => {
       setMode("idle");
       refresh();
@@ -203,7 +220,27 @@ function CategoryHeader({
           <span className="text-xs text-muted">{count}</span>
         </button>
         {manageable && mode === "idle" && (
-          <span className="flex gap-3 text-xs text-muted">
+          <span className="flex items-center gap-3 text-xs text-muted">
+            <span className="flex">
+              <button
+                type="button"
+                onClick={() => onMove("up")}
+                disabled={!canMoveUp}
+                aria-label={`تحريك «${category?.name ?? ""}» لأعلى`}
+                className="rounded px-1.5 py-0.5 hover:bg-line hover:text-ink disabled:opacity-30 disabled:hover:bg-transparent"
+              >
+                ↑
+              </button>
+              <button
+                type="button"
+                onClick={() => onMove("down")}
+                disabled={!canMoveDown}
+                aria-label={`تحريك «${category?.name ?? ""}» لأسفل`}
+                className="rounded px-1.5 py-0.5 hover:bg-line hover:text-ink disabled:opacity-30 disabled:hover:bg-transparent"
+              >
+                ↓
+              </button>
+            </span>
             <button type="button" onClick={() => setMode("renaming")} className="hover:text-ink">
               إعادة التسمية
             </button>

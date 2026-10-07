@@ -1,15 +1,30 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
-import { canManageBoardCategories, type BoardCategory } from "@app/types";
+import { generateKeyBetween } from "@app/ordering";
+import { canManageBoardCategories, type BoardCategory, type UpdateBoardCategoryRequest } from "@app/types";
+import { computeMovePosition } from "../common/util/position.util";
 import { PrismaService } from "../prisma/prisma.service";
 
-function serialize(row: { id: string; name: string; createdById: string | null; createdAt: Date }): BoardCategory {
-  return { id: row.id, name: row.name, createdById: row.createdById, createdAt: row.createdAt.toISOString() };
+function serialize(row: {
+  id: string;
+  name: string;
+  position: string;
+  createdById: string | null;
+  createdAt: Date;
+}): BoardCategory {
+  return {
+    id: row.id,
+    name: row.name,
+    position: row.position,
+    createdById: row.createdById,
+    createdAt: row.createdAt.toISOString(),
+  };
 }
 
 /**
  * Board categories («التصنيفات») — `docs/17-board-categories.md`. Global, not
  * board-scoped: any signed-in user lists them, and only an ADMIN creates,
- * renames or deletes one (`canManageBoardCategories`). `createdById` is kept
+ * renames, reorders or deletes one (`canManageBoardCategories`). Order is a
+ * fractional-index `position`, moved by neighbour ids exactly like a list. `createdById` is kept
  * as a record of which admin made it, not as a permission.
  * Putting a board *into* a category is a board edit and goes through
  * `BoardsService` (and so `assertMembership`), not through here.
@@ -19,21 +34,43 @@ export class BoardCategoriesService {
   constructor(private readonly prisma: PrismaService) {}
 
   async list(): Promise<BoardCategory[]> {
-    const rows = await this.prisma.boardCategory.findMany({ orderBy: { name: "asc" } });
+    const rows = await this.prisma.boardCategory.findMany({ orderBy: { position: "asc" } });
     return rows.map(serialize);
   }
 
   async create(userId: string, name: string): Promise<BoardCategory> {
     await this.assertAdmin(userId);
     await this.assertNameFree(name);
-    return serialize(await this.prisma.boardCategory.create({ data: { name, createdById: userId } }));
+    // A new category goes last; the admin moves it from there.
+    const last = await this.prisma.boardCategory.findFirst({ orderBy: { position: "desc" }, select: { position: true } });
+    const position = generateKeyBetween(last?.position ?? null, null);
+    return serialize(await this.prisma.boardCategory.create({ data: { name, position, createdById: userId } }));
   }
 
-  async rename(userId: string, categoryId: string, name: string): Promise<BoardCategory> {
+  /** Rename and/or reorder. Neighbour positions are re-read inside the transaction, as for lists. */
+  async update(userId: string, categoryId: string, input: UpdateBoardCategoryRequest): Promise<BoardCategory> {
     await this.assertAdmin(userId);
     await this.assertFound(categoryId);
-    await this.assertNameFree(name, categoryId);
-    return serialize(await this.prisma.boardCategory.update({ where: { id: categoryId }, data: { name } }));
+    if (input.name !== undefined) await this.assertNameFree(input.name, categoryId);
+
+    const move = input.move;
+    if (move) {
+      const neighbourIds = [move.beforeId, move.afterId].filter((id): id is string => !!id);
+      if (neighbourIds.includes(categoryId)) throw new BadRequestException("A category cannot be its own neighbour");
+      const found = await this.prisma.boardCategory.count({ where: { id: { in: neighbourIds } } });
+      if (found !== new Set(neighbourIds).size) throw new BadRequestException("Unknown neighbour category");
+    }
+
+    const row = await this.prisma.$transaction(async (tx) => {
+      const position = move
+        ? await computeMovePosition(move.beforeId, move.afterId, async (id) => {
+            const neighbour = await tx.boardCategory.findUnique({ where: { id }, select: { position: true } });
+            return neighbour?.position ?? null;
+          })
+        : undefined;
+      return tx.boardCategory.update({ where: { id: categoryId }, data: { name: input.name, position } });
+    });
+    return serialize(row);
   }
 
   /** Its boards are not touched beyond losing the category (`onDelete: SetNull`) — they fall back to «بلا تصنيف». */
