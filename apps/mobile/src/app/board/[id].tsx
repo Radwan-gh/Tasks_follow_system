@@ -3,7 +3,7 @@ import { I18nManager, Pressable, RefreshControl, ScrollView, StyleSheet, TextInp
 import { useIsFocused, useLocalSearchParams, useRouter } from "expo-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import type { BoardCard, BoardDetail, Card } from "@app/types";
+import { canApproveSharedBoards, type BoardCard, type BoardDetail, type Card } from "@app/types";
 import { ApiError } from "@app/api-client";
 import { Screen } from "@/components/screen";
 import { AppText } from "@/components/text";
@@ -19,12 +19,14 @@ import { BoardDragProvider, DragOverlay, useBoardDrag } from "@/features/boards/
 import { QuickAddCard } from "@/features/boards/quick-add-card";
 import { BoardSummarySheet } from "@/features/boards/board-summary-sheet";
 import { BoardFilterSheet, EMPTY_BOARD_FILTER, isFilterActive, type BoardFilter } from "@/features/boards/board-filter-sheet";
+import { RequestShareSheet, ShareNoticeBanner } from "@/features/boards/board-sharing";
 import { useAuth } from "@/features/auth/auth-context";
 import { EmptyState } from "@/components/state-views";
 import { api } from "@/lib/api";
 import { LIVE_REFETCH_MS, boardDetailKey, recentClosedSince, useOpenCard } from "@/lib/board-cache";
 import { indexFromOffset, resolveColumnOffsets, snapOffsetsFor } from "@/lib/status-pager";
 import { planDrop } from "@/lib/reorder";
+import { shareNoticeFor } from "@/lib/board-sharing";
 import { MIN_TOUCH_TARGET, colors, fonts, fontSizes, radii, spacing } from "@/theme/tokens";
 
 /**
@@ -327,6 +329,8 @@ export default function BoardScreen() {
   const isSupervised = !!board.data?.supervised;
   const isViewer = myRole === "VIEWER" || isSupervised;
   const boardReadOnly = !!board.data?.isArchived || isViewer;
+  const shareNotice = board.data && !board.data.isArchived ? shareNoticeFor(board.data, user?.id) : null;
+  const [requestingShare, setRequestingShare] = useState(false);
   /** Board owner or this card's own assignees may move it into «انتهى» — §3b-4. */
   function canCloseCard(card: Card): boolean {
     return !!user && (board.data?.ownerId === user.id || card.assigneeIds.includes(user.id));
@@ -551,6 +555,8 @@ export default function BoardScreen() {
           </AppText>
         </View>
       ) : null}
+
+      <ShareNoticeBanner notice={shareNotice} onRequestAgain={() => setRequestingShare(true)} />
 
       <View style={{ flex: 1 }}>
         {board.isPending ? (
@@ -897,6 +903,15 @@ export default function BoardScreen() {
       </BottomSheet>
 
       <BoardSummarySheet visible={summaryVisible} onClose={() => setSummaryVisible(false)} boardId={id} />
+
+      {board.data && isOwner ? (
+        <RequestShareSheet
+          visible={requestingShare}
+          onClose={() => setRequestingShare(false)}
+          board={board.data}
+          approver={!!user && canApproveSharedBoards(user)}
+        />
+      ) : null}
 
       <BoardFilterSheet
         visible={filterVisible}

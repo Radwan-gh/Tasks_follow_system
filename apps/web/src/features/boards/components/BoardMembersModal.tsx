@@ -8,6 +8,12 @@ import { UserTypeahead } from "./MemberPicker";
 interface BoardMembersModalProps {
   boardId: string;
   members: BoardMember[];
+  /**
+   * A personal board has no members (`docs/18-board-sharing.md`): instead of
+   * the picker, the modal offers to ask for the board to become shared — or
+   * says the request is waiting.
+   */
+  personal?: { pending: boolean; onRequestSharing: () => void };
   onClose: () => void;
 }
 
@@ -25,7 +31,7 @@ type AddableRole = Exclude<BoardRole, "OWNER">;
  * (`PUT /boards/:id/members` via `useAutoSavedIds`). Newcomers join as
  * members; the role toggle on each chip switches member ⇄ viewer.
  */
-export function BoardMembersModal({ boardId, members, onClose }: BoardMembersModalProps) {
+export function BoardMembersModal({ boardId, members, personal, onClose }: BoardMembersModalProps) {
   const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
 
@@ -103,42 +109,63 @@ export function BoardMembersModal({ boardId, members, onClose }: BoardMembersMod
 
         {error && <div className="rounded bg-red-50 px-3 py-2 text-sm text-red-600">{error}</div>}
 
-        <UserTypeahead
-          members={pool}
-          lookup={lookup}
-          selectedIds={selection.ids}
-          onChange={selection.change}
-          saving={selection.saving}
-          failed={selection.failed}
-          onTermChange={setTerm}
-          searching={candidates.isFetching || term.trim() !== debounced}
-          noMatchText={(typed) => `لا يوجد مستخدم يطابق «${typed}» ويمكن إضافته.`}
-          lockedIds={ownerIds}
-          chipExtra={(m) => {
-            const role = roleOf.get(m.userId);
-            if (role === "OWNER") return <span className="text-[10px] font-medium text-muted">مالك</span>;
-            // Not saved yet — nothing to switch until the server has the row.
-            if (!role) return null;
-            return (
+        {personal ? (
+          <div className="space-y-3">
+            <p className="text-sm text-ink/80">اللوحة شخصية، فلا أعضاء فيها.</p>
+            {personal.pending ? (
+              <p className="rounded-field bg-accent-soft px-3 py-2 text-sm text-ink/80">
+                طلب المشاركة بانتظار الموافقة. تعمل اللوحة كلوحة شخصية حتى ذلك الحين.
+              </p>
+            ) : (
               <button
                 type="button"
-                disabled={updateRole.isPending}
-                onClick={() => updateRole.mutate({ userId: m.userId, role: role === "VIEWER" ? "MEMBER" : "VIEWER" })}
-                aria-label={`دور ${m.user.displayName}: ${role === "VIEWER" ? "مشاهد" : "عضو"} — اضغط للتبديل`}
-                className="rounded-full bg-surface px-1.5 text-[10px] font-medium text-muted hover:text-ink disabled:opacity-50"
+                onClick={personal.onRequestSharing}
+                className="rounded-field bg-accent px-4 py-2 text-sm font-medium text-white hover:opacity-90"
               >
-                {role === "VIEWER" ? "مشاهد ▾" : "عضو ▾"}
+                اطلب جعلها مشتركة
               </button>
-            );
-          }}
-          label="أضف عضوًا إلى اللوحة"
-          placeholder="اكتب اسمًا أو اسم مستخدم لإضافته"
-          emptyHint=""
-        />
+            )}
+          </div>
+        ) : (
+          <>
+            <UserTypeahead
+              members={pool}
+              lookup={lookup}
+              selectedIds={selection.ids}
+              onChange={selection.change}
+              saving={selection.saving}
+              failed={selection.failed}
+              onTermChange={setTerm}
+              searching={candidates.isFetching || term.trim() !== debounced}
+              noMatchText={(typed) => `لا يوجد مستخدم يطابق «${typed}» ويمكن إضافته.`}
+              lockedIds={ownerIds}
+              chipExtra={(m) => {
+                const role = roleOf.get(m.userId);
+                if (role === "OWNER") return <span className="text-[10px] font-medium text-muted">مالك</span>;
+                // Not saved yet — nothing to switch until the server has the row.
+                if (!role) return null;
+                return (
+                  <button
+                    type="button"
+                    disabled={updateRole.isPending}
+                    onClick={() => updateRole.mutate({ userId: m.userId, role: role === "VIEWER" ? "MEMBER" : "VIEWER" })}
+                    aria-label={`دور ${m.user.displayName}: ${role === "VIEWER" ? "مشاهد" : "عضو"} — اضغط للتبديل`}
+                    className="rounded-full bg-surface px-1.5 text-[10px] font-medium text-muted hover:text-ink disabled:opacity-50"
+                  >
+                    {role === "VIEWER" ? "مشاهد ▾" : "عضو ▾"}
+                  </button>
+                );
+              }}
+              label="أضف عضوًا إلى اللوحة"
+              placeholder="اكتب اسمًا أو اسم مستخدم لإضافته"
+              emptyHint=""
+            />
 
-        <p className="text-[11px] text-muted">
-          الأعضاء يعدّلون المهام، والمشاهدون يقرؤون فقط. اضغط الدور على أي شخص لتبديله.
-        </p>
+            <p className="text-[11px] text-muted">
+              الأعضاء يعدّلون المهام، والمشاهدون يقرؤون فقط. اضغط الدور على أي شخص لتبديله.
+            </p>
+          </>
+        )}
       </div>
     </div>
   );

@@ -67,6 +67,7 @@ function RootNavigator() {
         <Stack.Screen name="notifications" />
         <Stack.Screen name="archived-boards" />
         <Stack.Screen name="oversight" />
+        <Stack.Screen name="board-requests" />
         <Stack.Screen name="guide" />
       </Stack.Protected>
       <Stack.Protected guard={!user}>

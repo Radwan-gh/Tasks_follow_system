@@ -152,6 +152,22 @@ export function UsersAdminPage() {
     onError: onMutationError,
   });
 
+  // Same rule: only an ADMIN grants or revokes «الموافقة على اللوحات المشتركة».
+  const updateApprove = useMutation({
+    mutationFn: ({ id, canApproveBoards }: { id: string; canApproveBoards: boolean }) =>
+      api.admin.updateUserPermissions(id, { canApproveBoards }),
+    onSuccess: onMutationSuccess,
+    onError: onMutationError,
+  });
+
+  function onApproveToggle(id: string, username: string, canApproveBoards: boolean) {
+    const label = canApproveBoards
+      ? `السماح لـ ${username} بالموافقة على طلبات اللوحات المشتركة أو رفضها؟`
+      : `سحب صلاحية الموافقة على اللوحات من ${username}؟`;
+    if (!window.confirm(label)) return;
+    updateApprove.mutate({ id, canApproveBoards });
+  }
+
   function onViewAllToggle(id: string, username: string, canViewAllBoards: boolean) {
     const label = canViewAllBoards
       ? `السماح لـ ${username} بالاطلاع على كل اللوحات والمهام (للقراءة فقط)؟`
@@ -184,6 +200,7 @@ export function UsersAdminPage() {
     setPassword.isPending ||
     updateUser.isPending ||
     updateViewAll.isPending ||
+    updateApprove.isPending ||
     deleteUser.isPending;
 
   return (
@@ -305,6 +322,11 @@ export function UsersAdminPage() {
                             يطّلع على كل اللوحات
                           </span>
                         )}
+                        {u.role !== "ADMIN" && u.canApproveBoards && (
+                          <span className="ms-1.5 rounded bg-accent-soft px-2 py-0.5 text-xs font-medium text-accent">
+                            يوافق على اللوحات
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-3">
                         <span
@@ -343,6 +365,15 @@ export function UsersAdminPage() {
                               className="rounded border border-slate-300 px-2 py-1 text-xs text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
                             >
                               {u.canViewAllBoards ? "سحب الاطلاع على الكل" : "الاطلاع على كل اللوحات"}
+                            </button>
+                          )}
+                          {u.role !== "ADMIN" && (
+                            <button
+                              onClick={() => onApproveToggle(u.id, u.username, !u.canApproveBoards)}
+                              disabled={isMutating}
+                              className="rounded border border-slate-300 px-2 py-1 text-xs text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                            >
+                              {u.canApproveBoards ? "سحب الموافقة على اللوحات" : "الموافقة على اللوحات المشتركة"}
                             </button>
                           )}
                           <button

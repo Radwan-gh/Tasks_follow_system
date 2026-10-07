@@ -3,7 +3,7 @@ import { Pressable, TextInput, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError } from "@app/api-client";
-import type { BoardMember, BoardRole } from "@app/types";
+import { canApproveSharedBoards, type BoardMember, type BoardRole } from "@app/types";
 import { Screen } from "@/components/screen";
 import { AppText } from "@/components/text";
 import { ConfirmSheet } from "@/components/confirm-sheet";
@@ -12,6 +12,7 @@ import { ErrorState } from "@/components/state-views";
 import { Skeleton } from "@/components/skeleton";
 import { useAuth } from "@/features/auth/auth-context";
 import { CategoryField } from "@/features/boards/board-categories";
+import { RequestShareSheet } from "@/features/boards/board-sharing";
 import { PeopleField } from "@/features/cards/people-field";
 import { formatDueDate } from "@/lib/date";
 import { api } from "@/lib/api";
@@ -55,6 +56,7 @@ export default function BoardSettingsScreen() {
   const [memberSearch, setMemberSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [requestingShare, setRequestingShare] = useState(false);
 
   useEffect(() => {
     if (board.data && !seeded) {
@@ -83,7 +85,7 @@ export default function BoardSettingsScreen() {
   const candidates = useQuery({
     queryKey: ["member-candidates", id, debouncedSearch],
     queryFn: () => api.boards.memberCandidates(id, { search: debouncedSearch, limit: CANDIDATE_LIMIT }),
-    enabled: isOwner && debouncedSearch.length > 0,
+    enabled: isOwner && board.data?.kind === "SHARED" && debouncedSearch.length > 0,
     placeholderData: (previous) => previous,
   });
 
@@ -329,6 +331,36 @@ export default function BoardSettingsScreen() {
           </AppText>
         </Pressable>
 
+        {board.data.kind === "PERSONAL" ? (
+          // Members are for shared boards only (`docs/18-board-sharing.md`).
+          <View style={{ gap: spacing.sm, borderTopWidth: 1, borderTopColor: colors.line, paddingTop: spacing.lg }}>
+            <AppText size="caption" weight="semibold" color={colors.muted}>
+              أعضاء اللوحة
+            </AppText>
+            <AppText size="small">اللوحة شخصية، فلا أعضاء فيها.</AppText>
+            {board.data.shareRequest?.status === "PENDING" ? (
+              <AppText size="caption" color={colors.muted}>
+                طلب المشاركة بانتظار الموافقة. تعمل اللوحة كلوحة شخصية حتى ذلك الحين.
+              </AppText>
+            ) : isOwner && !board.data.isArchived ? (
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => setRequestingShare(true)}
+                style={{
+                  minHeight: MIN_TOUCH_TARGET,
+                  borderRadius: radii.field,
+                  backgroundColor: colors.accentSoft,
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <AppText weight="semibold" color={colors.accent}>
+                  اطلب جعلها مشتركة
+                </AppText>
+              </Pressable>
+            ) : null}
+          </View>
+        ) : (
         <View style={{ gap: spacing.sm, borderTopWidth: 1, borderTopColor: colors.line, paddingTop: spacing.lg }}>
           <PeopleField
             label="أعضاء اللوحة"
@@ -358,6 +390,7 @@ export default function BoardSettingsScreen() {
             </AppText>
           ) : null}
         </View>
+        )}
 
         {canArchive ? (
           <View style={{ borderTopWidth: 1, borderTopColor: colors.line, paddingTop: spacing.lg }}>
@@ -436,6 +469,17 @@ export default function BoardSettingsScreen() {
           </View>
         )}
       </RevealScrollView>
+
+      {isOwner ? (
+        <RequestShareSheet
+          visible={requestingShare}
+          onClose={() => setRequestingShare(false)}
+          board={{ id, name: board.data.name, description: description.trim() || board.data.description }}
+          approver={!!user && canApproveSharedBoards(user)}
+          // Keep «حفظ» from writing the old description back over the scope just sent.
+          onSent={setDescription}
+        />
+      ) : null}
 
       <DueDateSheet visible={pickingDueDate} onClose={() => setPickingDueDate(false)} onChange={setDueDate} value={dueDate} />
 

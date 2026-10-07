@@ -8,6 +8,7 @@ import { Skeleton } from "@/components/skeleton";
 import { EmptyState, ErrorState } from "@/components/state-views";
 import { api } from "@/lib/api";
 import { useOpenCard } from "@/lib/board-cache";
+import { notificationTarget } from "@/lib/board-sharing";
 import { colors, spacing } from "@/theme/tokens";
 
 const ICONS: Record<NotificationType, string> = {
@@ -40,7 +41,10 @@ export default function NotificationsScreen() {
 
   function open(notification: Notification) {
     if (!notification.readAt) markRead.mutate(notification.id);
-    if (notification.cardId) openCard(notification.cardId, notification.boardId);
+    const target = notificationTarget(notification);
+    if (target?.kind === "card") openCard(target.cardId, target.boardId);
+    else if (target?.kind === "board") router.push(`/board/${target.boardId}`);
+    else if (target?.kind === "board-requests") router.push("/board-requests");
   }
 
   const groups = notifications.data ? groupByRecency(notifications.data.items) : null;

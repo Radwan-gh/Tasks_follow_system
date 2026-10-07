@@ -1,5 +1,6 @@
 import { Link, useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
+import { canApproveSharedBoards } from "../lib/can-approve-boards";
 import { canSupervise } from "../lib/can-supervise";
 import ghirasMark from "../assets/ghiras-mark.svg";
 import { api } from "../lib/api-client";
@@ -15,12 +16,15 @@ interface NavItem {
   adminOnly?: boolean;
   /** ADMIN, or a user granted `canViewAllBoards`. */
   supervisorOnly?: boolean;
+  /** ADMIN, or a user granted `canApproveBoards`. */
+  approverOnly?: boolean;
 }
 
 const NAV_ITEMS: NavItem[] = [
   { to: "/boards", label: "اللوحات", icon: "▤" },
   { to: "/my-tasks", label: "مهامي", icon: "◔" },
   { to: "/oversight", label: "المتابعة", icon: "◉", supervisorOnly: true },
+  { to: "/board-requests", label: "طلبات اللوحات", icon: "⇄", approverOnly: true },
   { to: "/reports", label: "التقارير", icon: "◫", adminOnly: true },
   { to: "/admin/users", label: "المستخدمون", icon: "◎", adminOnly: true },
   { to: "/guide", label: "دليل الاستخدام", icon: "◇" },
@@ -41,6 +45,15 @@ export function Sidebar() {
     refetchInterval: 60_000,
   });
   const overdueCount = myTasks?.items.filter((item) => isOverdueItem(item)).length ?? 0;
+  const approver = !!user && canApproveSharedBoards(user);
+  // Same key as the queue page's pending tab, so deciding there updates this badge.
+  const { data: pendingRequests } = useQuery({
+    queryKey: ["board-share-requests", "PENDING"],
+    queryFn: () => api.boardSharing.list("PENDING"),
+    enabled: approver,
+    refetchInterval: 60_000,
+  });
+  const pendingCount = approver ? (pendingRequests?.length ?? 0) : 0;
 
   return (
     <aside className="flex w-[232px] shrink-0 flex-col gap-[22px] border-line bg-surface p-4 [border-inline-start-width:1px] [border-inline-start-style:solid]">
@@ -55,7 +68,9 @@ export function Sidebar() {
       <nav className="flex flex-col gap-1">
         {NAV_ITEMS.filter(
           (item) =>
-            (!item.adminOnly || user?.role === "ADMIN") && (!item.supervisorOnly || (user && canSupervise(user))),
+            (!item.adminOnly || user?.role === "ADMIN") &&
+            (!item.supervisorOnly || (user && canSupervise(user))) &&
+            (!item.approverOnly || approver),
         ).map((item) => {
           const active = location.pathname.startsWith(item.to);
           return (
@@ -73,6 +88,11 @@ export function Sidebar() {
               {item.to === "/my-tasks" && overdueCount > 0 && (
                 <span className="ms-auto rounded-full bg-alert-bg px-2 py-0.5 text-[11px] font-semibold text-alert">
                   {overdueCount}
+                </span>
+              )}
+              {item.to === "/board-requests" && pendingCount > 0 && (
+                <span className="ms-auto rounded-full bg-accent-soft px-2 py-0.5 text-[11px] font-semibold text-accent">
+                  {pendingCount}
                 </span>
               )}
             </Link>

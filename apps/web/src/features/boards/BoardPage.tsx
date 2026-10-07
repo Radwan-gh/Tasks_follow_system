@@ -19,6 +19,7 @@ import { CardPreview } from "./components/CardItem";
 import { CardDetailPanel } from "./components/CardDetailPanel";
 import { BoardSettingsModal } from "./components/BoardSettingsModal";
 import { BoardMembersModal } from "./components/BoardMembersModal";
+import { ShareRequestDialog } from "./components/ShareRequestDialog";
 import { BoardOwnerSummaryPanel } from "./components/BoardOwnerSummaryPanel";
 import { CreateCardModal } from "./components/CreateCardModal";
 import { FilterPopover } from "./components/FilterPopover";
@@ -67,6 +68,7 @@ export function BoardPage() {
   const [openCardId, setOpenCardId] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [membersOpen, setMembersOpen] = useState(false);
+  const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [creatingCardOpen, setCreatingCardOpen] = useState(false);
   const [filters, setFilters] = useState<CardFilters>(EMPTY_FILTERS);
@@ -183,6 +185,8 @@ export function BoardPage() {
   const isSupervised = board.supervised;
   const readOnly = board.isArchived || isViewer || isSupervised;
   const previewMembers = board.members.slice(0, 3);
+  // The owner's view of a personal board's share request (`docs/18-board-sharing.md`).
+  const shareState = isOwner && board.kind === "PERSONAL" ? board.shareRequest : null;
   const filtersActive = hasActiveFilters(filters);
 
   return (
@@ -291,6 +295,25 @@ export function BoardPage() {
         </div>
       )}
 
+      {!readOnly && shareState?.status === "PENDING" && (
+        <div className="bg-accent-soft px-6 py-2 text-sm text-ink/80">
+          طلب المشاركة بانتظار الموافقة. تعمل اللوحة كلوحة شخصية حتى ذلك الحين.
+        </div>
+      )}
+      {!readOnly && shareState?.status === "REJECTED" && (
+        <div className="flex items-center justify-between gap-4 bg-alert-bg px-6 py-2 text-sm text-ink">
+          <span>
+            رُفض طلب المشاركة{shareState.reason ? `: ${shareState.reason}` : "."}
+          </span>
+          <button
+            onClick={() => setShareDialogOpen(true)}
+            className="shrink-0 rounded-field border border-alert/30 px-3 py-1 text-xs font-semibold text-alert hover:bg-surface"
+          >
+            إعادة الطلب
+          </button>
+        </div>
+      )}
+
       {filtersActive ? (
         <div className="flex-1 overflow-y-auto">
           <FilteredBoardView
@@ -396,8 +419,24 @@ export function BoardPage() {
         />
       )}
       {membersOpen && (
-        <BoardMembersModal boardId={board.id} members={board.members} onClose={() => setMembersOpen(false)} />
+        <BoardMembersModal
+          boardId={board.id}
+          members={board.members}
+          personal={
+            board.kind === "PERSONAL"
+              ? {
+                  pending: board.shareRequest?.status === "PENDING",
+                  onRequestSharing: () => {
+                    setMembersOpen(false);
+                    setShareDialogOpen(true);
+                  },
+                }
+              : undefined
+          }
+          onClose={() => setMembersOpen(false)}
+        />
       )}
+      {shareDialogOpen && <ShareRequestDialog board={board} onClose={() => setShareDialogOpen(false)} />}
     </div>
   );
 }

@@ -1,9 +1,11 @@
 import { useEffect, useSyncExternalStore } from "react";
 import { AppState } from "react-native";
+import { useRouter } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { ApiError } from "@app/api-client";
 import { api } from "@/lib/api";
 import { useOpenCard } from "@/lib/board-cache";
+import { notificationTarget } from "@/lib/board-sharing";
 import { getDeviceId } from "@/lib/device-id";
 import { lastTappedPush, onPushReceived, onPushTapped, onPushTokenChange, registerForPush } from "@/lib/push";
 
@@ -94,6 +96,7 @@ export function syncPushDevice(): Promise<void> {
  */
 export function usePushRegistration(userId: string | undefined): void {
   const openCard = useOpenCard();
+  const router = useRouter();
   const queryClient = useQueryClient();
 
   useEffect(() => {
@@ -131,12 +134,15 @@ export function usePushRegistration(userId: string | undefined): void {
     return () => received.remove();
   }, [queryClient]);
 
-  // Tapping a notification opens the card it refers to.
+  // Tapping a notification opens the card it refers to — or, for board
+  // sharing, the approver queue or the board (`notificationTarget`).
   useEffect(() => {
     const openFromData = (data: Record<string, unknown> | null) => {
-      const cardId = data?.cardId;
-      const boardId = typeof data?.boardId === "string" ? data.boardId : undefined;
-      if (typeof cardId === "string" && cardId.length > 0) openCard(cardId, boardId);
+      const text = (key: string) => (typeof data?.[key] === "string" ? (data[key] as string) : null);
+      const target = notificationTarget({ type: text("type"), cardId: text("cardId"), boardId: text("boardId") });
+      if (target?.kind === "card") openCard(target.cardId, target.boardId);
+      else if (target?.kind === "board") router.push(`/board/${target.boardId}`);
+      else if (target?.kind === "board-requests") router.push("/board-requests");
     };
 
     // Covers the cold-start case: the tap that launched the app has already
@@ -145,7 +151,7 @@ export function usePushRegistration(userId: string | undefined): void {
 
     const subscription = onPushTapped(openFromData);
     return () => subscription.remove();
-  }, [openCard]);
+  }, [openCard, router]);
 }
 
 /**

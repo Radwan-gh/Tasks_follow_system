@@ -1,4 +1,5 @@
 import { Navigate, Route, Routes } from "react-router-dom";
+import { canApproveSharedBoards } from "./lib/can-approve-boards";
 import { canSupervise } from "./lib/can-supervise";
 import { useAuth } from "./features/auth/AuthContext";
 import { LoginPage } from "./features/auth/LoginPage";
@@ -12,6 +13,7 @@ import { MyTasksPage } from "./features/my-tasks/MyTasksPage";
 import { ArchivedBoardsPage } from "./features/boards/ArchivedBoardsPage";
 import { OversightPage } from "./features/oversight/OversightPage";
 import { GuidePage } from "./features/guide/GuidePage";
+import { BoardRequestsPage } from "./features/board-requests/BoardRequestsPage";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
@@ -34,6 +36,15 @@ function SupervisorRoute({ children }: { children: React.ReactNode }) {
   if (isLoading) return <div className="p-8 text-slate-500">جارٍ التحميل...</div>;
   if (!user) return <Navigate to="/login" replace />;
   if (!canSupervise(user)) return <Navigate to="/boards" replace />;
+  return <>{children}</>;
+}
+
+/** «طلبات اللوحات» — an ADMIN or a user granted `canApproveBoards`. The server's `isApprover` check is the real gate. */
+function ApproverRoute({ children }: { children: React.ReactNode }) {
+  const { user, isLoading } = useAuth();
+  if (isLoading) return <div className="p-8 text-slate-500">جارٍ التحميل...</div>;
+  if (!user) return <Navigate to="/login" replace />;
+  if (!canApproveSharedBoards(user)) return <Navigate to="/boards" replace />;
   return <>{children}</>;
 }
 
@@ -96,6 +107,14 @@ export function App() {
             <SupervisorRoute>
               <OversightPage />
             </SupervisorRoute>
+          }
+        />
+        <Route
+          path="/board-requests"
+          element={
+            <ApproverRoute>
+              <BoardRequestsPage />
+            </ApproverRoute>
           }
         />
         <Route
