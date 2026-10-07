@@ -10,6 +10,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult, ToolAnnotations } from "@modelcontextprotocol/sdk/types.js";
 import {
   type Attachment,
+  CreateBoardCategoryRequestSchema,
   CreateBoardRequestSchema,
   CreateCardRequestSchema,
   CreateCommentRequestSchema,
@@ -21,6 +22,7 @@ import {
   UpdateCardRequestSchema,
 } from "@app/types";
 import { z } from "zod";
+import { BoardCategoriesService } from "../board-categories/board-categories.service";
 import { BoardsService } from "../boards/boards.service";
 import { AttachmentsService } from "../cards/attachments.service";
 import { CardsService } from "../cards/cards.service";
@@ -147,6 +149,7 @@ export class McpServerFactory {
     config: ConfigService,
     private readonly prisma: PrismaService,
     private readonly boards: BoardsService,
+    private readonly boardCategories: BoardCategoriesService,
     private readonly cards: CardsService,
     private readonly comments: CommentsService,
     private readonly attachments: AttachmentsService,
@@ -191,6 +194,7 @@ export class McpServerFactory {
       id: b.id,
       name: b.name,
       description: b.description,
+      category: b.category?.name ?? null,
       dueDate: b.dueDate,
       // Owner-only actions (archive, delete, members) hinge on this.
       isOwner: b.ownerId === userId,
@@ -232,6 +236,7 @@ export class McpServerFactory {
             id: board.id,
             name: board.name,
             description: board.description,
+            category: board.category,
             dueDate: board.dueDate,
             isArchived: board.isArchived,
             myRole: board.members.find((m) => m.userId === userId)?.role,
@@ -708,10 +713,33 @@ export class McpServerFactory {
           name: CreateBoardRequestSchema.shape.name,
           description: CreateBoardRequestSchema.shape.description,
           dueDate: CreateBoardRequestSchema.shape.dueDate,
+          categoryId: CreateBoardRequestSchema.shape.categoryId.describe("Id from list_board_categories; omit for none"),
         },
         annotations: write,
       },
       (input) => run(() => this.boards.create(userId, input)),
+    );
+
+    tool(
+      "list_board_categories",
+      {
+        title: "List board categories",
+        description:
+          "Every board category (the groups boards are shown under, e.g. a project holding several boards). Shared by all users; set a board's with create_board or update_board (categoryId).",
+        annotations: readOnly,
+      },
+      () => run(() => this.boardCategories.list()),
+    );
+
+    tool(
+      "create_board_category",
+      {
+        title: "Create board category",
+        description: "Create a new board category by name. Names are unique regardless of case. Then file boards under it with update_board (categoryId).",
+        inputSchema: CreateBoardCategoryRequestSchema.shape,
+        annotations: write,
+      },
+      ({ name }) => run(() => this.boardCategories.create(userId, name)),
     );
 
     tool(
@@ -787,7 +815,7 @@ export class McpServerFactory {
       {
         title: "Update board",
         description:
-          "Edit a board's name, description or dueDate (ISO 8601; null clears it), or archive / restore it with isArchived. Any member can edit the details; archiving and restoring are owner only. An archived board is read-only and drops out of list_boards (see list_archived_boards).",
+          "Edit a board's name, description, dueDate (ISO 8601; null clears it) or categoryId (from list_board_categories; null takes it out of any category), or archive / restore it with isArchived. Any member can edit the details; archiving and restoring are owner only. An archived board is read-only and drops out of list_boards (see list_archived_boards).",
         inputSchema: { boardId: z.string(), ...UpdateBoardRequestSchema.shape },
         annotations: write,
       },

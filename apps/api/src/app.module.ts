@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
 import { AuthModule } from "./auth/auth.module";
+import { BoardCategoriesModule } from "./board-categories/board-categories.module";
 import { BoardsModule } from "./boards/boards.module";
 import { CardsModule } from "./cards/cards.module";
 import { ListsModule } from "./lists/lists.module";
@@ -21,6 +22,7 @@ import { UsersModule } from "./users/users.module";
     PrismaModule,
     AuthModule,
     BoardsModule,
+    BoardCategoriesModule,
     ListsModule,
     CardsModule,
     SubtasksModule,

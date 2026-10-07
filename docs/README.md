@@ -31,6 +31,7 @@
 | [`14-notifications-comments-attachments.md`](./14-notifications-comments-attachments.md) | الإشعارات، التعليقات، المرفقات، توليد المهمة المتكررة، وإعادة تعيين كلمة المرور |
 | [`15-mcp-server.md`](./15-mcp-server.md) | خادم MCP البعيد: ربط Claude بالحساب عبر OAuth، والأدوات المتاحة وقواعدها |
 | [`16-oversight.md`](./16-oversight.md) | المتابعة: اطّلاع للقراءة فقط على كل اللوحات والمهام (`canViewAllBoards`)، ومساراتها وواجهاتها |
+| [`17-board-categories.md`](./17-board-categories.md) | تصنيفات اللوحات: تجميع اللوحات تحت عناوين في قائمة اللوحات، ومن يُنشئها ويديرها |
 
 ## كيف تُحدَّث هذه الوثائق؟
 

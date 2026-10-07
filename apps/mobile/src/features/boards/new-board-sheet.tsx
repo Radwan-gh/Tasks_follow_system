@@ -4,10 +4,11 @@ import { BottomSheet } from "@/components/bottom-sheet";
 import { DueDateSheet } from "@/components/due-date-sheet";
 import { AppText } from "@/components/text";
 import { formatDueDate } from "@/lib/date";
+import { CategoryField } from "./board-categories";
 import { MIN_TOUCH_TARGET, colors, fonts, fontSizes, radii, spacing } from "@/theme/tokens";
 
 /**
- * New-board bottom sheet: name and optional due date. The server seeds every
+ * New-board bottom sheet: name, optional category and optional due date. The server seeds every
  * new board with the five status lists, so there is no starter choice here.
  */
 export function NewBoardSheet({
@@ -18,24 +19,26 @@ export function NewBoardSheet({
 }: {
   visible: boolean;
   onClose: () => void;
-  onCreate: (input: { name: string; dueDate: string | null }) => void;
+  onCreate: (input: { name: string; dueDate: string | null; categoryId: string | null }) => void;
   creating: boolean;
 }) {
   const [name, setName] = useState("");
   const [dueDate, setDueDate] = useState<string | null>(null);
+  const [categoryId, setCategoryId] = useState<string | null>(null);
   const [pickingDueDate, setPickingDueDate] = useState(false);
   const nameRef = useRef<TextInput>(null);
 
   function close() {
     setName("");
     setDueDate(null);
+    setCategoryId(null);
     onClose();
   }
 
   const canCreate = name.trim().length > 0 && !creating;
 
   function create() {
-    if (canCreate) onCreate({ name: name.trim(), dueDate });
+    if (canCreate) onCreate({ name: name.trim(), dueDate, categoryId });
   }
 
   return (
@@ -71,6 +74,8 @@ export function NewBoardSheet({
             writingDirection: "rtl",
           }}
         />
+
+        <CategoryField value={categoryId} onChange={setCategoryId} />
 
         <Pressable
           accessibilityRole="button"

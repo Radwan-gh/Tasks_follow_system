@@ -186,10 +186,26 @@ export const BoardMemberCandidateListSchema = z.object({
 });
 export type BoardMemberCandidateList = z.infer<typeof BoardMemberCandidateListSchema>;
 
+/**
+ * A named group of boards on the boards list («التصنيف»). Global: any user
+ * may create one; its creator — or an ADMIN — may rename or delete it.
+ * `createdById` is null once the creator's account is gone.
+ */
+export const BoardCategorySchema = z.object({
+  id: z.string(),
+  name: z.string().min(1).max(60),
+  createdById: z.string().nullable(),
+  createdAt: z.string().datetime(),
+});
+export type BoardCategory = z.infer<typeof BoardCategorySchema>;
+
 export const BoardSummarySchema = z.object({
   id: z.string(),
   name: z.string().min(1).max(200),
   description: z.string().max(2000).nullable(),
+  // The board's group on the boards list, or null for «بلا تصنيف». Embedded
+  // (not just an id) so the list groups without a second request.
+  category: BoardCategorySchema.pick({ id: true, name: true }).nullable(),
   // Optional target completion date for the whole board. Never rendered when
   // null — no placeholder text, no empty chip (`v2-new-style.md` §1).
   dueDate: z.string().datetime().nullable(),

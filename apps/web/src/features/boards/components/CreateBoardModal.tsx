@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react";
 import type { CreateBoardRequest } from "@app/types";
+import { CategorySelect } from "./CategorySelect";
 
 interface CreateBoardModalProps {
   onClose: () => void;
@@ -7,11 +8,12 @@ interface CreateBoardModalProps {
   creating: boolean;
 }
 
-/** Name + description + optional due date. New boards always start with the five status lists (server default). */
+/** Name + description + optional category and due date. New boards always start with the five status lists (server default). */
 export function CreateBoardModal({ onClose, onCreate, creating }: CreateBoardModalProps) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [dueDate, setDueDate] = useState("");
+  const [categoryId, setCategoryId] = useState<string | null>(null);
 
   function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -20,6 +22,7 @@ export function CreateBoardModal({ onClose, onCreate, creating }: CreateBoardMod
       name: name.trim(),
       description: description.trim() || undefined,
       dueDate: dueDate ? new Date(dueDate).toISOString() : undefined,
+      categoryId,
     });
   }
 
@@ -52,6 +55,8 @@ export function CreateBoardModal({ onClose, onCreate, creating }: CreateBoardMod
             className="w-full rounded-field border border-line px-3 py-2 text-sm"
           />
         </label>
+
+        <CategorySelect value={categoryId} onChange={setCategoryId} />
 
         <label className="block space-y-1">
           <span className="text-sm text-ink/70">موعد التسليم (اختياري)</span>

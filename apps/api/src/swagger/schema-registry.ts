@@ -8,6 +8,7 @@ import {
   BoardMemberSchema,
   BoardMemberCandidateListSchema,
   BoardSummarySchema,
+  BoardCategorySchema,
   BoardDetailSchema,
   BoardOwnerSummarySchema,
   CardSchema,
@@ -22,6 +23,8 @@ import {
   NotificationPrefsSchema,
   CreateBoardRequestSchema,
   UpdateBoardRequestSchema,
+  CreateBoardCategoryRequestSchema,
+  UpdateBoardCategoryRequestSchema,
   AddBoardMemberRequestSchema,
   UpdateBoardMemberRoleRequestSchema,
   SetBoardMembersRequestSchema,
@@ -81,6 +84,7 @@ registry.register("AdminUserList", AdminUserListSchema);
 registry.register("BoardMember", BoardMemberSchema);
 registry.register("BoardMemberCandidateList", BoardMemberCandidateListSchema);
 registry.register("BoardSummary", BoardSummarySchema);
+registry.register("BoardCategory", BoardCategorySchema);
 registry.register("BoardDetail", BoardDetailSchema);
 registry.register("BoardOwnerSummary", BoardOwnerSummarySchema);
 registry.register("Card", CardSchema);
@@ -97,6 +101,8 @@ registry.register("NotificationPrefs", NotificationPrefsSchema);
 // Request bodies / queries
 registry.register("CreateBoardRequest", CreateBoardRequestSchema);
 registry.register("UpdateBoardRequest", UpdateBoardRequestSchema);
+registry.register("CreateBoardCategoryRequest", CreateBoardCategoryRequestSchema);
+registry.register("UpdateBoardCategoryRequest", UpdateBoardCategoryRequestSchema);
 registry.register("AddBoardMemberRequest", AddBoardMemberRequestSchema);
 registry.register("UpdateBoardMemberRoleRequest", UpdateBoardMemberRoleRequestSchema);
 registry.register("SetBoardMembersRequest", SetBoardMembersRequestSchema);

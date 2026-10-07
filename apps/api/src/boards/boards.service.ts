@@ -10,6 +10,7 @@ import { canSupervise } from "@app/types";
 import type { BoardRole, CardPriority, CreateBoardRequest, RecurrenceRule, UpdateBoardRequest } from "@app/types";
 import { generateKeyBetween, generateNKeysBetween } from "@app/ordering";
 import { PrismaService } from "../prisma/prisma.service";
+import { BoardCategoriesService } from "../board-categories/board-categories.service";
 import { AttachmentStorageService } from "../common/storage/attachment-storage.service";
 import { COMPLETED_CATEGORIES } from "../common/util/completed.util";
 import { TASK_WORKFLOW_TEMPLATE } from "./board-templates";
@@ -21,6 +22,9 @@ interface BoardAggregate {
   memberPreviews: { id: string; displayName: string }[];
 }
 const EMPTY_AGGREGATE: BoardAggregate = { memberCount: 0, cardCount: 0, doneCount: 0, memberPreviews: [] };
+
+/** What `serializeBoard` needs of the board's category — every board read includes this. */
+const CATEGORY_INCLUDE = { category: { select: { id: true, name: true } } } as const;
 
 /**
  * What `assertMembership` granted. `supervised` is true when the caller is not
@@ -43,6 +47,7 @@ export class BoardsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly storage: AttachmentStorageService,
+    private readonly categories: BoardCategoriesService,
   ) {}
 
   /**
@@ -87,6 +92,7 @@ export class BoardsService {
     const boards = await this.prisma.board.findMany({
       where: { members: { some: { userId } }, isArchived: false },
       orderBy: { updatedAt: "desc" },
+      include: CATEGORY_INCLUDE,
     });
     const aggregates = await this.boardAggregates(boards.map((b) => b.id));
     return boards.map((b) => serializeBoard(b, aggregates.get(b.id) ?? EMPTY_AGGREGATE));
@@ -97,6 +103,7 @@ export class BoardsService {
     const boards = await this.prisma.board.findMany({
       where: { members: { some: { userId } }, isArchived: true },
       orderBy: { updatedAt: "desc" },
+      include: CATEGORY_INCLUDE,
     });
     const aggregates = await this.boardAggregates(boards.map((b) => b.id));
     return boards.map((b) => serializeBoard(b, aggregates.get(b.id) ?? EMPTY_AGGREGATE));
@@ -111,7 +118,7 @@ export class BoardsService {
     const boards = await this.prisma.board.findMany({
       where: { isArchived: archived },
       orderBy: { updatedAt: "desc" },
-      include: { owner: { select: { id: true, username: true, displayName: true } } },
+      include: { owner: { select: { id: true, username: true, displayName: true } }, ...CATEGORY_INCLUDE },
     });
     const aggregates = await this.boardAggregates(boards.map((b) => b.id));
     return boards.map((b) => ({
@@ -139,6 +146,7 @@ export class BoardsService {
     // keys sort in order.
     const templateLists = input.template === "EMPTY" ? [] : TASK_WORKFLOW_TEMPLATE;
     const positions = generateNKeysBetween(null, null, templateLists.length);
+    if (input.categoryId) await this.categories.assertExists(input.categoryId);
 
     const board = await this.prisma.board.create({
       data: {
@@ -146,6 +154,7 @@ export class BoardsService {
         description: input.description ?? null,
         dueDate: input.dueDate ? new Date(input.dueDate) : null,
         ownerId: userId,
+        categoryId: input.categoryId ?? null,
         members: { create: { userId, role: "OWNER" } },
         lists: templateLists.length
           ? {
@@ -157,7 +166,7 @@ export class BoardsService {
             }
           : undefined,
       },
-      include: { owner: { select: { id: true, displayName: true } } },
+      include: { owner: { select: { id: true, displayName: true } }, ...CATEGORY_INCLUDE },
     });
     // A brand-new board always has exactly one member (the owner) and zero
     // cards — no need to round-trip through `boardAggregates` for this.
@@ -237,6 +246,7 @@ export class BoardsService {
     const board = await this.prisma.board.findUnique({
       where: { id: boardId },
       include: {
+        ...CATEGORY_INCLUDE,
         members: { include: { user: true } },
         lists: {
           where: { isArchived: false },
@@ -334,6 +344,8 @@ export class BoardsService {
   async update(userId: string, boardId: string, input: UpdateBoardRequest) {
     const requiresOwner = input.isArchived !== undefined;
     await this.assertMembership(userId, boardId, requiresOwner ? "OWNER" : "MEMBER");
+    // Re-filing a board is an ordinary edit, like renaming it — any member may.
+    if (input.categoryId) await this.categories.assertExists(input.categoryId);
 
     const board = await this.prisma.board.update({
       where: { id: boardId },
@@ -342,7 +354,9 @@ export class BoardsService {
         description: input.description,
         dueDate: input.dueDate === undefined ? undefined : input.dueDate ? new Date(input.dueDate) : null,
         isArchived: input.isArchived,
+        categoryId: input.categoryId,
       },
+      include: CATEGORY_INCLUDE,
     });
     const aggregates = await this.boardAggregates([boardId]);
     return serializeBoard(board, aggregates.get(boardId) ?? EMPTY_AGGREGATE);
@@ -649,6 +663,7 @@ function serializeBoard(
     isArchived: boolean;
     createdAt: Date;
     updatedAt: Date;
+    category: { id: string; name: string } | null;
   },
   aggregate: BoardAggregate,
 ) {
@@ -656,6 +671,7 @@ function serializeBoard(
     id: board.id,
     name: board.name,
     description: board.description,
+    category: board.category,
     dueDate: board.dueDate ? board.dueDate.toISOString() : null,
     ownerId: board.ownerId,
     isArchived: board.isArchived,

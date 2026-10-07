@@ -18,6 +18,7 @@ User
 
 Board
  ├── owner     : the owner (User)
+ ├── category  : optional group on the boards list (BoardCategory)
  ├── members   : members (BoardMember[])
  ├── lists     : lists (List[])
  └── templates : board-scoped task templates (Template[])
@@ -43,6 +44,7 @@ Comment ─ card, author
 Attachment ─ card, uploader
 Notification ─ user
 Template ─ board
+BoardCategory ─ boards, createdBy (User, nullable)
 AppSettings (single global row, no relations)
 
 OAuthClient ─ refreshTokens, authorizationCodes   (MCP clients, e.g. claude.ai)
@@ -100,8 +102,18 @@ The remote MCP server's OAuth state — detailed in [`15-mcp-server.md`](./15-mc
 | `description` | Optional description (up to 2000 characters) |
 | `dueDate` | Optional board-level target completion date — never rendered when `null` (no placeholder text, no empty field) |
 | `ownerId` | The board's owner (auto-added as a member with role `OWNER` on creation) |
+| `categoryId` | Optional `BoardCategory` — the heading the board is listed under for **every** member. `ON DELETE SET NULL`: deleting the category leaves the board «بلا تصنيف». Returned embedded as `category: { id, name } \| null` on every `BoardSummary`. See [`17-board-categories.md`](./17-board-categories.md) |
 | `isArchived` | If `true`, the board disappears from normal listings; archiving requires the `OWNER` role |
 | `updatedAt` | Used to sort the boards list (most recently updated first) |
+
+### BoardCategory
+
+A named, **global** group of boards (not owned by any board). Any user may create one; its creator or an ADMIN may rename or delete it (`canManageBoardCategory`).
+
+| Field | Notes |
+|---|---|
+| `name` | 1–60 characters, trimmed; **unique ignoring case** (checked in `BoardCategoriesService`, 409 on a clash) |
+| `createdById` | The creator; `null` once their account is deleted (`ON DELETE SET NULL`) — the category survives and only an ADMIN can manage it from then on |
 
 ### BoardMember
 

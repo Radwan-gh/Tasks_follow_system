@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import { JwtModule } from "@nestjs/jwt";
 import { AuthModule } from "../auth/auth.module";
+import { BoardCategoriesModule } from "../board-categories/board-categories.module";
 import { BoardsModule } from "../boards/boards.module";
 import { CardsModule } from "../cards/cards.module";
 import { MyTasksModule } from "../my-tasks/my-tasks.module";
@@ -21,7 +22,7 @@ import { UploadLinkService } from "./uploads/upload-link.service";
  * Nest's router by `mountMcp` (mount.ts), called from `main.ts`.
  */
 @Module({
-  imports: [AuthModule, JwtModule.register({}), BoardsModule, CardsModule, SubtasksModule, MyTasksModule, OversightModule],
+  imports: [AuthModule, JwtModule.register({}), BoardsModule, BoardCategoriesModule, CardsModule, SubtasksModule, MyTasksModule, OversightModule],
   controllers: [McpController, OAuthLoginController, McpUploadsController],
   providers: [McpOAuthProvider, McpServerFactory, UploadLinkService, UploadLinkGuard],
 })

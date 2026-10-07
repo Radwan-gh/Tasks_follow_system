@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { BoardDetail, UpdateBoardRequest } from "@app/types";
+import { CategorySelect } from "./CategorySelect";
 
 interface BoardSettingsModalProps {
   board: BoardDetail;
@@ -18,6 +19,7 @@ export function BoardSettingsModal({ board, canArchive, onClose, onSave, onArchi
   const [name, setName] = useState(board.name);
   const [description, setDescription] = useState(board.description ?? "");
   const [dueDate, setDueDate] = useState(board.dueDate ? board.dueDate.slice(0, 10) : "");
+  const [categoryId, setCategoryId] = useState<string | null>(board.category?.id ?? null);
   const [saving, setSaving] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -34,6 +36,7 @@ export function BoardSettingsModal({ board, canArchive, onClose, onSave, onArchi
         name: name.trim(),
         description: description.trim() || null,
         dueDate: dueDate ? new Date(dueDate).toISOString() : null,
+        categoryId,
       });
       onClose();
     } catch (err) {
@@ -106,6 +109,7 @@ export function BoardSettingsModal({ board, canArchive, onClose, onSave, onArchi
           onChange={(e) => setDueDate(e.target.value)}
           className="rounded border border-slate-300 px-2 py-1 text-sm"
         />
+        <CategorySelect value={categoryId} onChange={setCategoryId} />
         {confirming && <p className="text-sm text-slate-600">{copy.consequence}</p>}
         {error && <p className="text-sm text-red-600">{error}</p>}
         <div className="flex items-center justify-between pt-2">

@@ -130,7 +130,8 @@ Nest يتخطّى تسجيل محلّله العام إن وجد وسيطًا ب
 
 | الأداة | تستدعي | ملاحظات |
 |---|---|---|
-| `list_boards` | `BoardsService.listForUser` | لوحات المستخدم غير المؤرشفة، مع `isOwner` (هل هو مالكها) |
+| `list_boards` | `BoardsService.listForUser` | لوحات المستخدم غير المؤرشفة، مع `isOwner` (هل هو مالكها) واسم تصنيفها `category` |
+| `list_board_categories` | `BoardCategoriesService.list` | كل تصنيفات اللوحات (مشتركة بين المستخدمين) — منها `categoryId` |
 | `list_archived_boards` | `BoardsService.listArchivedForUser` | لوحاته المؤرشفة، بنفس الشكل |
 | `get_board` | `BoardsService.getDetail` | الأعضاء (بمعرّفاتهم وأدوارهم) والقوائم بالترتيب وبطاقاتها، و`isArchived` و`myRole` — منها تُعرف معرّفات القوائم والبطاقات والأشخاص |
 | `get_card` | `CardsService.getDetail` + المهام الفرعية + التعليقات + المرفقات | كل حقول البطاقة، قائمتها (حالتها)، المُسنَدون، الوصول، المهام الفرعية، التعليقات، والمرفقات (المعرّف، الاسم، النوع، الحجم، الرافع، والرابط المطلق `/uploads/...` على `PUBLIC_API_URL`) |
@@ -150,13 +151,14 @@ Nest يتخطّى تسجيل محلّله العام إن وجد وسيطًا ب
 | `create_upload_link` | `UploadLinkService.create` | الخطوة 1 لإرفاق ملف: رابط رفع موقَّع صالح 15 دقيقة (انظر «رفع الملفات» أدناه) |
 | `add_attachment` | `AttachmentsService.attachStaged` / `create` | الخطوة 2: إمّا `uploadId` من الرفع (يُحوَّل إلى مرفق)، أو `text` + `fileName` لملاحظة نصّية قصيرة (حتى 1MB) — واحد فقط. تسري قاعدة 10 مرفقات للبطاقة وكل فحوص الرفع العادي |
 | `delete_attachment` | `AttachmentsService.remove` | للرافع أو منشئ البطاقة أو مالك اللوحة؛ `destructiveHint: true` |
-| `create_board` | `BoardsService.create` | المستخدم يصبح المالك؛ **`template` غير مكشوف** فتأتي اللوحة دائمًا بالقوائم الخمس |
+| `create_board` | `BoardsService.create` | المستخدم يصبح المالك؛ **`template` غير مكشوف** فتأتي اللوحة دائمًا بالقوائم الخمس. `categoryId` اختياري |
+| `create_board_category` | `BoardCategoriesService.create` | تصنيف جديد بالاسم (فريد دون اعتبار لحالة الأحرف). إعادة التسمية والحذف غير مكشوفين عبر MCP |
 | `find_users_to_add` | `BoardsService.listMemberCandidates` | للمالك فقط |
 | `add_board_member` | `BoardsService.addMember` | للمالك فقط؛ الدور `MEMBER` أو `VIEWER` |
 | `set_board_member_role` | `BoardsService.updateMemberRole` | للمالك فقط؛ تبديل عضو بين `MEMBER` و`VIEWER` |
 | `remove_board_member` | `BoardsService.removeMember` | للمالك فقط؛ لا يُزال المالك. `destructiveHint: true` |
 | `leave_board` | `BoardsService.removeMember` (بمعرّف المستخدم نفسه) | مغادرة لوحة لأي عضو غير المالك، ولو مؤرشفة. `destructiveHint: true` لأنه لا يعود إلا بإضافة المالك |
-| `update_board` | `BoardsService.update` | الاسم والوصف والموعد (`null` يمسح)، و`isArchived` للأرشفة والاستعادة (للمالك فقط) |
+| `update_board` | `BoardsService.update` | الاسم والوصف والموعد (`null` يمسح)، و`categoryId` (`null` يُخرجها من تصنيفها)، و`isArchived` للأرشفة والاستعادة (للمالك فقط) |
 | `delete_board` | `BoardsService.remove` | للمالك فقط، وللوحة **مؤرشفة** فقط (409 لغيرها)؛ حذف نهائي بكل محتواها. `destructiveHint: true` |
 
 **غير متاح عمدًا:** إنشاء القوائم أو تعديلها، حذف البطاقات والتعليقات (البطاقة تُؤرشَف
