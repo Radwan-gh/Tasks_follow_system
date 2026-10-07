@@ -13,6 +13,8 @@ import type { NotificationType } from "@app/types";
  */
 export function describeNotification(input: { type: NotificationType; payload?: Record<string, unknown> | null }): string {
   const title = typeof input.payload?.cardTitle === "string" ? input.payload.cardTitle : "مهمة";
+  const board = typeof input.payload?.boardName === "string" ? input.payload.boardName : "لوحة";
+  const reason = typeof input.payload?.reason === "string" ? input.payload.reason : null;
   switch (input.type) {
     case "ASSIGNED":
       return `أُسندت إليك: ${title}`;
@@ -24,6 +26,12 @@ export function describeNotification(input: { type: NotificationType; payload?: 
       return `تعليق جديد على «${title}»`;
     case "CARD_CLOSED":
       return `نُقلت «${title}» إلى «انتهى»`;
+    case "BOARD_SHARE_REQUESTED":
+      return `طلب لوحة مشتركة: «${board}»`;
+    case "BOARD_SHARE_APPROVED":
+      return `وُوفق على مشاركة «${board}»، فأضِف أعضاءها`;
+    case "BOARD_SHARE_REJECTED":
+      return reason ? `رُفضت مشاركة «${board}»: ${reason}` : `رُفضت مشاركة «${board}»`;
     default:
       return title;
   }

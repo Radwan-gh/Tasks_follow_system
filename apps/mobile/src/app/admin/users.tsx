@@ -344,6 +344,9 @@ export default function AdminUsersScreen() {
                   {u.role !== "ADMIN" && u.canViewAllBoards ? (
                     <Badge label="يطّلع على كل اللوحات" background={colors.accentSoft} color={colors.accent} />
                   ) : null}
+                  {u.role !== "ADMIN" && u.canApproveBoards ? (
+                    <Badge label="يوافق على اللوحات" background={colors.accentSoft} color={colors.accent} />
+                  ) : null}
                   <AppText size="caption" color={colors.muted}>
                     {u.boardCount} لوحة
                   </AppText>
@@ -402,6 +405,14 @@ export default function AdminUsersScreen() {
                       label={u.canViewAllBoards ? "سحب الاطلاع على كل اللوحات" : "الاطلاع على كل اللوحات"}
                       disabled={isMutating}
                       onPress={() => updatePermissions.mutate({ id: u.id, canViewAllBoards: !u.canViewAllBoards })}
+                    />
+                  ) : null}
+                  {/* And for share requests: admins always decide them. */}
+                  {u.role !== "ADMIN" ? (
+                    <ActionButton
+                      label={u.canApproveBoards ? "سحب الموافقة على اللوحات" : "الموافقة على اللوحات المشتركة"}
+                      disabled={isMutating}
+                      onPress={() => updatePermissions.mutate({ id: u.id, canApproveBoards: !u.canApproveBoards })}
                     />
                   ) : null}
                 </View>

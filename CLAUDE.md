@@ -208,7 +208,11 @@ delegate to this method. Any new board-scoped resource should follow the
 same pattern instead of duplicating role logic. Roles are `OWNER | MEMBER`
 (`BoardRole` in the Prisma schema and `packages/types`); archiving/deleting a
 board and managing membership require `OWNER`, everything else requires
-`MEMBER`.
+`MEMBER`. A board is `PERSONAL` (owner only, no members, invisible to
+oversight — `assertMembership`'s supervisor fallback skips it) or `SHARED`;
+it turns shared only through an approved `BoardShareRequest`
+(`boards/board-sharing.service.ts`, `docs/18-board-sharing.md`), and every
+path that *adds* a member checks `assertCanHaveMembers` first.
 
 ### Auth
 

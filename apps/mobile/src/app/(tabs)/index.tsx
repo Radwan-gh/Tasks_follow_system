@@ -17,7 +17,7 @@ import {
   useBoardCategories,
 } from "@/features/boards/board-categories";
 import { BoardRow } from "@/features/boards/board-row";
-import { NewBoardSheet } from "@/features/boards/new-board-sheet";
+import { NewBoardSheet, type NewBoardInput } from "@/features/boards/new-board-sheet";
 import { NotificationBell } from "@/features/notifications/notification-bell";
 import { useAuth } from "@/features/auth/auth-context";
 import { api } from "@/lib/api";
@@ -59,8 +59,14 @@ export default function BoardsScreen() {
   }
 
   const createBoard = useMutation({
-    mutationFn: (input: { name: string; dueDate: string | null; categoryId: string | null }) =>
-      api.boards.create({ name: input.name, dueDate: input.dueDate, categoryId: input.categoryId }),
+    mutationFn: (input: NewBoardInput) =>
+      api.boards.create({
+        name: input.name,
+        kind: input.kind,
+        description: input.description ?? undefined,
+        dueDate: input.dueDate,
+        categoryId: input.categoryId,
+      }),
     onSuccess: (board) => {
       setCreatingBoard(false);
       void queryClient.invalidateQueries({ queryKey: ["boards"] });

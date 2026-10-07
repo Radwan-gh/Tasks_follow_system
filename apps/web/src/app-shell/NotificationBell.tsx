@@ -48,7 +48,10 @@ export function NotificationBell() {
   function openNotification(item: Notification) {
     if (!item.readAt) markRead.mutate(item.id);
     setOpen(false);
-    if (item.boardId && item.cardId) navigate(`/boards/${item.boardId}?card=${item.cardId}`);
+    // The approver isn't a member of the requested (still personal) board, so
+    // a request opens the queue rather than the board.
+    if (item.type === "BOARD_SHARE_REQUESTED") navigate("/board-requests");
+    else if (item.boardId && item.cardId) navigate(`/boards/${item.boardId}?card=${item.cardId}`);
     else if (item.boardId) navigate(`/boards/${item.boardId}`);
   }
 

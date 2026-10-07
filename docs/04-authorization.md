@@ -31,8 +31,9 @@ BoardsService.assertMembership(userId, boardId, minRole = "MEMBER")
 - ترفض بـ `Forbidden` إن كان دور العضو **أقل** من `minRole` المطلوب.
 - إن **لم** توجد عضوية: تُقبل فقط حين يكون `minRole === "VIEWER"` (مسار قراءة) والمستخدم
   صاحب صلاحية «المتابعة» (`canSupervise()`: `ADMIN` أو `canViewAllBoards`، تُقرأ من قاعدة
-  البيانات عبر `isSupervisor`)، فيُعاد `{ role: "VIEWER", supervised: true }`. وإلا
-  `Forbidden`. لأن كل مسارات الكتابة تطلب `MEMBER`/`OWNER`، يبقى المتابع للقراءة فقط
+  البيانات عبر `isSupervisor`) **واللوحة مشتركة** (`kind = SHARED`)، فيُعاد
+  `{ role: "VIEWER", supervised: true }`. وإلا `Forbidden` — فاللوحة الشخصية لا يفتحها
+  إلا صاحبها ([`18-board-sharing.md`](./18-board-sharing.md)). لأن كل مسارات الكتابة تطلب `MEMBER`/`OWNER`، يبقى المتابع للقراءة فقط
   تلقائيًا. التفاصيل في [`16-oversight.md`](./16-oversight.md).
 - تُرجِع `BoardAccess { role, supervised }`؛ مسارات القراءة تستعمل `supervised` لتُظهر
   البطاقات المقيّدة أيضًا للمتابع.
@@ -55,7 +56,8 @@ BoardsService.assertMembership(userId, boardId, minRole = "MEMBER")
 | تعديل اسم/وصف اللوحة، أو تصنيفها (`categoryId`) | MEMBER |
 | **أرشفة اللوحة** (`isArchived`) | **OWNER** |
 | **حذف اللوحة** (المؤرشفة فقط — 409 لغير المؤرشفة) | **OWNER** |
-| **إضافة/إزالة عضو، وتبديل دوره بين MEMBER/VIEWER** | **OWNER** |
+| **إضافة/إزالة عضو، وتبديل دوره بين MEMBER/VIEWER** | **OWNER** — والإضافة على لوحة **مشتركة** فقط (`409` على الشخصية) |
+| **طلب جعل اللوحة مشتركة** (`POST /board-share-requests`) | **OWNER** |
 | **مغادرة اللوحة** (إزالة المستخدم نفسه: `DELETE /boards/:id/members/<معرّفه>`) | **VIEWER** — أي عضو غير المالك، ولو كانت اللوحة مؤرشفة |
 | **البحث عن مستخدمين لإضافتهم** (`GET /boards/:id/member-candidates`) | **OWNER** |
 
@@ -122,8 +124,13 @@ BoardsService.assertMembership(userId, boardId, minRole = "MEMBER")
 الأدوار: **`USER`** و **`ADMIN`** (مخزّنة في `User.role`). هذه منفصلة عن أدوار
 اللوحة — كون المستخدم ADMIN لا يمنحه **عضوية** في لوحة لم يُضَف إليها، والعكس صحيح.
 الاستثناء الوحيد هو **الاطلاع للقراءة فقط**: ADMIN، أو `USER` منحه ADMIN صلاحية
-`canViewAllBoards`، يستطيع قراءة كل اللوحات والمهام دون أن يصير عضوًا ودون أي قدرة على
-التعديل — انظر «المتابعة» في [`16-oversight.md`](./16-oversight.md).
+`canViewAllBoards`، يستطيع قراءة كل اللوحات **المشتركة** ومهامها دون أن يصير عضوًا ودون
+أي قدرة على التعديل — انظر «المتابعة» في [`16-oversight.md`](./16-oversight.md).
+
+وصلاحية نظام ثالثة لا تمسّ الوصول إلى اللوحات: **الموافقة على اللوحات المشتركة**
+(`canApproveSharedBoards()`: ADMIN أو `canApproveBoards`، يقرؤها `BoardsService.isApprover`
+من قاعدة البيانات). صاحبها يقرّر طلبات المشاركة تحت `/board-share-requests` ولا يصير
+بذلك عضوًا في أيّ لوحة — انظر [`18-board-sharing.md`](./18-board-sharing.md).
 
 ### `AdminGuard`
 - يتطلّب أن يكون دور المستخدم `ADMIN`، وإلا يرفض بـ `Forbidden`.

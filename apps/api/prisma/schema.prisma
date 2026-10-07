@@ -19,6 +19,21 @@ enum UserRole {
   ADMIN
 }
 
+/// `docs/18-board-sharing.md`. PERSONAL boards have no members besides their
+/// owner and are invisible to oversight; SHARED boards have members and got
+/// there through an approved `BoardShareRequest` (or were created by an
+/// approver, or predate the split and already had members).
+enum BoardKind {
+  PERSONAL
+  SHARED
+}
+
+enum BoardShareRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 enum CardActivityType {
   CREATED
   MOVED
@@ -58,34 +73,38 @@ enum CardPriority {
 }
 
 model User {
-  id           String   @id @default(cuid())
+  id                   String   @id @default(cuid())
   /// The login credential — what the user types in the sign-in box. Set by an
   /// admin at `POST /admin/users` and never changed by the user themselves.
   /// Stored lowercase; `AuthService.login` lowercases the input before looking
   /// it up so sign-in is case-insensitive.
-  username     String   @unique
+  username             String   @unique
   /// Contact address only — **not** a credential. Optional because accounts are
   /// provisioned by an admin who may not have an address for the person.
-  email        String?  @unique
-  passwordHash String
-  displayName  String
-  role         UserRole @default(USER)
-  isActive     Boolean  @default(true)
+  email                String?  @unique
+  passwordHash         String
+  displayName          String
+  role                 UserRole @default(USER)
+  isActive             Boolean  @default(true)
   /// Set by `POST /admin/users/:id/reset-password`; cleared the next time this
   /// user successfully calls `POST /auth/change-password`. Forces the
   /// "عيّن كلمة مرور جديدة" screen on first login with a temporary password.
-  mustChangePassword Boolean @default(false)
+  mustChangePassword   Boolean  @default(false)
   /// Lets a non-admin send push notifications from the app's «إرسال إشعار»
   /// screen. Admins can always send regardless — see `canSendPush()` in
   /// `common/guards/can-send-push.guard.ts`. Granted via
   /// `PATCH /admin/users/:id/permissions`.
-  canSendNotifications Boolean @default(false)
+  canSendNotifications Boolean  @default(false)
   /// Lets a non-admin oversee every board and task read-only («المتابعة»),
   /// including boards they are not a member of. Admins always can — see
   /// `canSupervise()` in `packages/types`. Only an ADMIN can grant it, via
   /// `PATCH /admin/users/:id/permissions`.
-  canViewAllBoards Boolean @default(false)
-  createdAt    DateTime @default(now())
+  canViewAllBoards     Boolean  @default(false)
+  /// Lets a non-admin approve or reject share requests for boards, and create
+  /// shared boards directly. Admins always can — see `canApproveSharedBoards()`
+  /// in `packages/types`. Granted via `PATCH /admin/users/:id/permissions`.
+  canApproveBoards     Boolean  @default(false)
+  createdAt            DateTime @default(now())
 
   /// Three notification-category toggles (assignment/comments,
   /// due-dates/overdue, my-card-moved-to-closed), all default true. Shape
@@ -94,31 +113,33 @@ model User {
   /// needs a migration.
   notificationPrefs Json?
 
-  refreshTokens  RefreshToken[]
+  refreshTokens           RefreshToken[]
   oauthAuthorizationCodes OAuthAuthorizationCode[]
-  pendingUploads PendingUpload[]
-  boardMemberships BoardMember[]
-  cardMemberships  CardMember[]
-  createdCards   Card[]         @relation("CardCreator")
-  ownedBoards    Board[]        @relation("BoardOwner")
-  createdBoardCategories BoardCategory[] @relation("BoardCategoryCreator")
-  cardActivities CardActivity[] @relation("CardActivityActor")
-  cardAssignments    CardAssignee[]
-  createdSubtasks    Subtask[]         @relation("SubtaskCreator")
-  subtaskAssignments SubtaskAssignee[]
-  comments           Comment[]
-  attachments        Attachment[]
-  notifications      Notification[]
-  pushDevices        PushDevice[]
+  pendingUploads          PendingUpload[]
+  boardMemberships        BoardMember[]
+  cardMemberships         CardMember[]
+  createdCards            Card[]                   @relation("CardCreator")
+  ownedBoards             Board[]                  @relation("BoardOwner")
+  createdBoardCategories  BoardCategory[]          @relation("BoardCategoryCreator")
+  cardActivities          CardActivity[]           @relation("CardActivityActor")
+  boardShareRequests      BoardShareRequest[]      @relation("BoardShareRequester")
+  boardShareDecisions     BoardShareRequest[]      @relation("BoardShareDecider")
+  cardAssignments         CardAssignee[]
+  createdSubtasks         Subtask[]                @relation("SubtaskCreator")
+  subtaskAssignments      SubtaskAssignee[]
+  comments                Comment[]
+  attachments             Attachment[]
+  notifications           Notification[]
+  pushDevices             PushDevice[]
 }
 
 model RefreshToken {
-  id        String    @id @default(cuid())
-  userId    String
-  tokenHash String
-  expiresAt DateTime
-  revokedAt DateTime?
-  createdAt DateTime  @default(now())
+  id            String    @id @default(cuid())
+  userId        String
+  tokenHash     String
+  expiresAt     DateTime
+  revokedAt     DateTime?
+  createdAt     DateTime  @default(now())
   /// Set when the token was issued to an MCP client over OAuth
   /// (docs/15-mcp-server.md). Such a token can only be refreshed through the
   /// OAuth `/token` endpoint by that same client — never at `/auth/refresh` —
@@ -179,15 +200,18 @@ model Board {
   /// الكهرباء / الماء / النظافة). Shared: every member sees the board under the
   /// same category. Deleting the category leaves the board uncategorised.
   categoryId  String?
+  /// Personal until a share request is approved — see `BoardShareRequest`.
+  kind        BoardKind @default(PERSONAL)
   isArchived  Boolean   @default(false)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
-  owner     User           @relation("BoardOwner", fields: [ownerId], references: [id])
-  category  BoardCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  members   BoardMember[]
-  lists     List[]
-  templates Template[]
+  owner         User                @relation("BoardOwner", fields: [ownerId], references: [id])
+  category      BoardCategory?      @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  members       BoardMember[]
+  lists         List[]
+  templates     Template[]
+  shareRequests BoardShareRequest[]
 
   @@index([ownerId])
   @@index([categoryId])
@@ -208,6 +232,29 @@ model BoardCategory {
 
   createdBy User?   @relation("BoardCategoryCreator", fields: [createdById], references: [id], onDelete: SetNull)
   boards    Board[]
+}
+
+/// A request to turn a personal board shared (`docs/18-board-sharing.md`).
+/// Append-only in spirit: a rejected request stays as the record of why, and
+/// asking again files a new row. At most one is PENDING per board, enforced in
+/// `BoardSharingService`. The board's latest row is what its owner sees.
+model BoardShareRequest {
+  id            String                  @id @default(cuid())
+  boardId       String
+  requestedById String
+  status        BoardShareRequestStatus @default(PENDING)
+  /// Why it was rejected — required on rejection, shown to the requester.
+  reason        String?
+  decidedById   String?
+  decidedAt     DateTime?
+  createdAt     DateTime                @default(now())
+
+  board       Board @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  requestedBy User  @relation("BoardShareRequester", fields: [requestedById], references: [id], onDelete: Cascade)
+  decidedBy   User? @relation("BoardShareDecider", fields: [decidedById], references: [id], onDelete: SetNull)
+
+  @@index([boardId, createdAt])
+  @@index([status, createdAt])
 }
 
 model BoardMember {
@@ -241,37 +288,37 @@ model List {
 }
 
 model Card {
-  id          String    @id @default(cuid())
-  listId      String
-  boardId     String
-  title       String
-  description String?
-  position    String
-  dueDate     DateTime?
+  id             String       @id @default(cuid())
+  listId         String
+  boardId        String
+  title          String
+  description    String?
+  position       String
+  dueDate        DateTime?
   /// Whether `dueDate` carries a meaningful time-of-day (§3c-5 "وقت التسليم
   /// الاختياري"). `dueDate` itself is always a full timestamp (Prisma
   /// `DateTime`), so this flag is what tells the client whether to render/use
   /// the time component or treat the value as date-only (midnight, ignored).
-  dueDateHasTime Boolean @default(false)
-  isArchived  Boolean   @default(false)
+  dueDateHasTime Boolean      @default(false)
+  isArchived     Boolean      @default(false)
   // When false the card inherits board access (all board members see it).
   // When true only rows in `members` (plus the board owner and creator) can
   // see/open/edit it — a private allow-list.
-  isRestricted Boolean  @default(false)
-  priority     CardPriority @default(NORMAL)
+  isRestricted   Boolean      @default(false)
+  priority       CardPriority @default(NORMAL)
   /// Amount + optional free-text note (invoice #, vendor name). Single
   /// currency, written as a free-text symbol in board/account settings —
   /// see `v2-new-style.md` §7.3/3c-1. Never shown on the card face.
-  costAmount   Decimal?     @db.Decimal(12, 2)
-  costNote     String?
+  costAmount     Decimal?     @db.Decimal(12, 2)
+  costNote       String?
   /// Recurrence rule as `{ freq: "DAILY"|"WEEKLY"|"MONTHLY", weekdays?:
   /// number[], dayOfMonth?: number } | null`. On move into a `CLOSED` list,
   /// `CardsService` reads this to spawn the next instance — see
   /// `design-prompt-group-3.md` §3a-3/§9.
-  recurrence   Json?
-  createdById String
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  recurrence     Json?
+  createdById    String
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
 
   list        List           @relation(fields: [listId], references: [id], onDelete: Cascade)
   createdBy   User           @relation("CardCreator", fields: [createdById], references: [id])
@@ -419,13 +466,13 @@ model AppSettings {
 }
 
 model Template {
-  id             String   @id @default(cuid())
-  boardId        String
-  name           String
-  titlePattern   String
-  description    String?
-  subtaskTitles  String[]
-  createdAt      DateTime @default(now())
+  id            String   @id @default(cuid())
+  boardId       String
+  name          String
+  titlePattern  String
+  description   String?
+  subtaskTitles String[]
+  createdAt     DateTime @default(now())
 
   board Board @relation(fields: [boardId], references: [id], onDelete: Cascade)
 

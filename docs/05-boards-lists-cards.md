@@ -17,6 +17,9 @@
   `GET /boards/:id/member-candidates`
 - **تصنيفات اللوحات:** `GET/POST /board-categories`، `PATCH/DELETE /board-categories/:id` —
   انظر [`17-board-categories.md`](./17-board-categories.md)
+- **مشاركة اللوحات:** `GET/POST /board-share-requests`، `GET /board-share-requests/similar`،
+  `POST /board-share-requests/:id/approve|reject` — انظر
+  [`18-board-sharing.md`](./18-board-sharing.md)
 - **القوائم:** `POST /boards/:boardId/lists`، `PATCH/DELETE /lists/:id`
 - **البطاقات:** `POST /lists/:listId/cards`، `GET/PATCH/DELETE /cards/:id`،
   `GET /cards/:id/history`، `PATCH /cards/:id/access`، `PATCH /cards/:id/assignees`
@@ -33,6 +36,9 @@
   قوائم). الواجهتان (الويب والجوال) **لا ترسلانه ولا تعرضان أي اختيار قالب**.
   التفاصيل في [`09-list-status-templates.md`](./09-list-status-templates.md).
 - `categoryId` اختياري يضع اللوحة في تصنيف من البداية؛ معرّف غير موجود ← `400`.
+- `kind` اختياري: `PERSONAL` (الافتراضي) أو `SHARED`. المشتركة تتطلّب `description` (نطاقها)
+  وإلا `400`؛ ولغير الموافِق تُنشأ **شخصية** مع طلب مشاركة معلّق في نفس المعاملة. انظر
+  [`18-board-sharing.md`](./18-board-sharing.md).
 
 ### القائمة (List for user)
 - تُرجَع فقط اللوحات التي المستخدم **عضو** فيها و**غير مؤرشفة**، مرتّبة بالأحدث تحديثًا.
@@ -88,6 +94,9 @@
   اللوحة) ثم الرجوع إلى `/archived-boards`.
 
 ### إدارة الأعضاء
+- **الأعضاء للوحات المشتركة فقط:** الإضافة (`POST`، أو `PUT` حين يضيف أحدًا جديدًا) على
+  لوحة شخصية تُرفض بـ `409` (`assertCanHaveMembers`)؛ الإزالة والمغادرة بلا قيد. انظر
+  [`18-board-sharing.md`](./18-board-sharing.md).
 - **الاستبدال الكامل (OWNER) — `PUT /boards/:id/members`:** المصدر
   `BoardsService.setMembers`، والطلب `SetBoardMembersRequestSchema = { userIds }` — نفس
   شكل `UpdateAssigneesRequestSchema` تمامًا، لأن الواجهتين تُديران العضوية بنفس منتقي

@@ -3,6 +3,7 @@ import type { BoardSummary } from "@app/types";
 import { AppText } from "@/components/text";
 import { avatarColorFor } from "@/lib/avatar";
 import { initials } from "@/lib/initials";
+import { shareNoticeFor } from "@/lib/board-sharing";
 import { formatDueDate, isOverdue } from "@/lib/date";
 import { colors, radii, spacing, statusColors } from "@/theme/tokens";
 
@@ -31,6 +32,8 @@ export function BoardCard({
 }) {
   const overdue = board.dueDate ? isOverdue(board.dueDate) : false;
   const doneRatio = board.cardCount > 0 ? board.doneCount / board.cardCount : 0;
+  // Only the owner of a personal board ever has a share request to be told about.
+  const notice = isOwner ? shareNoticeFor(board, board.ownerId) : null;
 
   return (
     <Pressable
@@ -82,6 +85,20 @@ export function BoardCard({
           ) : null}
         </View>
         <View style={{ flexDirection: "row", gap: spacing.xs }}>
+          {notice ? (
+            <View
+              style={{
+                borderRadius: radii.chip,
+                backgroundColor: notice.kind === "rejected" ? colors.alertSoft : colors.canvas,
+                paddingHorizontal: spacing.md,
+                paddingVertical: 2,
+              }}
+            >
+              <AppText size="caption" weight="medium" color={notice.kind === "rejected" ? colors.alert : colors.muted}>
+                {notice.kind === "rejected" ? "رُفض طلب المشاركة" : "بانتظار الموافقة"}
+              </AppText>
+            </View>
+          ) : null}
           {archived ? (
             <View style={{ borderRadius: radii.chip, backgroundColor: colors.line, paddingHorizontal: spacing.md, paddingVertical: 2 }}>
               <AppText size="caption" weight="medium" color={colors.muted}>

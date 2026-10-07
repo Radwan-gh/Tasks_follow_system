@@ -26,6 +26,16 @@ export function BoardCard({ board, isOwner, ownerName }: { board: BoardSummary; 
                 مالك
               </span>
             )}
+            {isOwner && board.kind === "PERSONAL" && board.shareRequest?.status === "PENDING" && (
+              <span className="shrink-0 rounded-full bg-urgent-bg px-2 py-0.5 text-[11px] font-semibold text-urgent">
+                بانتظار الموافقة
+              </span>
+            )}
+            {isOwner && board.kind === "PERSONAL" && board.shareRequest?.status === "REJECTED" && (
+              <span className="shrink-0 rounded-full bg-alert-bg px-2 py-0.5 text-[11px] font-semibold text-alert">
+                رُفضت المشاركة
+              </span>
+            )}
           </div>
           {ownerName && <p className="mt-1 truncate text-xs text-muted">المالك: {ownerName}</p>}
           {board.description && <p className="mt-1 truncate text-sm text-muted">{board.description}</p>}

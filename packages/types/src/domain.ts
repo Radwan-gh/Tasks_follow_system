@@ -8,6 +8,18 @@ export const UserRole = z.enum(["USER", "ADMIN"]);
 export type UserRole = z.infer<typeof UserRole>;
 
 /**
+ * `PERSONAL`: the owner's alone — no members, and invisible to oversight.
+ * `SHARED`: has members; getting there takes an approver's sign-off
+ * (`docs/18-board-sharing.md`). A personal board waiting on a share request
+ * stays `PERSONAL` until it is approved.
+ */
+export const BoardKind = z.enum(["PERSONAL", "SHARED"]);
+export type BoardKind = z.infer<typeof BoardKind>;
+
+export const BoardShareRequestStatus = z.enum(["PENDING", "APPROVED", "REJECTED"]);
+export type BoardShareRequestStatus = z.infer<typeof BoardShareRequestStatus>;
+
+/**
  * Semantic status category of a list, set when a board is seeded from a
  * built-in template. A card's *status* is the list it lives in; this optional
  * category lets features (notably the reports section) reason about a list's
@@ -107,6 +119,9 @@ export const UserSchema = z.object({
   // Granted by an admin; lets a USER see every board and task read-only
   // («المتابعة»). Admins always can — check with `canSupervise()`, not the flag.
   canViewAllBoards: z.boolean(),
+  // Granted by an admin; lets a USER approve or reject share requests for
+  // boards. Admins always can — check with `canApproveSharedBoards()`.
+  canApproveBoards: z.boolean(),
   createdAt: z.string().datetime(),
 });
 export type User = z.infer<typeof UserSchema>;
@@ -123,6 +138,15 @@ export function canSendPush(user: Pick<User, "role" | "canSendNotifications">): 
  */
 export function canSupervise(user: Pick<User, "role" | "canViewAllBoards">): boolean {
   return user.role === "ADMIN" || user.canViewAllBoards;
+}
+
+/**
+ * Whether a user decides share requests for boards — and so also creates
+ * shared boards directly, without a request of their own. Mirrors
+ * `BoardsService.isApprover` on the server.
+ */
+export function canApproveSharedBoards(user: Pick<User, "role" | "canApproveBoards">): boolean {
+  return user.role === "ADMIN" || user.canApproveBoards;
 }
 
 /** Shape returned by GET /auth/me and stored client-side as the logged-in user. */
@@ -199,10 +223,26 @@ export const BoardCategorySchema = z.object({
 });
 export type BoardCategory = z.infer<typeof BoardCategorySchema>;
 
+/**
+ * The board's most recent share request, as its owner needs to see it: still
+ * waiting, or rejected and why. Null when none was ever made (every personal
+ * board that never asked, and boards that were shared from the start).
+ */
+export const BoardShareStateSchema = z.object({
+  id: z.string(),
+  status: BoardShareRequestStatus,
+  reason: z.string().nullable(),
+  createdAt: z.string().datetime(),
+  decidedAt: z.string().datetime().nullable(),
+});
+export type BoardShareState = z.infer<typeof BoardShareStateSchema>;
+
 export const BoardSummarySchema = z.object({
   id: z.string(),
   name: z.string().min(1).max(200),
   description: z.string().max(2000).nullable(),
+  kind: BoardKind,
+  shareRequest: BoardShareStateSchema.nullable(),
   // The board's group on the boards list, or null for «بلا تصنيف». Embedded
   // (not just an id) so the list groups without a second request.
   category: BoardCategorySchema.pick({ id: true, name: true }).nullable(),
@@ -422,6 +462,13 @@ export const NotificationType = z.enum([
   "OVERDUE",
   "COMMENT",
   "CARD_CLOSED",
+  // Board sharing (`docs/18-board-sharing.md`): to every approver when a
+  // request arrives, and to the requester when it is decided. `boardId` is
+  // set and `cardId` is null; `payload.boardName` (and `reason` on a
+  // rejection) carry the wording.
+  "BOARD_SHARE_REQUESTED",
+  "BOARD_SHARE_APPROVED",
+  "BOARD_SHARE_REJECTED",
 ]);
 export type NotificationType = z.infer<typeof NotificationType>;
 

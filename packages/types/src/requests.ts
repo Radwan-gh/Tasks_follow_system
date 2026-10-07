@@ -1,5 +1,7 @@
 import { z } from "zod";
 import {
+  BoardKind,
+  BoardShareRequestStatus,
   CardPriority,
   DevicePlatform,
   NotificationPrefsSchema,
@@ -55,8 +57,47 @@ export const CreateBoardRequestSchema = z.object({
   template: BoardTemplate.optional(),
   /** A `BoardCategory` id; omitted or null leaves the board «بلا تصنيف». */
   categoryId: z.string().nullable().optional(),
+  /**
+   * Defaults to `PERSONAL`. `SHARED` needs a non-empty `description` (the
+   * board's scope — what the approver judges duplicates by) and, unless the
+   * caller is an approver, files a share request: the board is created
+   * personal and turns shared once approved. Checked in `BoardsService.create`
+   * rather than refined here, so MCP can keep reusing this object's `.shape`.
+   */
+  kind: BoardKind.optional(),
 });
 export type CreateBoardRequest = z.infer<typeof CreateBoardRequestSchema>;
+
+/**
+ * `POST /board-share-requests` — the owner asks for a personal board to become
+ * shared (again, after a rejection). `description` replaces the board's
+ * description when sent; either way the board must end up with one.
+ */
+export const CreateBoardShareRequestSchema = z.object({
+  boardId: z.string().min(1),
+  description: z.string().trim().min(1).max(2000).optional(),
+});
+export type CreateBoardShareRequest = z.infer<typeof CreateBoardShareRequestSchema>;
+
+/** `POST /board-share-requests/:id/reject` — the reason reaches the requester. */
+export const RejectBoardShareRequestSchema = z.object({
+  reason: z.string().trim().min(1).max(500),
+});
+export type RejectBoardShareRequest = z.infer<typeof RejectBoardShareRequestSchema>;
+
+/** `GET /board-share-requests/similar` — boards resembling a proposed name. */
+export const SimilarBoardsQuerySchema = z.object({
+  name: z.string().trim().min(1).max(200),
+  /** The board being checked, so it never lists itself. */
+  excludeBoardId: z.string().optional(),
+});
+export type SimilarBoardsQuery = z.infer<typeof SimilarBoardsQuerySchema>;
+
+/** `GET /board-share-requests` — approvers only; defaults to the pending queue. */
+export const BoardShareRequestsQuerySchema = z.object({
+  status: BoardShareRequestStatus.default("PENDING"),
+});
+export type BoardShareRequestsQuery = z.infer<typeof BoardShareRequestsQuerySchema>;
 
 export const UpdateBoardRequestSchema = z.object({
   name: z.string().min(1).max(200).optional(),
@@ -346,8 +387,9 @@ export const UpdateUserPermissionsRequestSchema = z
   .object({
     canSendNotifications: z.boolean().optional(),
     canViewAllBoards: z.boolean().optional(),
+    canApproveBoards: z.boolean().optional(),
   })
-  .refine((v) => v.canSendNotifications !== undefined || v.canViewAllBoards !== undefined, {
+  .refine((v) => Object.values(v).some((flag) => flag !== undefined), {
     message: "At least one permission must be provided",
   });
 export type UpdateUserPermissionsRequest = z.infer<typeof UpdateUserPermissionsRequestSchema>;

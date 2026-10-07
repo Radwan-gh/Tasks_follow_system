@@ -130,15 +130,15 @@ Nest يتخطّى تسجيل محلّله العام إن وجد وسيطًا ب
 
 | الأداة | تستدعي | ملاحظات |
 |---|---|---|
-| `list_boards` | `BoardsService.listForUser` | لوحات المستخدم غير المؤرشفة، مع `isOwner` (هل هو مالكها) واسم تصنيفها `category` |
+| `list_boards` | `BoardsService.listForUser` | لوحات المستخدم غير المؤرشفة، مع `isOwner` (هل هو مالكها) واسم تصنيفها `category`، و`kind` (`PERSONAL`/`SHARED`) و`shareRequest` (`{ status, reason, requestedAt }` أو `null`) |
 | `list_board_categories` | `BoardCategoriesService.list` | كل تصنيفات اللوحات (مشتركة بين المستخدمين) — منها `categoryId` |
 | `list_archived_boards` | `BoardsService.listArchivedForUser` | لوحاته المؤرشفة، بنفس الشكل |
-| `get_board` | `BoardsService.getDetail` | الأعضاء (بمعرّفاتهم وأدوارهم) والقوائم بالترتيب وبطاقاتها، و`isArchived` و`myRole` — منها تُعرف معرّفات القوائم والبطاقات والأشخاص |
+| `get_board` | `BoardsService.getDetail` | الأعضاء (بمعرّفاتهم وأدوارهم) والقوائم بالترتيب وبطاقاتها، و`isArchived` و`myRole` و`kind` و`shareRequest` — منها تُعرف معرّفات القوائم والبطاقات والأشخاص |
 | `get_card` | `CardsService.getDetail` + المهام الفرعية + التعليقات + المرفقات | كل حقول البطاقة، قائمتها (حالتها)، المُسنَدون، الوصول، المهام الفرعية، التعليقات، والمرفقات (المعرّف، الاسم، النوع، الحجم، الرافع، والرابط المطلق `/uploads/...` على `PUBLIC_API_URL`) |
 | `get_card_history` | `CardsService.getHistory` | سجلّ النشاط |
 | `my_tasks` | `MyTasksService.list` | مهامي المفتوحة عبر كل اللوحات |
-| `list_all_boards` | `OversightService.boardsList` | **للمتابع فقط** (`isSupervisor`): كل لوحات النظام مع مالكها — انظر [`16-oversight.md`](./16-oversight.md) |
-| `search_all_tasks` | `OversightService.tasks` | **للمتابع فقط**: البطاقات عبر كل اللوحات بمرشّحات `GET /oversight/tasks` و`nextCursor`. `get_board`/`get_card` تعمل للمتابع على أي لوحة للقراءة فقط (`supervised: true`)، وأدوات الكتابة تُرفض |
+| `list_all_boards` | `OversightService.boardsList` | **للمتابع فقط** (`isSupervisor`): كل اللوحات **المشتركة** مع مالكها، لا الشخصية — انظر [`16-oversight.md`](./16-oversight.md) |
+| `search_all_tasks` | `OversightService.tasks` | **للمتابع فقط**: البطاقات عبر كل اللوحات المشتركة بمرشّحات `GET /oversight/tasks` و`nextCursor`. `get_board`/`get_card` تعمل للمتابع على أي لوحة مشتركة للقراءة فقط (`supervised: true`)، وأدوات الكتابة تُرفض |
 | `create_card` | `CardsService.create` (+ `updateAssignees`) | كل حقول الإنشاء: العنوان، الوصف، الاستحقاق ووقته، الأولوية، التكلفة وملاحظتها، التكرار، والمُسنَدون |
 | `update_card` | `CardsService.update` | أي حقل قابل للتعديل بما فيه الأرشفة؛ `null` يمسح الحقل |
 | `move_card` | `CardsService.update` (`targetListId` + `move`) | تغيير الحالة = النقل إلى قائمة أخرى؛ الموضع `top`/`bottom`/بعد بطاقة معيّنة. الأداة تحسب **معرّفات الجيران فقط** والخادم يحسب المفتاح عبر `computeMovePosition` (انظر [`06-ordering.md`](./06-ordering.md)) |
@@ -151,10 +151,12 @@ Nest يتخطّى تسجيل محلّله العام إن وجد وسيطًا ب
 | `create_upload_link` | `UploadLinkService.create` | الخطوة 1 لإرفاق ملف: رابط رفع موقَّع صالح 15 دقيقة (انظر «رفع الملفات» أدناه) |
 | `add_attachment` | `AttachmentsService.attachStaged` / `create` | الخطوة 2: إمّا `uploadId` من الرفع (يُحوَّل إلى مرفق)، أو `text` + `fileName` لملاحظة نصّية قصيرة (حتى 1MB) — واحد فقط. تسري قاعدة 10 مرفقات للبطاقة وكل فحوص الرفع العادي |
 | `delete_attachment` | `AttachmentsService.remove` | للرافع أو منشئ البطاقة أو مالك اللوحة؛ `destructiveHint: true` |
-| `create_board` | `BoardsService.create` | المستخدم يصبح المالك؛ **`template` غير مكشوف** فتأتي اللوحة دائمًا بالقوائم الخمس. `categoryId` اختياري |
+| `create_board` | `BoardsService.create` | المستخدم يصبح المالك؛ **`template` غير مكشوف** فتأتي اللوحة دائمًا بالقوائم الخمس. `categoryId` اختياري. `kind` اختياري (`PERSONAL` افتراضيًا)؛ `SHARED` يتطلّب `description` ويُنشئ طلب مشاركة لغير الموافِق — انظر [`18-board-sharing.md`](./18-board-sharing.md) |
+| `find_similar_boards` | `BoardSharingService.similar` | اللوحات المشتركة (والمعلّق طلبها) ذات الاسم المشابه بعد التطبيع العربي — يُستعمل قبل طلب لوحة مشتركة |
+| `request_board_sharing` | `BoardSharingService.request` | للمالك فقط: طلب جعل لوحة شخصية مشتركة (أو إعادته بعد الرفض)، مع `description` اختياري يستبدل الوصف. **الموافقة والرفض غير مكشوفين عبر MCP** — قرار بشري في التطبيق |
 | `create_board_category` | `BoardCategoriesService.create` | **للمشرف فقط**: تصنيف جديد بالاسم (فريد دون اعتبار لحالة الأحرف). إعادة التسمية والحذف غير مكشوفين عبر MCP |
 | `find_users_to_add` | `BoardsService.listMemberCandidates` | للمالك فقط |
-| `add_board_member` | `BoardsService.addMember` | للمالك فقط؛ الدور `MEMBER` أو `VIEWER` |
+| `add_board_member` | `BoardsService.addMember` | للمالك فقط، وعلى لوحة مشتركة فقط (`409` على الشخصية)؛ الدور `MEMBER` أو `VIEWER` |
 | `set_board_member_role` | `BoardsService.updateMemberRole` | للمالك فقط؛ تبديل عضو بين `MEMBER` و`VIEWER` |
 | `remove_board_member` | `BoardsService.removeMember` | للمالك فقط؛ لا يُزال المالك. `destructiveHint: true` |
 | `leave_board` | `BoardsService.removeMember` (بمعرّف المستخدم نفسه) | مغادرة لوحة لأي عضو غير المالك، ولو مؤرشفة. `destructiveHint: true` لأنه لا يعود إلا بإضافة المالك |

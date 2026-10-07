@@ -9,6 +9,10 @@ import {
   BoardMemberCandidateListSchema,
   BoardSummarySchema,
   BoardCategorySchema,
+  BoardShareRequestSchema,
+  SimilarBoardSchema,
+  CreateBoardShareRequestSchema,
+  RejectBoardShareRequestSchema,
   BoardDetailSchema,
   BoardOwnerSummarySchema,
   CardSchema,
@@ -85,6 +89,8 @@ registry.register("BoardMember", BoardMemberSchema);
 registry.register("BoardMemberCandidateList", BoardMemberCandidateListSchema);
 registry.register("BoardSummary", BoardSummarySchema);
 registry.register("BoardCategory", BoardCategorySchema);
+registry.register("BoardShareRequest", BoardShareRequestSchema);
+registry.register("SimilarBoard", SimilarBoardSchema);
 registry.register("BoardDetail", BoardDetailSchema);
 registry.register("BoardOwnerSummary", BoardOwnerSummarySchema);
 registry.register("Card", CardSchema);
@@ -101,6 +107,8 @@ registry.register("NotificationPrefs", NotificationPrefsSchema);
 // Request bodies / queries
 registry.register("CreateBoardRequest", CreateBoardRequestSchema);
 registry.register("UpdateBoardRequest", UpdateBoardRequestSchema);
+registry.register("CreateBoardShareRequest", CreateBoardShareRequestSchema);
+registry.register("RejectBoardShareRequest", RejectBoardShareRequestSchema);
 registry.register("CreateBoardCategoryRequest", CreateBoardCategoryRequestSchema);
 registry.register("UpdateBoardCategoryRequest", UpdateBoardCategoryRequestSchema);
 registry.register("AddBoardMemberRequest", AddBoardMemberRequestSchema);

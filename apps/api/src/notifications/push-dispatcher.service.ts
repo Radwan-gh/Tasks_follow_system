@@ -79,9 +79,11 @@ export class PushDispatcherService {
           token,
           title: PUSH_TITLE,
           body,
-          // FCM data values must be strings; the app reads `cardId` to deep-link on tap.
+          // FCM data values must be strings. The app deep-links on tap by
+          // `cardId`, or — for board-sharing rows, which carry none — by `type`.
           data: {
             notificationId: row.id,
+            type: row.type,
             cardId: row.cardId ?? "",
             boardId: row.boardId ?? "",
           },

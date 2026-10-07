@@ -17,6 +17,10 @@ import type {
   BoardOwnerSummary,
   BoardSummary,
   BoardCategory,
+  BoardShareRequest,
+  BoardShareRequestStatus,
+  CreateBoardShareRequest,
+  SimilarBoard,
   Card,
   CardActivity,
   CompletedTasksReport,
@@ -287,6 +291,25 @@ export function createApiClient({ baseUrl, storage, onUnauthorized }: ApiClientO
         }),
       removeMember: (id: string, userId: string) =>
         request<void>(`/boards/${id}/members/${userId}`, { method: "DELETE" }),
+    },
+    /**
+     * Board sharing — `docs/18-board-sharing.md`. `similar` is open to everyone
+     * (the "does this board already exist?" check before asking); `list`,
+     * `approve` and `reject` need `canApproveSharedBoards()`.
+     */
+    boardSharing: {
+      similar: (name: string, excludeBoardId?: string) => {
+        const qs = new URLSearchParams({ name });
+        if (excludeBoardId) qs.set("excludeBoardId", excludeBoardId);
+        return request<SimilarBoard[]>(`/board-share-requests/similar?${qs.toString()}`);
+      },
+      request: (body: CreateBoardShareRequest) =>
+        request<BoardSummary>("/board-share-requests", { method: "POST", body: JSON.stringify(body) }),
+      list: (status: BoardShareRequestStatus = "PENDING") =>
+        request<BoardShareRequest[]>(`/board-share-requests?status=${status}`),
+      approve: (id: string) => request<void>(`/board-share-requests/${id}/approve`, { method: "POST" }),
+      reject: (id: string, reason: string) =>
+        request<void>(`/board-share-requests/${id}/reject`, { method: "POST", body: JSON.stringify({ reason }) }),
     },
     lists: {
       create: (boardId: string, body: CreateListRequest) =>
