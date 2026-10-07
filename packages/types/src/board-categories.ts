@@ -10,19 +10,19 @@ export interface BoardSection<B> {
 
 /**
  * The boards list's sections (`docs/17-board-categories.md`): one per category
- * holding at least one of `boards`, by name; then any *empty* category the
- * viewer created themselves — so a just-made «تصنيف جديد» shows up before it
- * has a board — and «بلا تصنيف» last. Other people's empty categories stay
- * out: they're only offered in the picker. Boards keep their incoming order
- * within a section.
+ * holding at least one of `boards`, by name, and «بلا تصنيف» last. With
+ * `includeEmpty` — for admins, who manage categories — every *empty* category
+ * gets a section too, so a just-made «تصنيف جديد» shows up before it has a
+ * board; everyone else only meets empty categories in the picker. Boards keep
+ * their incoming order within a section.
  *
  * With no category in play at all the result is a single `null` section, so
  * the list renders flat with no header — exactly as before categories existed.
  */
 export function groupBoardsByCategory<B extends Pick<BoardSummary, "category">>(
   boards: B[],
-  categories: Pick<BoardCategory, "id" | "name" | "createdById">[],
-  viewerId: string | undefined,
+  categories: Pick<BoardCategory, "id" | "name">[],
+  { includeEmpty }: { includeEmpty: boolean },
 ): BoardSection<B>[] {
   const byId = new Map<string, BoardSection<B>>();
   const uncategorised: B[] = [];
@@ -36,9 +36,9 @@ export function groupBoardsByCategory<B extends Pick<BoardSummary, "category">>(
     section.boards.push(board);
     byId.set(board.category.id, section);
   }
-  for (const category of categories) {
-    if (viewerId && category.createdById === viewerId && !byId.has(category.id)) {
-      byId.set(category.id, { category: { id: category.id, name: category.name }, boards: [] });
+  if (includeEmpty) {
+    for (const category of categories) {
+      if (!byId.has(category.id)) byId.set(category.id, { category: { id: category.id, name: category.name }, boards: [] });
     }
   }
 
@@ -47,10 +47,11 @@ export function groupBoardsByCategory<B extends Pick<BoardSummary, "category">>(
   return uncategorised.length > 0 ? [...named, { category: null, boards: uncategorised }] : named;
 }
 
-/** Whether `user` may rename or delete `category`: its creator, or any ADMIN. */
-export function canManageBoardCategory(
-  user: { id: string; role: string },
-  category: Pick<BoardCategory, "createdById">,
-): boolean {
-  return user.role === "ADMIN" || category.createdById === user.id;
+/**
+ * Creating, renaming and deleting categories is for ADMINs only — they are
+ * shared headings every user sees. Filing a board under an existing category
+ * is a board edit instead (any board MEMBER, via `PATCH /boards/:id`).
+ */
+export function canManageBoardCategories(user: { role: string }): boolean {
+  return user.role === "ADMIN";
 }

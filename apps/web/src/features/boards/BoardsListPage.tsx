@@ -7,7 +7,7 @@ import { useAuth } from "../auth/AuthContext";
 import { BoardCard } from "./components/BoardCard";
 import { BOARD_CATEGORIES_KEY, categoryErrorMessage, useBoardCategories } from "./components/CategorySelect";
 import { CreateBoardModal } from "./components/CreateBoardModal";
-import { canManageBoardCategory, groupBoardsByCategory } from "./lib/board-sections";
+import { canManageBoardCategories, groupBoardsByCategory } from "./lib/board-sections";
 
 export function BoardsListPage() {
   const { user } = useAuth();
@@ -25,9 +25,11 @@ export function BoardsListPage() {
     },
   });
 
+  // Category management is admin-only; admins also see empty categories.
+  const isCategoryAdmin = !!user && canManageBoardCategories(user);
   const sections = useMemo(
-    () => (boards ? groupBoardsByCategory(boards, categories ?? [], user?.id) : []),
-    [boards, categories, user?.id],
+    () => (boards ? groupBoardsByCategory(boards, categories ?? [], { includeEmpty: isCategoryAdmin }) : []),
+    [boards, categories, isCategoryAdmin],
   );
   const grouped = sections.some((s) => s.category !== null);
 
@@ -81,7 +83,6 @@ export function BoardsListPage() {
           ? sections.map((section) => {
               const key = section.category?.id ?? "NONE";
               const open = !collapsed.has(key);
-              const createdById = categories?.find((c) => c.id === section.category?.id)?.createdById ?? null;
               return (
                 <section key={key} className="space-y-3">
                   <CategoryHeader
@@ -89,7 +90,7 @@ export function BoardsListPage() {
                     count={section.boards.length}
                     open={open}
                     onToggle={() => toggle(key)}
-                    manageable={!!section.category && !!user && canManageBoardCategory(user, { createdById })}
+                    manageable={!!section.category && isCategoryAdmin}
                   />
                   {open &&
                     (section.boards.length > 0 ? (
@@ -104,7 +105,7 @@ export function BoardsListPage() {
             })
           : boards && grid(boards)}
 
-        {!isLoading && <NewCategoryButton />}
+        {!isLoading && isCategoryAdmin && <NewCategoryButton />}
       </main>
 
       {creatingOpen && (
@@ -118,7 +119,7 @@ export function BoardsListPage() {
   );
 }
 
-/** A section heading: fold/unfold, and — for its creator or an admin — rename or delete in place. */
+/** A section heading: fold/unfold, and — for admins — rename or delete in place. */
 function CategoryHeader({
   category,
   count,
