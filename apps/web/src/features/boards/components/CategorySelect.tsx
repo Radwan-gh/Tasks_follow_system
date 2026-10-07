@@ -3,6 +3,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { BoardCategory } from "@app/types";
 import { ApiError } from "@app/api-client";
 import { api } from "../../../lib/api-client";
+import { useAuth } from "../../auth/AuthContext";
+import { canManageBoardCategories } from "../lib/board-sections";
 
 export const BOARD_CATEGORIES_KEY = ["board-categories"] as const;
 
@@ -12,17 +14,19 @@ export function useBoardCategories() {
 
 export function categoryErrorMessage(err: unknown): string {
   if (err instanceof ApiError && err.status === 409) return "يوجد تصنيف بهذا الاسم.";
-  if (err instanceof ApiError && err.status === 403) return "يعدّل التصنيفَ منشئُه أو المشرف فقط.";
+  if (err instanceof ApiError && err.status === 403) return "إدارة التصنيفات للمشرف فقط.";
   return "تعذّر حفظ التصنيف.";
 }
 
 /**
  * «التصنيف» field of the create-board and board-settings modals: «بلا تصنيف»
- * or an existing category, plus «+ تصنيف جديد» which creates one in place and
- * selects it. Mirrors mobile's `CategoryField`.
+ * or an existing category, plus — for admins — «+ تصنيف جديد», which creates
+ * one in place and selects it. Mirrors mobile's `CategoryField`.
  */
 export function CategorySelect({ value, onChange }: { value: string | null; onChange: (id: string | null) => void }) {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const canCreate = !!user && canManageBoardCategories(user);
   const { data: categories } = useBoardCategories();
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState("");
@@ -45,6 +49,9 @@ export function CategorySelect({ value, onChange }: { value: string | null; onCh
     const trimmed = name.trim();
     if (trimmed && !create.isPending) create.mutate(trimmed);
   }
+
+  // Nothing to pick and no way to add one: only an admin creates categories.
+  if (categories?.length === 0 && !value && !canCreate) return null;
 
   return (
     <div className="space-y-1">
@@ -102,13 +109,15 @@ export function CategorySelect({ value, onChange }: { value: string | null; onCh
               </option>
             ))}
           </select>
-          <button
-            type="button"
-            onClick={() => setAdding(true)}
-            className="shrink-0 rounded-field px-3 py-2 text-sm font-medium text-accent hover:bg-accent-soft"
-          >
-            + تصنيف جديد
-          </button>
+          {canCreate && (
+            <button
+              type="button"
+              onClick={() => setAdding(true)}
+              className="shrink-0 rounded-field px-3 py-2 text-sm font-medium text-accent hover:bg-accent-soft"
+            >
+              + تصنيف جديد
+            </button>
+          )}
         </div>
       )}
       {error && <p className="text-xs text-alert">{error}</p>}

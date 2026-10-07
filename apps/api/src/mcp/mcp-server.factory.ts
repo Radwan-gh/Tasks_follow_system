@@ -735,7 +735,7 @@ export class McpServerFactory {
       "create_board_category",
       {
         title: "Create board category",
-        description: "Create a new board category by name. Names are unique regardless of case. Then file boards under it with update_board (categoryId).",
+        description: "Create a new board category by name. Admins only. Names are unique regardless of case. Then file boards under it with update_board (categoryId).",
         inputSchema: CreateBoardCategoryRequestSchema.shape,
         annotations: write,
       },

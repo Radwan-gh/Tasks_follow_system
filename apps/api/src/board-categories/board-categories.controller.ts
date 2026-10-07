@@ -27,9 +27,10 @@ export class BoardCategoriesController {
   }
 
   @Post()
-  @ApiOperation({ summary: "Create a board category — any signed-in user" })
+  @ApiOperation({ summary: "Create a board category — admin-only" })
   @ApiBody({ schema: zodRef("CreateBoardCategoryRequest") })
   @ApiResponse({ status: 201, schema: zodRef("BoardCategory") })
+  @ApiResponse({ status: 403, description: "Requires ADMIN role" })
   @ApiResponse({ status: 409, description: "A category with this name already exists" })
   create(
     @CurrentUser() user: AuthUser,
@@ -39,11 +40,11 @@ export class BoardCategoriesController {
   }
 
   @Patch(":id")
-  @ApiOperation({ summary: "Rename a board category — its creator or an admin" })
+  @ApiOperation({ summary: "Rename a board category — admin-only" })
   @ApiParam({ name: "id", description: "Category ID" })
   @ApiBody({ schema: zodRef("UpdateBoardCategoryRequest") })
   @ApiResponse({ status: 200, schema: zodRef("BoardCategory") })
-  @ApiResponse({ status: 403, description: "Not the creator or an admin" })
+  @ApiResponse({ status: 403, description: "Requires ADMIN role" })
   @ApiResponse({ status: 409, description: "A category with this name already exists" })
   rename(
     @CurrentUser() user: AuthUser,
@@ -55,10 +56,10 @@ export class BoardCategoriesController {
 
   @Delete(":id")
   @HttpCode(204)
-  @ApiOperation({ summary: "Delete a board category; its boards become uncategorised — its creator or an admin" })
+  @ApiOperation({ summary: "Delete a board category; its boards become uncategorised — admin-only" })
   @ApiParam({ name: "id", description: "Category ID" })
   @ApiResponse({ status: 204, description: "Deleted" })
-  @ApiResponse({ status: 403, description: "Not the creator or an admin" })
+  @ApiResponse({ status: 403, description: "Requires ADMIN role" })
   async remove(@CurrentUser() user: AuthUser, @Param("id") id: string) {
     await this.categories.remove(user.id, id);
   }

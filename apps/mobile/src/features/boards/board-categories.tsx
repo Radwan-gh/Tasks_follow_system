@@ -3,9 +3,10 @@ import { Pressable, TextInput, View } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError } from "@app/api-client";
-import type { BoardCategory } from "@app/types";
+import { canManageBoardCategories, type BoardCategory } from "@app/types";
 import { BottomSheet } from "@/components/bottom-sheet";
 import { AppText } from "@/components/text";
+import { useAuth } from "@/features/auth/auth-context";
 import { api } from "@/lib/api";
 import { avatarColorFor } from "@/lib/avatar";
 import { MIN_TOUCH_TARGET, colors, fonts, fontSizes, radii, spacing } from "@/theme/tokens";
@@ -29,7 +30,7 @@ export function categoryColor(categoryId: string): string {
 
 function categoryError(err: unknown): string {
   if (err instanceof ApiError && err.status === 409) return "يوجد تصنيف بهذا الاسم.";
-  if (err instanceof ApiError && err.status === 403) return "يعدّل التصنيفَ منشئُه أو المشرف فقط.";
+  if (err instanceof ApiError && err.status === 403) return "إدارة التصنيفات للمشرف فقط.";
   return "تعذّر الحفظ. تحقّق من اتصالك ثم أعد المحاولة.";
 }
 
@@ -59,9 +60,13 @@ export function CategoryField({
   onChange: (categoryId: string | null) => void;
   disabled?: boolean;
 }) {
+  const { user } = useAuth();
   const categories = useBoardCategories();
   const [picking, setPicking] = useState(false);
   const current = value ? categories.data?.find((c) => c.id === value) : undefined;
+
+  // Nothing to pick and no way to add one: only an admin creates categories.
+  if (categories.data?.length === 0 && !value && !(user && canManageBoardCategories(user))) return null;
 
   return (
     <View style={{ gap: spacing.sm }}>
@@ -116,7 +121,8 @@ export function CategoryField({
 
 /**
  * «بلا تصنيف», every category by name, and «تصنيف جديد» — which expands into
- * a name field in place, creates the category and picks it in one step.
+ * a name field in place, creates the category and picks it in one step
+ * (admins only — everyone else just picks).
  */
 export function CategoryPickerSheet({
   visible,
@@ -130,6 +136,8 @@ export function CategoryPickerSheet({
   onChange: (categoryId: string | null) => void;
 }) {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const canCreate = !!user && canManageBoardCategories(user);
   const categories = useBoardCategories();
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState("");
@@ -225,7 +233,7 @@ export function CategoryPickerSheet({
               </AppText>
             ) : null}
           </View>
-        ) : (
+        ) : canCreate ? (
           <Pressable
             accessibilityRole="button"
             onPress={() => {
@@ -238,7 +246,7 @@ export function CategoryPickerSheet({
               + تصنيف جديد
             </AppText>
           </Pressable>
-        )}
+        ) : null}
       </View>
     </BottomSheet>
   );
@@ -339,7 +347,7 @@ export function CategoryNameSheet({
   );
 }
 
-/** Long-press on a section header: rename or delete, for the creator or an admin. */
+/** Long-press on a section header: rename or delete — admins only. */
 export function CategoryActionsSheet({
   visible,
   category,

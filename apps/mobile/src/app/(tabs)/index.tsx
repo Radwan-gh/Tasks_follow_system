@@ -3,7 +3,7 @@ import { Pressable, RefreshControl, ScrollView, View } from "react-native";
 import { useRouter } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { canManageBoardCategory, groupBoardsByCategory, type BoardSummary } from "@app/types";
+import { canManageBoardCategories, groupBoardsByCategory, type BoardSummary } from "@app/types";
 import { ConfirmSheet } from "@/components/confirm-sheet";
 import { Screen } from "@/components/screen";
 import { AppText } from "@/components/text";
@@ -40,9 +40,13 @@ export default function BoardsScreen() {
   const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null);
   const [deleting, setDeleting] = useState<{ id: string; name: string } | null>(null);
 
+  // Creating, renaming and deleting categories is admin-only; admins also see
+  // the empty ones, which they're presumably about to fill.
+  const isCategoryAdmin = !!user && canManageBoardCategories(user);
   const sections = useMemo(
-    () => (boards.data ? groupBoardsByCategory(boards.data, categories.data ?? [], user?.id) : []),
-    [boards.data, categories.data, user?.id],
+    () =>
+      boards.data ? groupBoardsByCategory(boards.data, categories.data ?? [], { includeEmpty: isCategoryAdmin }) : [],
+    [boards.data, categories.data, isCategoryAdmin],
   );
   const grouped = sections.some((s) => s.category !== null);
 
@@ -150,12 +154,7 @@ export default function BoardsScreen() {
                   const key = section.category?.id ?? "NONE";
                   const open = !collapsed.has(key);
                   const category = section.category;
-                  const manageable =
-                    !!category &&
-                    !!user &&
-                    canManageBoardCategory(user, {
-                      createdById: categories.data?.find((c) => c.id === category.id)?.createdById ?? null,
-                    });
+                  const manageable = !!category && isCategoryAdmin;
                   return (
                     <View key={key} style={{ gap: spacing.sm }}>
                       <SectionHeader
@@ -183,21 +182,23 @@ export default function BoardsScreen() {
                 })
               : sections.flatMap((section) => section.boards.map(boardCard))}
 
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => setCreatingCategory(true)}
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: spacing.sm,
-                minHeight: MIN_TOUCH_TARGET,
-              }}
-            >
-              <AppText weight="semibold" color={colors.muted}>
-                + تصنيف جديد
-              </AppText>
-            </Pressable>
+            {isCategoryAdmin ? (
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => setCreatingCategory(true)}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: spacing.sm,
+                  minHeight: MIN_TOUCH_TARGET,
+                }}
+              >
+                <AppText weight="semibold" color={colors.muted}>
+                  + تصنيف جديد
+                </AppText>
+              </Pressable>
+            ) : null}
           </>
         )}
 
@@ -259,8 +260,8 @@ export default function BoardsScreen() {
 }
 
 /**
- * A category's heading on the boards list — tap folds it, long-press (creator
- * or admin) opens rename/delete.
+ * A category's heading on the boards list — tap folds it, long-press (admins
+ * only) opens rename/delete.
  */
 function SectionHeader({
   title,
