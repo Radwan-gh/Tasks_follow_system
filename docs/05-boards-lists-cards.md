@@ -15,6 +15,8 @@
   `GET /boards/:id/summary`، `PUT/POST /boards/:id/members`،
   `DELETE /boards/:id/members/:userId`، `PATCH /boards/:id/members/:userId/role`،
   `GET /boards/:id/member-candidates`
+- **تصنيفات اللوحات:** `GET/POST /board-categories`، `PATCH/DELETE /board-categories/:id` —
+  انظر [`17-board-categories.md`](./17-board-categories.md)
 - **القوائم:** `POST /boards/:boardId/lists`، `PATCH/DELETE /lists/:id`
 - **البطاقات:** `POST /lists/:listId/cards`، `GET/PATCH/DELETE /cards/:id`،
   `GET /cards/:id/history`، `PATCH /cards/:id/access`، `PATCH /cards/:id/assignees`
@@ -30,6 +32,7 @@
   يبقى في الـ API: `TASK_WORKFLOW` (الافتراضي عند حذفه) أو `EMPTY` (لوحة بلا
   قوائم). الواجهتان (الويب والجوال) **لا ترسلانه ولا تعرضان أي اختيار قالب**.
   التفاصيل في [`09-list-status-templates.md`](./09-list-status-templates.md).
+- `categoryId` اختياري يضع اللوحة في تصنيف من البداية؛ معرّف غير موجود ← `400`.
 
 ### القائمة (List for user)
 - تُرجَع فقط اللوحات التي المستخدم **عضو** فيها و**غير مؤرشفة**، مرتّبة بالأحدث تحديثًا.
@@ -48,7 +51,7 @@
   (`GET/PATCH /cards/:id`، الإنشاء…) تُرجِع `Card` بلا أعداد.
 
 ### التعديل والحذف
-- تعديل الاسم/الوصف: MEMBER. أرشفة اللوحة (أو استعادتها بـ`isArchived: false`): OWNER.
+- تعديل الاسم/الوصف/التصنيف (`categoryId`، و`null` يُخرجها من تصنيفها): MEMBER. أرشفة اللوحة (أو استعادتها بـ`isArchived: false`): OWNER.
   الحذف: OWNER، **وللّوحات المؤرشفة فقط** (انظر «الحذف النهائي» أدناه و
   [`04-authorization.md`](./04-authorization.md)).
 

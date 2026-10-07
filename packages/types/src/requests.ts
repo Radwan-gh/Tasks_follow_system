@@ -53,6 +53,8 @@ export const CreateBoardRequestSchema = z.object({
   description: z.string().max(2000).optional(),
   dueDate: z.string().datetime().nullable().optional(),
   template: BoardTemplate.optional(),
+  /** A `BoardCategory` id; omitted or null leaves the board «بلا تصنيف». */
+  categoryId: z.string().nullable().optional(),
 });
 export type CreateBoardRequest = z.infer<typeof CreateBoardRequestSchema>;
 
@@ -61,8 +63,19 @@ export const UpdateBoardRequestSchema = z.object({
   description: z.string().max(2000).nullable().optional(),
   dueDate: z.string().datetime().nullable().optional(),
   isArchived: z.boolean().optional(),
+  /** Move the board to another category; null takes it out of any. */
+  categoryId: z.string().nullable().optional(),
 });
 export type UpdateBoardRequest = z.infer<typeof UpdateBoardRequestSchema>;
+
+/** Trimmed before the length check, so "   " is rejected rather than stored. */
+const BoardCategoryName = z.string().trim().min(1).max(60);
+
+export const CreateBoardCategoryRequestSchema = z.object({ name: BoardCategoryName });
+export type CreateBoardCategoryRequest = z.infer<typeof CreateBoardCategoryRequestSchema>;
+
+export const UpdateBoardCategoryRequestSchema = z.object({ name: BoardCategoryName });
+export type UpdateBoardCategoryRequest = z.infer<typeof UpdateBoardCategoryRequestSchema>;
 
 /**
  * `role` defaults to `MEMBER` server-side when omitted; `OWNER` is never a valid

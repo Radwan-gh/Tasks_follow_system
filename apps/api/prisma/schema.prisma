@@ -101,6 +101,7 @@ model User {
   cardMemberships  CardMember[]
   createdCards   Card[]         @relation("CardCreator")
   ownedBoards    Board[]        @relation("BoardOwner")
+  createdBoardCategories BoardCategory[] @relation("BoardCategoryCreator")
   cardActivities CardActivity[] @relation("CardActivityActor")
   cardAssignments    CardAssignee[]
   createdSubtasks    Subtask[]         @relation("SubtaskCreator")
@@ -174,16 +175,39 @@ model Board {
   /// null — no placeholder text, no empty chip (`v2-new-style.md` §1).
   dueDate     DateTime?
   ownerId     String
+  /// Optional grouping on the boards list («التصنيف», e.g. «الجامع» holding
+  /// الكهرباء / الماء / النظافة). Shared: every member sees the board under the
+  /// same category. Deleting the category leaves the board uncategorised.
+  categoryId  String?
   isArchived  Boolean   @default(false)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
   owner     User           @relation("BoardOwner", fields: [ownerId], references: [id])
+  category  BoardCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   members   BoardMember[]
   lists     List[]
   templates Template[]
 
   @@index([ownerId])
+  @@index([categoryId])
+}
+
+/// A named group of boards — see `docs/17-board-categories.md`. Global rather
+/// than per-board: any user may create one, and its creator (or an ADMIN) may
+/// rename or delete it. Names are unique case-insensitively, enforced in
+/// `BoardCategoriesService`.
+model BoardCategory {
+  id          String   @id @default(cuid())
+  name        String
+  /// Null once the creator's account is deleted — the category outlives them,
+  /// and from then on only an ADMIN can rename or delete it.
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  createdBy User?   @relation("BoardCategoryCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  boards    Board[]
 }
 
 model BoardMember {

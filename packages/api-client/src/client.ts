@@ -16,10 +16,12 @@ import type {
   BoardMemberCandidateList,
   BoardOwnerSummary,
   BoardSummary,
+  BoardCategory,
   Card,
   CardActivity,
   CompletedTasksReport,
   CreateBoardRequest,
+  CreateBoardCategoryRequest,
   CreateCardRequest,
   CreateListRequest,
   CreateSubtaskRequest,
@@ -46,6 +48,7 @@ import type {
   SetBoardMembersRequest,
   UpdateAssigneesRequest,
   UpdateBoardRequest,
+  UpdateBoardCategoryRequest,
   UpdateCardAccessRequest,
   UpdateCardRequest,
   UpdateListRequest,
@@ -240,6 +243,16 @@ export function createApiClient({ baseUrl, storage, onUnauthorized }: ApiClientO
         request<AdminResetPasswordResponse>(`/admin/users/${id}/reset-password`, { method: "POST" }),
       updateUserPermissions: (id: string, body: UpdateUserPermissionsRequest) =>
         request<AdminUser>(`/admin/users/${id}/permissions`, { method: "PATCH", body: JSON.stringify(body) }),
+    },
+    boardCategories: {
+      list: () => request<BoardCategory[]>("/board-categories"),
+      create: (body: CreateBoardCategoryRequest) =>
+        request<BoardCategory>("/board-categories", { method: "POST", body: JSON.stringify(body) }),
+      /** Creator or ADMIN only. */
+      rename: (id: string, body: UpdateBoardCategoryRequest) =>
+        request<BoardCategory>(`/board-categories/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+      /** Creator or ADMIN only; its boards fall back to «بلا تصنيف». */
+      remove: (id: string) => request<void>(`/board-categories/${id}`, { method: "DELETE" }),
     },
     boards: {
       list: () => request<BoardSummary[]>("/boards"),

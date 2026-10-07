@@ -11,6 +11,7 @@ import { DueDateSheet } from "@/components/due-date-sheet";
 import { ErrorState } from "@/components/state-views";
 import { Skeleton } from "@/components/skeleton";
 import { useAuth } from "@/features/auth/auth-context";
+import { CategoryField } from "@/features/boards/board-categories";
 import { PeopleField } from "@/features/cards/people-field";
 import { formatDueDate } from "@/lib/date";
 import { api } from "@/lib/api";
@@ -20,7 +21,7 @@ import { MIN_TOUCH_TARGET, colors, fonts, fontSizes, radii, spacing } from "@/th
 
 /**
  * `/board/:id/settings` — the design's «إعدادات اللوحة والأعضاء» single
- * screen (`v2-new-style.md` §7.2): rename/description/due-date, archive (and,
+ * screen (`v2-new-style.md` §7.2): rename/description/category/due-date, archive (and,
  * once archived, restore or permanently delete) — or, for anyone but the
  * owner, leaving the board — and
  * the members — edited with the same inline `PeopleField` as task assignees,
@@ -45,6 +46,7 @@ export default function BoardSettingsScreen() {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [dueDate, setDueDate] = useState<string | null>(null);
+  const [categoryId, setCategoryId] = useState<string | null>(null);
   const [seeded, setSeeded] = useState(false);
   const [pickingDueDate, setPickingDueDate] = useState(false);
   const [confirmingArchive, setConfirmingArchive] = useState(false);
@@ -59,6 +61,7 @@ export default function BoardSettingsScreen() {
       setName(board.data.name);
       setDescription(board.data.description ?? "");
       setDueDate(board.data.dueDate);
+      setCategoryId(board.data.category?.id ?? null);
       setSeeded(true);
     }
   }, [board.data, seeded]);
@@ -114,7 +117,8 @@ export default function BoardSettingsScreen() {
   }
 
   const save = useMutation({
-    mutationFn: () => api.boards.update(id, { name: name.trim(), description: description.trim() || null, dueDate }),
+    mutationFn: () =>
+      api.boards.update(id, { name: name.trim(), description: description.trim() || null, dueDate, categoryId }),
     onSuccess: () => {
       invalidate();
       router.back();
@@ -302,6 +306,8 @@ export default function BoardSettingsScreen() {
             }}
           />
         </Field>
+
+        <CategoryField value={categoryId} onChange={setCategoryId} disabled={board.data.supervised} />
 
         <Pressable
           accessibilityRole="button"
