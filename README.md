@@ -171,8 +171,9 @@ Phases not yet built, in planned order:
    live. The fractional-index data model above was chosen specifically so
    this slots in as small, additive event payloads rather than a rewrite.
 2. **Mobile app** — Expo/React Native, reusing `packages/types` and the
-   shared `packages/api-client`, with a simpler "move to list" affordance in
-   place of full drag-and-drop and a foreground-only realtime connection.
+   shared `packages/api-client`, with one-tap "next status" and long-press
+   drag (reorder within a column, or drop on a status chip) in place of
+   multi-column drag-and-drop, and a foreground-only realtime connection.
    The full designed feature set (`docs/app_design/v2-new-style.md` +
    `design-prompt-group-3.md`, groups 1a/2a/3a/3b/3c) is now built — see
    `docs/12-mobile-app.md` and `docs/13-redesign-completion-plan.md` for

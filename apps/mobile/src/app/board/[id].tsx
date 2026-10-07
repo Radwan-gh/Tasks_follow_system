@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { I18nManager, Pressable, RefreshControl, ScrollView, TextInput, View, useWindowDimensions } from "react-native";
+import { I18nManager, Pressable, RefreshControl, ScrollView, StyleSheet, TextInput, View, useWindowDimensions } from "react-native";
 import { useIsFocused, useLocalSearchParams, useRouter } from "expo-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -15,6 +15,7 @@ import { Toast, type ToastMessage } from "@/components/toast";
 import { ListColumn, sortByPriority } from "@/features/boards/list-column";
 import { CardItem } from "@/features/boards/card-item";
 import { MoveCardSheet } from "@/features/boards/move-card-sheet";
+import { BoardDragProvider, DragOverlay, useBoardDrag } from "@/features/boards/board-drag";
 import { QuickAddCard } from "@/features/boards/quick-add-card";
 import { BoardSummarySheet } from "@/features/boards/board-summary-sheet";
 import { BoardFilterSheet, EMPTY_BOARD_FILTER, isFilterActive, type BoardFilter } from "@/features/boards/board-filter-sheet";
@@ -23,6 +24,7 @@ import { EmptyState } from "@/components/state-views";
 import { api } from "@/lib/api";
 import { LIVE_REFETCH_MS, boardDetailKey, recentClosedSince, useOpenCard } from "@/lib/board-cache";
 import { indexFromOffset, resolveColumnOffsets, snapOffsetsFor } from "@/lib/status-pager";
+import { planDrop } from "@/lib/reorder";
 import { MIN_TOUCH_TARGET, colors, fonts, fontSizes, radii, spacing } from "@/theme/tokens";
 
 /**
@@ -71,8 +73,14 @@ interface CardPlace {
 interface MoveInput {
   cardId: string;
   targetListId: string;
-  /** Set only by an undo: the place the card is going back to. */
-  restore?: CardPlace;
+  /** An exact landing spot — a drag's drop or an undo. Without one the server appends. */
+  place?: CardPlace;
+  /** An undo announces nothing; a drop within one list says which place it took. */
+  kind?: "drop" | "undo";
+  /** A same-list drop's 1-based place in the column, for its toast. */
+  displayPosition?: number;
+  /** When a neighbour is refused (400), fall back to appending — only worth it when the status changes. */
+  appendOnConflict?: boolean;
 }
 
 function findCardPlace(board: BoardDetail, cardId: string): CardPlace | null {
@@ -143,10 +151,13 @@ export default function BoardScreen() {
   // Poll for other users' edits only while this screen is the one on top —
   // the card modal polls the same board itself while it covers this screen.
   const isFocused = useIsFocused();
+  // Paused mid-drag: the drag measured the columns as they were, and a poll
+  // landing under the finger would reshuffle them.
+  const [dragging, setDragging] = useState(false);
   const board = useQuery({
     queryKey: boardQueryKey,
     queryFn: () => api.boards.get(id, closedSince),
-    refetchInterval: isFocused ? LIVE_REFETCH_MS : false,
+    refetchInterval: isFocused && !dragging ? LIVE_REFETCH_MS : false,
   });
   const openCard = useOpenCard();
   // Own flag rather than `board.isRefetching`, so background polls don't flash the spinner.
@@ -179,22 +190,24 @@ export default function BoardScreen() {
    * A move takes the card out of the column on screen, so every move started
    * here says where it went and offers to take it back — the arrow sits inside
    * the card's own tap area, and a near-miss "open" used to move a task with
-   * no trace. The undo is itself a move (`restore`), so it puts the card back
-   * between its old neighbours and announces nothing.
+   * no trace. The undo is itself a move (`kind: "undo"`), so it puts the card
+   * back between its old neighbours and announces nothing. A drag's drop
+   * (`kind: "drop"`) carries its own place, worked out by `planDrop`.
    */
   const move = useMutation({
     mutationFn: async (input: MoveInput) => {
       // With no neighbour on either side there is nothing to anchor to: append.
       const neighbours =
-        input.restore && (input.restore.beforeId || input.restore.afterId)
-          ? { beforeId: input.restore.beforeId, afterId: input.restore.afterId }
+        input.place && (input.place.beforeId || input.place.afterId)
+          ? { beforeId: input.place.beforeId, afterId: input.place.afterId }
           : undefined;
       try {
         return await api.cards.update(input.cardId, { targetListId: input.targetListId, move: neighbours });
       } catch (error) {
         // A neighbour moved away meanwhile — the server refuses it as an anchor.
-        // Back in the right status still beats a failed undo, so retry at the end.
-        if (neighbours && error instanceof ApiError && error.status === 400) {
+        // In the right status at the end still beats a failed move. Within one
+        // list, appending would just be a different wrong place, so it fails.
+        if (neighbours && input.appendOnConflict && error instanceof ApiError && error.status === 400) {
           return api.cards.update(input.cardId, { targetListId: input.targetListId });
         }
         throw error;
@@ -207,16 +220,24 @@ export default function BoardScreen() {
       if (previous) {
         queryClient.setQueryData(
           boardQueryKey,
-          moveCardInBoard(previous, input.cardId, input.targetListId, input.restore?.index),
+          moveCardInBoard(previous, input.cardId, input.targetListId, input.place?.index),
         );
         const from = findCardPlace(previous, input.cardId);
         const target = previous.lists.find((l) => l.id === input.targetListId);
-        if (!input.restore && from && target) {
+        if (input.kind !== "undo" && from && target) {
+          const sameList = from.listId === target.id;
           setToast({
             id: Date.now(),
-            message: `نُقلت إلى «${target.name}»`,
+            message: sameList ? `أُفلت إلى الموضع ${input.displayPosition ?? from.index + 1}` : `نُقلت إلى «${target.name}»`,
             actionLabel: "تراجع",
-            onAction: () => moveRef.current({ cardId: input.cardId, targetListId: from.listId, restore: from }),
+            onAction: () =>
+              moveRef.current({
+                cardId: input.cardId,
+                targetListId: from.listId,
+                place: from,
+                kind: "undo",
+                appendOnConflict: !sameList,
+              }),
           });
         } else {
           setToast(null);
@@ -378,6 +399,43 @@ export default function BoardScreen() {
     const offset = columnOffsets[index];
     if (offset != null) listRef.current?.scrollTo({ x: offset, animated });
   }
+
+  const dragEnabled = !boardReadOnly && !searchOpen;
+  const boardDrag = useBoardDrag({
+    lists: board.data?.lists ?? [],
+    width,
+    columnOffsets,
+    scrollToColumn,
+    accepts: (card, list) => list.statusCategory !== "CLOSED" || list.id === card.listId || canCloseCard(card),
+    onDragStart: () => {
+      setDragging(true);
+      void queryClient.cancelQueries({ queryKey: boardQueryKey });
+    },
+    onDragEnd: () => setDragging(false),
+    onDrop: (card, sourceListId, targetListId, slot) => {
+      const target = board.data?.lists.find((l) => l.id === targetListId);
+      if (!target) return;
+      const plan = planDrop(target.cards, card, slot);
+      if (plan.unchanged) return;
+      move.mutate({
+        cardId: card.id,
+        targetListId,
+        place: {
+          listId: targetListId,
+          index: plan.rawIndex,
+          beforeId: plan.move?.beforeId ?? null,
+          afterId: plan.move?.afterId ?? null,
+        },
+        kind: "drop",
+        displayPosition: plan.displayPosition,
+        appendOnConflict: sourceListId !== targetListId,
+      });
+    },
+    onOpenActions: (cardId) => {
+      if (!cardId.startsWith("temp:")) setMovingCardId(cardId);
+    },
+  });
+  const drag = boardDrag.drag;
 
   // Android already parks an RTL scroll view at its reading start, which is
   // this same column — but the opening position is set explicitly, once,
@@ -609,17 +667,28 @@ export default function BoardScreen() {
             </ScrollView>
           </>
         ) : (
-          <>
+          <BoardDragProvider value={boardDrag.context}>
             <ScrollView
               ref={chipsRef}
               horizontal
+              scrollEnabled={!drag}
               showsHorizontalScrollIndicator={false}
               style={{ flexGrow: 0, marginBottom: spacing.md }}
               contentContainerStyle={{ paddingHorizontal: spacing.xl, gap: spacing.sm }}
             >
-              {board.data.lists.map((list, index) => (
+              {board.data.lists.map((list, index) => {
+                const active = index === activeIndex;
+                // Mid-drag every chip is a drop target (§5c): dashed, filled
+                // under the finger, dimmed where the card may not go. Every
+                // chip keeps a 1px border throughout, so none of them resizes
+                // under the measurements the drag hit-tests against.
+                const accepting =
+                  !drag || drag.card.listId === list.id || list.statusCategory !== "CLOSED" || canCloseCard(drag.card);
+                const hovered = drag?.hoverChip === index;
+                return (
                 <Pressable
                   key={list.id}
+                  ref={boardDrag.chipRef(index)}
                   testID={`status-chip-${index}`}
                   accessibilityRole="tab"
                   accessibilityState={{ selected: index === activeIndex }}
@@ -633,20 +702,23 @@ export default function BoardScreen() {
                     minHeight: MIN_TOUCH_TARGET,
                     justifyContent: "center",
                     paddingHorizontal: spacing.lg,
-                    backgroundColor: index === activeIndex ? colors.accent : colors.surface,
-                    borderWidth: index === activeIndex ? 0 : 1,
-                    borderColor: colors.line,
+                    backgroundColor: hovered ? colors.accentSoft : active ? colors.accent : colors.surface,
+                    borderWidth: 1,
+                    borderColor: drag || active ? colors.accent : colors.line,
+                    borderStyle: drag && !hovered && !active ? "dashed" : "solid",
+                    opacity: accepting ? 1 : 0.4,
                   }}
                 >
                   <AppText
                     size="small"
-                    weight={index === activeIndex ? "semibold" : "regular"}
-                    color={index === activeIndex ? colors.surface : colors.muted}
+                    weight={active || hovered ? "semibold" : "regular"}
+                    color={hovered || (drag && !active) ? colors.accent : active ? colors.surface : colors.muted}
                   >
                     {list.name} · {list.cards.length}
                   </AppText>
                 </Pressable>
-              ))}
+                );
+              })}
             </ScrollView>
 
             {board.data.lists.length === 0 ? (
@@ -658,6 +730,7 @@ export default function BoardScreen() {
                 ref={listRef}
                 testID="status-pager"
                 horizontal
+                scrollEnabled={!drag}
                 style={{ flex: 1 }}
                 showsHorizontalScrollIndicator={false}
                 snapToOffsets={snapOffsets.length > 0 ? snapOffsets : undefined}
@@ -668,16 +741,24 @@ export default function BoardScreen() {
                 {board.data.lists.map((list, index) => (
                   <View
                     key={list.id}
+                    ref={boardDrag.pageRef(index)}
                     testID={`status-page-${index}`}
                     style={{ width }}
                     onLayout={(e) => handleColumnLayout(index, e.nativeEvent.layout.x)}
                   >
                     <ScrollView
+                      ref={boardDrag.columnRef(index)}
                       style={{ flex: 1 }}
                       contentContainerStyle={{ paddingHorizontal: spacing.xl, paddingBottom: spacing.lg }}
                       nestedScrollEnabled
+                      scrollEnabled={!drag}
+                      scrollEventThrottle={16}
+                      onScroll={(e) => boardDrag.onColumnScroll(index, e.nativeEvent.contentOffset.y)}
+                      onContentSizeChange={(_w, h) => boardDrag.onColumnContentSize(index, h)}
                       showsVerticalScrollIndicator={false}
-                      refreshControl={<RefreshControl refreshing={pullRefreshing} onRefresh={() => void pullToRefresh()} />}
+                      refreshControl={
+                        <RefreshControl refreshing={pullRefreshing} enabled={!drag} onRefresh={() => void pullToRefresh()} />
+                      }
                     >
                       <ListColumn
                         list={list}
@@ -698,13 +779,20 @@ export default function BoardScreen() {
                           list.statusCategory === "CLOSED" && !!closedSince && (board.data?.hiddenClosedCount ?? 0) > 0
                         }
                         onLoadOlder={() => setClosedSince(undefined)}
+                        dragEnabled={dragEnabled}
+                        draggingCardId={drag?.card.id ?? null}
+                        dropSlot={
+                          drag && drag.targetIndex === index && drag.slot != null && drag.hoverChip == null
+                            ? { slot: drag.slot, height: drag.height }
+                            : null
+                        }
                       />
                     </ScrollView>
                   </View>
                 ))}
               </ScrollView>
             )}
-          </>
+          </BoardDragProvider>
         )}
 
         {/* Floats over the bottom of the content, just above the quick-add,
@@ -713,6 +801,26 @@ export default function BoardScreen() {
             view's parent, and the toast's «تراجع» has to be tappable. */}
         <View style={{ position: "absolute", bottom: 0, start: spacing.xl, end: spacing.xl, paddingBottom: spacing.sm }}>
           <Toast toast={toast} onDismiss={() => setToast(null)} />
+        </View>
+
+        {/* The lifted card mid-drag, above the pager and everything in it. */}
+        <View ref={boardDrag.hostRef} pointerEvents="none" style={StyleSheet.absoluteFill}>
+          <DragOverlay
+            drag={drag}
+            tx={boardDrag.tx}
+            ty={boardDrag.ty}
+            lift={boardDrag.lift}
+            renderCard={(card) => (
+              <CardItem
+                card={card}
+                assignees={resolveAssignees(card.assigneeIds)}
+                hasNext={false}
+                onMoveNext={() => {}}
+                onOpen={() => {}}
+                lifted
+              />
+            )}
+          />
         </View>
       </View>
 

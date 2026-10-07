@@ -35,7 +35,7 @@ pnpm --filter @app/api-client build   # depends on @app/types
 pnpm dev                              # runs apps/api (port 3000) + apps/web (port 5173) together
 pnpm build                            # turbo build across all packages/apps
 pnpm typecheck                        # turbo typecheck across all packages/apps
-pnpm test                             # turbo test (currently only packages/ordering has real tests)
+pnpm test                             # turbo test (packages/ordering + apps/mobile src/lib helpers)
 
 # Single-package/app commands
 pnpm --filter @app/ordering test      # fractional-index unit tests (vitest)
@@ -127,9 +127,13 @@ builds and `I18nManager.forceRTL` covers Expo Go, where config plugins do not
 apply. React Native does not inherit fonts, so **all** text goes through
 `src/components/text.tsx` (Cairo + palette + Arabic line height) — a bare
 `<Text>` silently falls back to the system face. Colours, radii and spacing come
-from `src/theme/tokens.ts`; a hex literal in a component is a bug. Per
-README's roadmap the app uses a "move to list" affordance instead of
-drag-and-drop. See `docs/12-mobile-app.md`.
+from `src/theme/tokens.ts`; a hex literal in a component is a bug. Moving a
+card is the ← arrow, a move sheet, or a long-press drag
+(`features/boards/board-drag.tsx`: reorder within the column, drop on a status
+chip, hold at the screen edge to page) — drop neighbours come from
+`planDrop` in `src/lib/reorder.ts`, computed against raw server order because
+columns display urgent-first. `src/lib` pure helpers are unit-tested with
+vitest (`pnpm --filter @app/mobile test`). See `docs/12-mobile-app.md`.
 
 ### Shared API client (`packages/api-client`)
 

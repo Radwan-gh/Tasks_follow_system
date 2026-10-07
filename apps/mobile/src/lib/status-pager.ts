@@ -45,6 +45,23 @@ export function snapOffsetsFor(offsets: readonly number[]): number[] {
   return [...offsets].sort((a, b) => a - b);
 }
 
+/**
+ * The status whose page sits next to `current` on the given physical side of
+ * the screen — where a card held at that screen edge mid-drag pages to — or
+ * `null` at the end of the row. Offsets are raw left-to-right, so in RTL the
+ * left edge leads to the *next* status, without assuming either direction.
+ */
+export function neighbourIndexToward(offsets: readonly number[], current: number, side: "left" | "right"): number | null {
+  const here = offsets[current];
+  if (here == null) return null;
+  let best: number | null = null;
+  offsets.forEach((offset, index) => {
+    if (side === "left" ? offset >= here : offset <= here) return;
+    if (best == null || (side === "left" ? offset > offsets[best]! : offset < offsets[best]!)) best = index;
+  });
+  return best;
+}
+
 /** The status whose page is nearest to `offsetX`; `current` when nothing is measured yet. */
 export function indexFromOffset(offsets: readonly number[], offsetX: number, current: number): number {
   let closest = current;
