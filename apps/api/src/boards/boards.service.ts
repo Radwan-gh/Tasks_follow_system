@@ -139,6 +139,21 @@ export class BoardsService {
     if (board.isArchived) throw new ForbiddenException("This board is archived and read-only");
   }
 
+  /**
+   * A task's details — its fields, assignees, checklist items, and the task
+   * itself (archive/delete) — are edited only by its owner: the board owner or
+   * the task's creator (`canManageCard`). Every other member who can open the
+   * task may still move it, tick its sub-tasks, comment and attach files.
+   * Called *after* `assertMembership`, which still decides board access.
+   */
+  async assertCanManageCard(userId: string, card: { boardId: string; createdById: string }) {
+    const board = await this.prisma.board.findUnique({ where: { id: card.boardId }, select: { ownerId: true } });
+    if (!board) throw new NotFoundException("Board not found");
+    if (!canManageCard(userId, board.ownerId, card)) {
+      throw new ForbiddenException("Only the board owner or the task creator can edit this task");
+    }
+  }
+
   async create(userId: string, input: CreateBoardRequest) {
     // Seed the five status lists unless an empty board is explicitly asked for
     // — the apps never send `template`, so every board they create gets them.
@@ -745,7 +760,10 @@ function canAccessCard(
   return (card.members ?? []).some((m) => m.userId === userId);
 }
 
-/** Whether `userId` may change a card's access config: board owner or creator. */
+/**
+ * Whether `userId` owns a card — board owner or creator — and so may edit its
+ * details and access config (`BoardsService.assertCanManageCard`).
+ */
 function canManageCard(userId: string, boardOwnerId: string, card: { createdById: string }): boolean {
   return boardOwnerId === userId || card.createdById === userId;
 }

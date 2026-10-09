@@ -327,6 +327,10 @@ export default function BoardScreen() {
   const isSupervised = !!board.data?.supervised;
   const isViewer = myRole === "VIEWER" || isSupervised;
   const boardReadOnly = !!board.data?.isArchived || isViewer;
+  /** Only the task's owner — board owner or creator — may delete it. */
+  function canDeleteCard(card: Card): boolean {
+    return !!user && (board.data?.ownerId === user.id || card.createdById === user.id);
+  }
   /** Board owner or this card's own assignees may move it into «انتهى» — §3b-4. */
   function canCloseCard(card: Card): boolean {
     return !!user && (board.data?.ownerId === user.id || card.assigneeIds.includes(user.id));
@@ -847,12 +851,14 @@ export default function BoardScreen() {
         onMove={(targetListId) => {
           if (activeCardInfo) move.mutate({ cardId: activeCardInfo.card.id, targetListId });
         }}
-        onRequestDelete={() => {
-          if (activeCardInfo) {
-            setDeletingCardId(activeCardInfo.card.id);
-            setMovingCardId(null);
-          }
-        }}
+        onRequestDelete={
+          activeCardInfo && canDeleteCard(activeCardInfo.card)
+            ? () => {
+                setDeletingCardId(activeCardInfo.card.id);
+                setMovingCardId(null);
+              }
+            : undefined
+        }
       />
 
       <ConfirmSheet

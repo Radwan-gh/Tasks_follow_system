@@ -240,6 +240,14 @@ export class CardsService {
     await this.boards.assertBoardMutable(card.boardId);
     const ownerId = await this.boardOwnerId(card.boardId);
     if (!canAccessCard(userId, ownerId, card)) throw new NotFoundException("Card not found");
+    // Moving the card (its status) stays open to every member who can open it;
+    // any other field is one of the task's details, which only its owner edits.
+    const editsDetails = Object.entries(input).some(
+      ([key, value]) => value !== undefined && key !== "targetListId" && key !== "move",
+    );
+    if (editsDetails && !canManageCard(userId, ownerId, card)) {
+      throw new ForbiddenException("Only the board owner or the task creator can edit this task");
+    }
 
     const targetListId = input.targetListId ?? card.listId;
     const isMovingLists = targetListId !== card.listId;
@@ -378,8 +386,8 @@ export class CardsService {
   }
 
   /**
-   * Replace a card's assignee set (several board members allowed). Any board
-   * member with access to the card may (re)assign it. Every listed user must be
+   * Replace a card's assignee set (several board members allowed). Only the
+   * task's owner (board owner or creator) may (re)assign it. Every listed user must be
    * a member of the card's board, and every *newly* added one must be an active
    * account. Records an ASSIGNED/UNASSIGNED activity — with a snapshot of the
    * new assignees' names — only when the set actually changes.
@@ -390,6 +398,9 @@ export class CardsService {
     await this.boards.assertBoardMutable(card.boardId);
     const ownerId = await this.boardOwnerId(card.boardId);
     if (!canAccessCard(userId, ownerId, card)) throw new NotFoundException("Card not found");
+    if (!canManageCard(userId, ownerId, card)) {
+      throw new ForbiddenException("Only the board owner or the task creator can assign this task");
+    }
 
     const userIds = [...new Set(input.userIds)];
     // §3c-4 "منتقي المسؤولين لا يعرض المشاهدين": a VIEWER is a board member
@@ -577,6 +588,9 @@ export class CardsService {
     await this.boards.assertMembership(userId, card.boardId);
     const ownerId = await this.boardOwnerId(card.boardId);
     if (!canAccessCard(userId, ownerId, card)) throw new NotFoundException("Card not found");
+    if (!canManageCard(userId, ownerId, card)) {
+      throw new ForbiddenException("Only the board owner or the task creator can delete this task");
+    }
     await this.prisma.card.delete({ where: { id: cardId } });
   }
 

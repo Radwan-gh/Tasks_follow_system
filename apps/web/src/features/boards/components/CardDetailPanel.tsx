@@ -83,7 +83,9 @@ export function CardDetailPanel({
   const [dayOfMonth, setDayOfMonth] = useState(card.recurrence?.freq === "MONTHLY" ? card.recurrence.dayOfMonth : 1);
   const [saving, setSaving] = useState(false);
 
-  const canManageAccess = !readOnly && (boardOwnerId === currentUserId || card.createdById === currentUserId);
+  // Only the task's owner — board owner or creator — edits its details, assignees, checklist
+  // items and access; everyone else may still tick sub-tasks, comment and attach files.
+  const canEdit = !readOnly && (boardOwnerId === currentUserId || card.createdById === currentUserId);
   const [restricted, setRestricted] = useState(card.isRestricted);
   const [accessFailed, setAccessFailed] = useState(false);
   // People pickers save on every add/remove — no save buttons.
@@ -167,10 +169,15 @@ export function CardDetailPanel({
       </div>
 
       <div className="flex-1 space-y-4 overflow-y-auto p-5">
+        {!readOnly && !canEdit && (
+          <p className="rounded-field bg-canvas px-3 py-2 text-xs text-muted">
+            يعدّل تفاصيل المهمة مالكُها فقط. يمكنك إنجاز المهام الفرعية والتعليق وإرفاق الملفات.
+          </p>
+        )}
         <input
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          disabled={readOnly}
+          disabled={!canEdit}
           className="w-full border-b border-line pb-1 text-lg font-bold text-ink focus:outline-none disabled:bg-transparent"
         />
 
@@ -180,7 +187,7 @@ export function CardDetailPanel({
             <button
               key={p}
               type="button"
-              disabled={readOnly}
+              disabled={!canEdit}
               onClick={() => setPriority(p)}
               className={`rounded-full px-3 py-1 text-xs font-semibold disabled:opacity-70 ${
                 priority === p
@@ -200,7 +207,7 @@ export function CardDetailPanel({
           onChange={(e) => setDescription(e.target.value)}
           placeholder="الوصف"
           rows={3}
-          disabled={readOnly}
+          disabled={!canEdit}
           className="w-full rounded-field border border-line p-2 text-sm disabled:bg-canvas"
         />
 
@@ -212,7 +219,7 @@ export function CardDetailPanel({
               type="date"
               value={dueDate}
               onChange={(e) => setDueDate(e.target.value)}
-              disabled={readOnly}
+              disabled={!canEdit}
               className="rounded-field border border-line px-2 py-1 text-sm"
             />
             {dueDate && (
@@ -220,7 +227,7 @@ export function CardDetailPanel({
                 <input
                   type="checkbox"
                   checked={dueDateHasTime}
-                  disabled={readOnly}
+                  disabled={!canEdit}
                   onChange={(e) => setDueDateHasTime(e.target.checked)}
                 />
                 تحديد وقت
@@ -231,7 +238,7 @@ export function CardDetailPanel({
                 type="time"
                 value={dueTime}
                 onChange={(e) => setDueTime(e.target.value)}
-                disabled={readOnly}
+                disabled={!canEdit}
                 className="rounded-field border border-line px-2 py-1 text-sm"
               />
             )}
@@ -247,7 +254,7 @@ export function CardDetailPanel({
               value={costAmount}
               onChange={(e) => setCostAmount(e.target.value)}
               placeholder="0.00"
-              disabled={readOnly}
+              disabled={!canEdit}
               className="w-24 rounded-field border border-line bg-surface px-2 py-1 text-sm"
             />
             <span className="text-xs text-muted">{currencySymbol}</span>
@@ -255,7 +262,7 @@ export function CardDetailPanel({
               value={costNote}
               onChange={(e) => setCostNote(e.target.value)}
               placeholder="ملاحظة (اختياري) — مثل رقم الفاتورة"
-              disabled={readOnly}
+              disabled={!canEdit}
               className="flex-1 rounded-field border border-line bg-surface px-2 py-1 text-sm"
             />
           </div>
@@ -265,7 +272,7 @@ export function CardDetailPanel({
         <AttachmentsSection
           cardId={card.id}
           currentUserId={currentUserId}
-          canManageCard={canManageAccess}
+          canManageCard={canEdit}
           readOnly={readOnly}
         />
 
@@ -275,7 +282,7 @@ export function CardDetailPanel({
           <select
             value={recurrenceFreq}
             onChange={(e) => setRecurrenceFreq(e.target.value as RecurrenceFreq)}
-            disabled={readOnly}
+            disabled={!canEdit}
             className="w-full rounded-field border border-line px-2 py-1 text-sm text-ink"
           >
             <option value="NONE">بدون تكرار</option>
@@ -289,7 +296,7 @@ export function CardDetailPanel({
                 <button
                   key={day}
                   type="button"
-                  disabled={readOnly}
+                  disabled={!canEdit}
                   onClick={() => toggleWeekday(day)}
                   className={`rounded-full px-2.5 py-1 text-xs font-semibold disabled:opacity-70 ${
                     weekdays.includes(day) ? "bg-accent text-white" : "bg-canvas text-ink/70"
@@ -309,7 +316,7 @@ export function CardDetailPanel({
                 max={31}
                 value={dayOfMonth}
                 onChange={(e) => setDayOfMonth(Math.min(31, Math.max(1, Number(e.target.value) || 1)))}
-                disabled={readOnly}
+                disabled={!canEdit}
                 className="w-16 rounded-field border border-line px-2 py-1 text-sm"
               />
               من كل شهر
@@ -319,9 +326,9 @@ export function CardDetailPanel({
 
         <div className="flex justify-end gap-2 border-t border-line pt-3">
           <button onClick={onClose} className="rounded-field px-3 py-1.5 text-sm text-ink/70 hover:bg-canvas">
-            {readOnly ? "إغلاق" : "إلغاء"}
+            {canEdit ? "إلغاء" : "إغلاق"}
           </button>
-          {!readOnly && (
+          {canEdit && (
             <button
               onClick={handleSave}
               disabled={saving}
@@ -332,10 +339,10 @@ export function CardDetailPanel({
           )}
         </div>
 
-        {/* Assignees — anyone with access to the card may assign it to board members */}
+        {/* Assignees — only the task's owner assigns it to board members */}
         <div className="space-y-2 border-t border-line pt-3">
           <p className="text-sm font-semibold text-ink">المسؤولون عن المهمة</p>
-          {readOnly ? (
+          {!canEdit ? (
             <p className="text-sm text-ink/70">
               {boardMembers
                 .filter((m) => assignees.ids.includes(m.userId))
@@ -356,10 +363,10 @@ export function CardDetailPanel({
         </div>
 
         {/* Subtasks */}
-        <SubtasksSection card={card} boardMembers={assignableMembers} readOnly={readOnly} />
+        <SubtasksSection card={card} boardMembers={assignableMembers} readOnly={readOnly} canEdit={canEdit} />
 
         {/* Access control */}
-        {canManageAccess ? (
+        {canEdit ? (
           <div className="space-y-2 border-t border-line pt-3">
             <label className="flex items-center gap-2 text-sm font-semibold text-ink">
               <input type="checkbox" checked={restricted} onChange={(e) => void toggleRestricted(e.target.checked)} />
@@ -405,10 +412,14 @@ function SubtasksSection({
   card,
   boardMembers,
   readOnly,
+  canEdit,
 }: {
   card: Card;
   boardMembers: BoardMember[];
+  /** Can't even tick items off (VIEWER, archived board, oversight). */
   readOnly: boolean;
+  /** May add, assign and delete items — the task's owner. */
+  canEdit: boolean;
 }) {
   const queryClient = useQueryClient();
   const [newTitle, setNewTitle] = useState("");
@@ -447,12 +458,13 @@ function SubtasksSection({
               subtask={subtask}
               boardMembers={boardMembers}
               readOnly={readOnly}
+              canEdit={canEdit}
               onChanged={refresh}
             />
           ))}
         </ul>
       )}
-      {!readOnly && (
+      {canEdit && (
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -475,11 +487,13 @@ function SubtaskRow({
   subtask,
   boardMembers,
   readOnly,
+  canEdit,
   onChanged,
 }: {
   subtask: Subtask;
   boardMembers: BoardMember[];
   readOnly: boolean;
+  canEdit: boolean;
   onChanged: () => void;
 }) {
   const [showAssign, setShowAssign] = useState(false);
@@ -503,7 +517,7 @@ function SubtaskRow({
       <div className="flex items-center gap-2 text-sm">
         <input type="checkbox" checked={subtask.isDone} disabled={readOnly} onChange={toggleDone} />
         <span className={subtask.isDone ? "text-muted line-through" : "text-ink"}>{subtask.title}</span>
-        {!readOnly && (
+        {canEdit && (
           <>
             <button
               onClick={() => setShowAssign((v) => !v)}
@@ -517,11 +531,11 @@ function SubtaskRow({
             </button>
           </>
         )}
-        {readOnly && subtask.assigneeIds.length > 0 && (
+        {!canEdit && subtask.assigneeIds.length > 0 && (
           <span className="ms-auto text-xs text-muted">👤 {subtask.assigneeIds.length}</span>
         )}
       </div>
-      {!readOnly && showAssign && (
+      {canEdit && showAssign && (
         <div className="mt-1.5 pb-1">
           <UserTypeahead
             members={boardMembers}
