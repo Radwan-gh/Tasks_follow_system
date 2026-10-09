@@ -4,6 +4,7 @@
 
 - ghiras-icon.svg / -square / -maskable: أيقونة التطبيق
 - ghiras-mark*.svg: الرمز وحده (فاتح، داكن، أبيض)
+- ghiras-notification-icon.svg: أيقونة إشعار أندرويد (مربّع أبيض والرمز مقصوص منه) — مصدر `apps/mobile/assets/images/notification-icon.png`
 - ghiras-logo-light.png / -dark.png: الشعار مع الاسم
 - ios/: AppIcon-1024 للمتجر + أحجام Xcode (iOS يقصّ الزوايا تلقائيًا)
 - android/: Play Store 512 + mipmap + طبقة أمامية للأيقونة التكيّفية (خلفية #1F7A5C)
