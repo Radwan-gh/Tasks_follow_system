@@ -49,10 +49,14 @@ export function SubtasksSection({
   cardId,
   boardMembers,
   readOnly = false,
+  canEdit = !readOnly,
 }: {
   cardId: string;
   boardMembers: BoardMember[];
+  /** Can't even tick items off (viewer, archived board, oversight). */
   readOnly?: boolean;
+  /** May add, assign and delete items — only the task's owner (board owner or creator). */
+  canEdit?: boolean;
 }) {
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -202,7 +206,7 @@ export function SubtasksSection({
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel={assigning ? "إغلاق إسناد المهمة الفرعية" : "المسؤولون عن المهمة الفرعية"}
-                  disabled={readOnly || pending}
+                  disabled={!canEdit || pending}
                   onPress={() => setAssigningId(assigning ? null : subtask.id)}
                   hitSlop={8}
                 >
@@ -225,14 +229,14 @@ export function SubtasksSection({
                         {initials(assignees[0]!.user.displayName)}
                       </AppText>
                     </View>
-                  ) : (
+                  ) : canEdit ? (
                     <AppText size="small" color={colors.muted}>
                       + إسناد
                     </AppText>
-                  )}
+                  ) : null}
                 </Pressable>
 
-                {!readOnly ? (
+                {canEdit ? (
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel="حذف المهمة الفرعية"
@@ -264,7 +268,7 @@ export function SubtasksSection({
         })}
       </View>
 
-      {!readOnly ? (
+      {canEdit ? (
         <View
           style={{
             borderWidth: 1,

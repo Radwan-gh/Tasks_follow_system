@@ -208,7 +208,14 @@ delegate to this method. Any new board-scoped resource should follow the
 same pattern instead of duplicating role logic. Roles are `OWNER | MEMBER`
 (`BoardRole` in the Prisma schema and `packages/types`); archiving/deleting a
 board and managing membership require `OWNER`, everything else requires
-`MEMBER`.
+`MEMBER`. On top of that, changing a task — its fields, moving it between
+statuses, assignees, access, attachments, delete, and adding/renaming/
+reordering/assigning/deleting its subtasks — belongs to its owner only: the
+board owner or the card's creator (`canManageCard` in `boards.service.ts`;
+`BoardsService.assertCanManageCard` wraps it for services that don't already
+hold the board's owner id). Other members only tick subtasks and comment —
+except that a card's assignees may still close it (a move into the `CLOSED`
+list and nothing else; closing itself stays board owner or assignees only).
 
 ### Auth
 

@@ -16,9 +16,11 @@ export class SubtasksService {
 
   /**
    * Load the parent card and assert the user may access it. Subtasks inherit
-   * the parent card's access: any board member who can open the card may manage
+   * the parent card's access: any board member who can open the card may tick
    * its subtasks — so authorization routes through `assertMembership` + the same
    * `canAccessCard` predicate used for the card itself, never a bespoke check.
+   * Adding, renaming, reordering, assigning or deleting one edits the task's
+   * details, so those also go through `BoardsService.assertCanManageCard`.
    */
   private async assertCardAccess(userId: string, cardId: string, minRole: BoardRole = "MEMBER") {
     const card = await this.prisma.card.findUnique({
@@ -58,6 +60,7 @@ export class SubtasksService {
 
   async create(userId: string, cardId: string, input: CreateSubtaskRequest) {
     const card = await this.assertCardAccess(userId, cardId);
+    await this.boards.assertCanManageCard(userId, card);
     await this.boards.assertBoardMutable(card.boardId);
     const last = await this.prisma.subtask.findFirst({
       where: { cardId },
@@ -75,6 +78,10 @@ export class SubtasksService {
   async update(userId: string, subtaskId: string, input: UpdateSubtaskRequest) {
     const subtask = await this.loadSubtask(subtaskId);
     const card = await this.assertCardAccess(userId, subtask.cardId);
+    // Ticking (`isDone`) is open to everyone with access; renaming or reordering is the owner's.
+    if (input.title !== undefined || input.move !== undefined) {
+      await this.boards.assertCanManageCard(userId, card);
+    }
     await this.boards.assertBoardMutable(card.boardId);
 
     if (input.move) {
@@ -131,18 +138,20 @@ export class SubtasksService {
   async remove(userId: string, subtaskId: string) {
     const subtask = await this.loadSubtask(subtaskId);
     const card = await this.assertCardAccess(userId, subtask.cardId);
+    await this.boards.assertCanManageCard(userId, card);
     await this.boards.assertBoardMutable(card.boardId);
     await this.prisma.subtask.delete({ where: { id: subtaskId } });
   }
 
   /**
    * Replace a subtask's assignee set. Every listed user must be a board member,
-   * and every *newly* added one must be an active account — same rule as
-   * `CardsService.updateAssignees`.
+   * and every *newly* added one must be an active account — same rules as
+   * `CardsService.updateAssignees`, including that only the task's owner assigns.
    */
   async updateAssignees(userId: string, subtaskId: string, input: UpdateAssigneesRequest) {
     const subtask = await this.loadSubtask(subtaskId);
     const card = await this.assertCardAccess(userId, subtask.cardId);
+    await this.boards.assertCanManageCard(userId, card);
     await this.boards.assertBoardMutable(card.boardId);
 
     const userIds = [...new Set(input.userIds)];

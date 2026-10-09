@@ -9,6 +9,7 @@ import type { Attachment } from "@app/types";
 import { AppText } from "@/components/text";
 import { BottomSheet } from "@/components/bottom-sheet";
 import { ConfirmSheet } from "@/components/confirm-sheet";
+import { useAuth } from "@/features/auth/auth-context";
 import { Skeleton } from "@/components/skeleton";
 import { API_BASE_URL, api } from "@/lib/api";
 import { indexFromOffset, resolveColumnOffsets } from "@/lib/status-pager";
@@ -39,8 +40,20 @@ function formatFileSize(bytes: number): string {
  * أي نوع ملف · حتى 10 · 30MB caption. Deleting an image is the viewer's
  * «حذف»; a file row has its own ✕ — both go through `ConfirmSheet`.
  */
-export function AttachmentsSection({ cardId, readOnly = false }: { cardId: string; readOnly?: boolean }) {
+export function AttachmentsSection({
+  cardId,
+  readOnly = false,
+  canAttach = !readOnly,
+}: {
+  cardId: string;
+  readOnly?: boolean;
+  /** The task's owner (board owner or creator): adds files and deletes anyone's. */
+  canAttach?: boolean;
+}) {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  // Same rule as `AttachmentsService.remove`: the uploader, or the task's owner.
+  const canDelete = (attachment: Attachment) => !readOnly && (attachment.uploader.id === user?.id || canAttach);
   const attachments = useQuery({
     queryKey: ["cardAttachments", cardId],
     queryFn: () => api.attachments.list(cardId),
@@ -167,7 +180,7 @@ export function AttachmentsSection({ cardId, readOnly = false }: { cardId: strin
                       {formatFileSize(attachment.sizeBytes)} · {attachment.uploader.displayName}
                     </AppText>
                   </View>
-                  {!readOnly ? (
+                  {canDelete(attachment) ? (
                     <Pressable
                       accessibilityRole="button"
                       accessibilityLabel="حذف المرفق"
@@ -193,7 +206,7 @@ export function AttachmentsSection({ cardId, readOnly = false }: { cardId: strin
                 </Pressable>
               </View>
             ))}
-            {!atLimit && !readOnly ? (
+            {!atLimit && !readOnly && canAttach ? (
               <View style={{ width: thumbSize, padding: GAP / 2 }}>
                 <Pressable
                   accessibilityRole="button"
@@ -274,7 +287,7 @@ export function AttachmentsSection({ cardId, readOnly = false }: { cardId: strin
                   {viewed.uploader.displayName} ·{" "}
                   {new Date(viewed.createdAt).toLocaleDateString("ar", { dateStyle: "medium" })}
                 </AppText>
-                {!readOnly ? (
+                {canDelete(viewed) ? (
                   <Pressable accessibilityRole="button" onPress={() => setDeleting(viewed)}>
                     <AppText color={colors.alert} weight="semibold">
                       حذف

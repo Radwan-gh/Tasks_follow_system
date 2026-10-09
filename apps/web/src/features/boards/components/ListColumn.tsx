@@ -1,6 +1,6 @@
 import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
-import type { BoardMember, List } from "@app/types";
+import type { BoardMember, Card, List } from "@app/types";
 import { CardItem } from "./CardItem";
 import { statusDotClass } from "../lib/status-colors";
 
@@ -13,6 +13,8 @@ interface ListColumnProps {
   onShowOlderClosed?: () => void;
   onOpenCard: (id: string) => void;
   onDeleteCard: (id: string) => void;
+  /** Only the task's owner (board owner or creator) may move or delete it. */
+  canEditCard: (card: Card) => boolean;
 }
 
 /**
@@ -29,6 +31,7 @@ export function ListColumn({
   onShowOlderClosed,
   onOpenCard,
   onDeleteCard,
+  canEditCard,
 }: ListColumnProps) {
   const { setNodeRef: setDropzoneRef } = useDroppable({
     id: `${list.id}::empty`,
@@ -52,7 +55,7 @@ export function ListColumn({
               card={card}
               boardMembers={boardMembers}
               isListCompleted={isListCompleted}
-              readOnly={readOnly}
+              readOnly={readOnly || !canEditCard(card)}
               onOpen={() => onOpenCard(card.id)}
               onDelete={() => onDeleteCard(card.id)}
             />

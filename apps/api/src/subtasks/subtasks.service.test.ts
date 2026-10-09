@@ -1,5 +1,6 @@
+import { ForbiddenException } from "@nestjs/common";
 import { describe, expect, it } from "vitest";
-import type { BoardsService } from "../boards/boards.service";
+import { canManageCard, type BoardsService } from "../boards/boards.service";
 import type { NotificationsService } from "../notifications/notifications.service";
 import type { PrismaService } from "../prisma/prisma.service";
 import { SubtasksService } from "./subtasks.service";
@@ -70,6 +71,10 @@ function setup(subtaskOverrides: { isDone?: boolean; assigneeIds?: string[] } = 
   const boards = {
     assertMembership: async () => ({ supervised: false }),
     assertBoardMutable: async () => undefined,
+    // Same rule as the real method: assigning and renaming are the task owner's (here, its creator).
+    assertCanManageCard: async (userId: string, c: { createdById: string }) => {
+      if (!canManageCard(userId, CREATOR, c)) throw new ForbiddenException();
+    },
   } as unknown as BoardsService;
 
   const sent: Sent[] = [];
@@ -86,7 +91,7 @@ function setup(subtaskOverrides: { isDone?: boolean; assigneeIds?: string[] } = 
 describe("SubtasksService notifications", () => {
   it("notifies only newly-added subtask assignees", async () => {
     const { service, sent } = setup({ assigneeIds: [CARD_ASSIGNEE] });
-    await service.updateAssignees(ACTOR, "st-1", { userIds: [CARD_ASSIGNEE, NEWBIE] });
+    await service.updateAssignees(CREATOR, "st-1", { userIds: [CARD_ASSIGNEE, NEWBIE] });
     expect(sent).toEqual([
       expect.objectContaining({
         userId: NEWBIE,
@@ -98,7 +103,7 @@ describe("SubtasksService notifications", () => {
 
   it("does not notify someone who assigns a subtask to themself", async () => {
     const { service, sent } = setup();
-    await service.updateAssignees(ACTOR, "st-1", { userIds: [ACTOR] });
+    await service.updateAssignees(CREATOR, "st-1", { userIds: [CREATOR] });
     expect(sent).toEqual([]);
   });
 
@@ -121,7 +126,7 @@ describe("SubtasksService notifications", () => {
     const resave = setup({ isDone: true });
     await resave.service.update(ACTOR, "st-1", { isDone: true });
     const rename = setup();
-    await rename.service.update(ACTOR, "st-1", { title: "حجز قاعة أكبر" });
+    await rename.service.update(CREATOR, "st-1", { title: "حجز قاعة أكبر" });
     expect([...untick.sent, ...resave.sent, ...rename.sent]).toEqual([]);
   });
 });

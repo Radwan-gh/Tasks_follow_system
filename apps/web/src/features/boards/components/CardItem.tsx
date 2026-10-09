@@ -11,7 +11,10 @@ interface CardItemProps {
   boardMembers: BoardMember[];
   /** True when this card's list is `DONE`/`CLOSED` — suppresses the overdue-red due-date styling. */
   isListCompleted: boolean;
-  /** Archived board or VIEWER role — server already rejects the mutation; this only hides the affordance. */
+  /**
+   * Archived board, VIEWER role, or a task the user doesn't own (board owner or creator) —
+   * the server already rejects the move/delete; this only hides the drag and the menu.
+   */
   readOnly: boolean;
   onOpen: () => void;
   onDelete: () => void;

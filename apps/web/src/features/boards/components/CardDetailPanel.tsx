@@ -32,6 +32,8 @@ interface CardDetailPanelProps {
   currentUserId: string;
   /** VIEWER role or archived board — server already rejects writes; this only hides the controls. */
   readOnly: boolean;
+  /** The board's «انتهى» list — an assignee who doesn't own the task may still move it there. */
+  closedListId: string | null;
   onClose: () => void;
   onSave: (updates: UpdateCardRequest) => Promise<void>;
   onSaveAccess: (updates: UpdateCardAccessRequest) => Promise<void>;
@@ -60,6 +62,7 @@ export function CardDetailPanel({
   boardOwnerId,
   currentUserId,
   readOnly,
+  closedListId,
   onClose,
   onSave,
   onSaveAccess,
@@ -83,7 +86,14 @@ export function CardDetailPanel({
   const [dayOfMonth, setDayOfMonth] = useState(card.recurrence?.freq === "MONTHLY" ? card.recurrence.dayOfMonth : 1);
   const [saving, setSaving] = useState(false);
 
-  const canManageAccess = !readOnly && (boardOwnerId === currentUserId || card.createdById === currentUserId);
+  // Only the task's owner — board owner or creator — changes the task: its details, status,
+  // assignees, checklist items, attachments and access. Everyone else ticks sub-tasks and comments.
+  const canEdit = !readOnly && (boardOwnerId === currentUserId || card.createdById === currentUserId);
+  // Assigned but not the owner: closing the task is the one change left to them (§3b-4).
+  const mayOnlyClose =
+    !readOnly && !canEdit && card.assigneeIds.includes(currentUserId) && !!closedListId && card.listId !== closedListId;
+  const [closing, setClosing] = useState(false);
+  const [closeFailed, setCloseFailed] = useState(false);
   const [restricted, setRestricted] = useState(card.isRestricted);
   const [accessFailed, setAccessFailed] = useState(false);
   // People pickers save on every add/remove — no save buttons.
@@ -133,6 +143,20 @@ export function CardDetailPanel({
     }
   }
 
+  async function closeTask() {
+    if (!closedListId) return;
+    setClosing(true);
+    setCloseFailed(false);
+    try {
+      await onSave({ targetListId: closedListId });
+      onClose();
+    } catch {
+      setCloseFailed(true);
+    } finally {
+      setClosing(false);
+    }
+  }
+
   function toggleWeekday(day: number) {
     setWeekdays((prev) => (prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day].sort()));
   }
@@ -167,10 +191,33 @@ export function CardDetailPanel({
       </div>
 
       <div className="flex-1 space-y-4 overflow-y-auto p-5">
+        {!readOnly && !canEdit && (
+          <div className="space-y-2 rounded-field bg-canvas px-3 py-2">
+            <p className="text-xs text-muted">
+              {mayOnlyClose
+                ? "يعدّل المهمة مالكُها فقط. يمكنك إنجاز المهام الفرعية والتعليق ونقلها إلى «انتهى»."
+                : "يعدّل المهمة مالكُها فقط. يمكنك إنجاز المهام الفرعية والتعليق."}
+            </p>
+            {mayOnlyClose && (
+              <button
+                onClick={() => void closeTask()}
+                disabled={closing}
+                className="rounded-field bg-accent px-3 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50"
+              >
+                {closing ? "جارٍ النقل..." : "نقل إلى «انتهى»"}
+              </button>
+            )}
+            {closeFailed && (
+              <p role="alert" className="text-[11px] text-alert">
+                تعذّر نقل المهمة إلى «انتهى».
+              </p>
+            )}
+          </div>
+        )}
         <input
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          disabled={readOnly}
+          disabled={!canEdit}
           className="w-full border-b border-line pb-1 text-lg font-bold text-ink focus:outline-none disabled:bg-transparent"
         />
 
@@ -180,7 +227,7 @@ export function CardDetailPanel({
             <button
               key={p}
               type="button"
-              disabled={readOnly}
+              disabled={!canEdit}
               onClick={() => setPriority(p)}
               className={`rounded-full px-3 py-1 text-xs font-semibold disabled:opacity-70 ${
                 priority === p
@@ -200,7 +247,7 @@ export function CardDetailPanel({
           onChange={(e) => setDescription(e.target.value)}
           placeholder="الوصف"
           rows={3}
-          disabled={readOnly}
+          disabled={!canEdit}
           className="w-full rounded-field border border-line p-2 text-sm disabled:bg-canvas"
         />
 
@@ -212,7 +259,7 @@ export function CardDetailPanel({
               type="date"
               value={dueDate}
               onChange={(e) => setDueDate(e.target.value)}
-              disabled={readOnly}
+              disabled={!canEdit}
               className="rounded-field border border-line px-2 py-1 text-sm"
             />
             {dueDate && (
@@ -220,7 +267,7 @@ export function CardDetailPanel({
                 <input
                   type="checkbox"
                   checked={dueDateHasTime}
-                  disabled={readOnly}
+                  disabled={!canEdit}
                   onChange={(e) => setDueDateHasTime(e.target.checked)}
                 />
                 تحديد وقت
@@ -231,7 +278,7 @@ export function CardDetailPanel({
                 type="time"
                 value={dueTime}
                 onChange={(e) => setDueTime(e.target.value)}
-                disabled={readOnly}
+                disabled={!canEdit}
                 className="rounded-field border border-line px-2 py-1 text-sm"
               />
             )}
@@ -247,7 +294,7 @@ export function CardDetailPanel({
               value={costAmount}
               onChange={(e) => setCostAmount(e.target.value)}
               placeholder="0.00"
-              disabled={readOnly}
+              disabled={!canEdit}
               className="w-24 rounded-field border border-line bg-surface px-2 py-1 text-sm"
             />
             <span className="text-xs text-muted">{currencySymbol}</span>
@@ -255,7 +302,7 @@ export function CardDetailPanel({
               value={costNote}
               onChange={(e) => setCostNote(e.target.value)}
               placeholder="ملاحظة (اختياري) — مثل رقم الفاتورة"
-              disabled={readOnly}
+              disabled={!canEdit}
               className="flex-1 rounded-field border border-line bg-surface px-2 py-1 text-sm"
             />
           </div>
@@ -265,8 +312,9 @@ export function CardDetailPanel({
         <AttachmentsSection
           cardId={card.id}
           currentUserId={currentUserId}
-          canManageCard={canManageAccess}
+          canManageCard={canEdit}
           readOnly={readOnly}
+          canAttach={canEdit}
         />
 
         {/* Recurrence */}
@@ -275,7 +323,7 @@ export function CardDetailPanel({
           <select
             value={recurrenceFreq}
             onChange={(e) => setRecurrenceFreq(e.target.value as RecurrenceFreq)}
-            disabled={readOnly}
+            disabled={!canEdit}
             className="w-full rounded-field border border-line px-2 py-1 text-sm text-ink"
           >
             <option value="NONE">بدون تكرار</option>
@@ -289,7 +337,7 @@ export function CardDetailPanel({
                 <button
                   key={day}
                   type="button"
-                  disabled={readOnly}
+                  disabled={!canEdit}
                   onClick={() => toggleWeekday(day)}
                   className={`rounded-full px-2.5 py-1 text-xs font-semibold disabled:opacity-70 ${
                     weekdays.includes(day) ? "bg-accent text-white" : "bg-canvas text-ink/70"
@@ -309,7 +357,7 @@ export function CardDetailPanel({
                 max={31}
                 value={dayOfMonth}
                 onChange={(e) => setDayOfMonth(Math.min(31, Math.max(1, Number(e.target.value) || 1)))}
-                disabled={readOnly}
+                disabled={!canEdit}
                 className="w-16 rounded-field border border-line px-2 py-1 text-sm"
               />
               من كل شهر
@@ -319,9 +367,9 @@ export function CardDetailPanel({
 
         <div className="flex justify-end gap-2 border-t border-line pt-3">
           <button onClick={onClose} className="rounded-field px-3 py-1.5 text-sm text-ink/70 hover:bg-canvas">
-            {readOnly ? "إغلاق" : "إلغاء"}
+            {canEdit ? "إلغاء" : "إغلاق"}
           </button>
-          {!readOnly && (
+          {canEdit && (
             <button
               onClick={handleSave}
               disabled={saving}
@@ -332,10 +380,10 @@ export function CardDetailPanel({
           )}
         </div>
 
-        {/* Assignees — anyone with access to the card may assign it to board members */}
+        {/* Assignees — only the task's owner assigns it to board members */}
         <div className="space-y-2 border-t border-line pt-3">
           <p className="text-sm font-semibold text-ink">المسؤولون عن المهمة</p>
-          {readOnly ? (
+          {!canEdit ? (
             <p className="text-sm text-ink/70">
               {boardMembers
                 .filter((m) => assignees.ids.includes(m.userId))
@@ -356,10 +404,10 @@ export function CardDetailPanel({
         </div>
 
         {/* Subtasks */}
-        <SubtasksSection card={card} boardMembers={assignableMembers} readOnly={readOnly} />
+        <SubtasksSection card={card} boardMembers={assignableMembers} readOnly={readOnly} canEdit={canEdit} />
 
         {/* Access control */}
-        {canManageAccess ? (
+        {canEdit ? (
           <div className="space-y-2 border-t border-line pt-3">
             <label className="flex items-center gap-2 text-sm font-semibold text-ink">
               <input type="checkbox" checked={restricted} onChange={(e) => void toggleRestricted(e.target.checked)} />
@@ -405,10 +453,14 @@ function SubtasksSection({
   card,
   boardMembers,
   readOnly,
+  canEdit,
 }: {
   card: Card;
   boardMembers: BoardMember[];
+  /** Can't even tick items off (VIEWER, archived board, oversight). */
   readOnly: boolean;
+  /** May add, assign and delete items — the task's owner. */
+  canEdit: boolean;
 }) {
   const queryClient = useQueryClient();
   const [newTitle, setNewTitle] = useState("");
@@ -447,12 +499,13 @@ function SubtasksSection({
               subtask={subtask}
               boardMembers={boardMembers}
               readOnly={readOnly}
+              canEdit={canEdit}
               onChanged={refresh}
             />
           ))}
         </ul>
       )}
-      {!readOnly && (
+      {canEdit && (
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -475,11 +528,13 @@ function SubtaskRow({
   subtask,
   boardMembers,
   readOnly,
+  canEdit,
   onChanged,
 }: {
   subtask: Subtask;
   boardMembers: BoardMember[];
   readOnly: boolean;
+  canEdit: boolean;
   onChanged: () => void;
 }) {
   const [showAssign, setShowAssign] = useState(false);
@@ -503,7 +558,7 @@ function SubtaskRow({
       <div className="flex items-center gap-2 text-sm">
         <input type="checkbox" checked={subtask.isDone} disabled={readOnly} onChange={toggleDone} />
         <span className={subtask.isDone ? "text-muted line-through" : "text-ink"}>{subtask.title}</span>
-        {!readOnly && (
+        {canEdit && (
           <>
             <button
               onClick={() => setShowAssign((v) => !v)}
@@ -517,11 +572,11 @@ function SubtaskRow({
             </button>
           </>
         )}
-        {readOnly && subtask.assigneeIds.length > 0 && (
+        {!canEdit && subtask.assigneeIds.length > 0 && (
           <span className="ms-auto text-xs text-muted">👤 {subtask.assigneeIds.length}</span>
         )}
       </div>
-      {!readOnly && showAssign && (
+      {canEdit && showAssign && (
         <div className="mt-1.5 pb-1">
           <UserTypeahead
             members={boardMembers}
@@ -670,11 +725,14 @@ function AttachmentsSection({
   currentUserId,
   canManageCard,
   readOnly,
+  canAttach,
 }: {
   cardId: string;
   currentUserId: string;
   canManageCard: boolean;
   readOnly: boolean;
+  /** Only the task's owner adds files; others can still delete what they uploaded earlier. */
+  canAttach: boolean;
 }) {
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -777,7 +835,7 @@ function AttachmentsSection({
             )}
           </div>
         ))}
-        {!readOnly && (
+        {!readOnly && canAttach && (
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={uploading}
@@ -787,7 +845,7 @@ function AttachmentsSection({
             {uploading ? "…" : "+"}
           </button>
         )}
-        {!readOnly && <input ref={fileInputRef} type="file" onChange={onFileChange} className="hidden" />}
+        {!readOnly && canAttach && <input ref={fileInputRef} type="file" onChange={onFileChange} className="hidden" />}
       </div>
       {error && <p className="text-xs text-alert">{error}</p>}
     </div>

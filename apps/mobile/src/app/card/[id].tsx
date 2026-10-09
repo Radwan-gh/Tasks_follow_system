@@ -263,7 +263,9 @@ export default function CardDetailScreen() {
   // Opened from «المتابعة» without being a member: read-only like a viewer.
   const isSupervised = board.data.supervised;
   const isViewer = myRole === "VIEWER" || isSupervised;
-  const canManageAccess = !isViewer && (user?.id === board.data.ownerId || user?.id === card.data.createdById);
+  // Only the task's owner — board owner or creator — changes the task: details, status,
+  // assignees, checklist items, attachments and access. Others tick sub-tasks and comment.
+  const canEdit = !isViewer && (user?.id === board.data.ownerId || user?.id === card.data.createdById);
   // §3c-4 "منتقي المسؤولين لا يعرض المشاهدين".
   const assignableMembers = board.data.members.filter((m) => m.role !== "VIEWER");
   // An archived board refuses every write (`assertBoardMutable`), so its chips don't offer them.
@@ -273,6 +275,8 @@ export default function CardDetailScreen() {
   const nextListId = board.data.lists[listIndex + 1]?.id ?? null;
   // §3b-4: only the board owner or this task's assignees may move it into «انتهى».
   const canCloseCard = !!user && (board.data.ownerId === user.id || card.data.assigneeIds.includes(user.id));
+  // Not the owner but assigned to it: the status chip still closes the task, and only that.
+  const mayOnlyClose = !canEdit && !isViewer && canCloseCard && list?.statusCategory !== "CLOSED";
 
   return (
     <Screen edges={{ top: true, bottom: true }} style={{ backgroundColor: colors.surface }}>
@@ -297,7 +301,7 @@ export default function CardDetailScreen() {
             accessibilityRole="button"
             accessibilityLabel={`الحالة: ${list.name}. اضغط للنقل إلى حالة أخرى`}
             onPress={() => setPickingStatus(true)}
-            disabled={readOnly || moveCard.isPending}
+            disabled={readOnly || !(canEdit || mayOnlyClose) || moveCard.isPending}
             style={{
               flexDirection: "row",
               alignItems: "center",
@@ -318,7 +322,7 @@ export default function CardDetailScreen() {
             />
             <AppText size="caption" weight="semibold">
               {list.name}
-              {readOnly ? "" : " ▾"}
+              {readOnly || !(canEdit || mayOnlyClose) ? "" : " ▾"}
             </AppText>
           </Pressable>
         ) : null}
@@ -330,7 +334,7 @@ export default function CardDetailScreen() {
             updatePriority.reset();
             setPickingPriority(true);
           }}
-          disabled={readOnly}
+          disabled={readOnly || !canEdit}
           style={{
             flexDirection: "row",
             alignItems: "center",
@@ -343,11 +347,11 @@ export default function CardDetailScreen() {
         >
           <AppText size="caption" weight="semibold" color={card.data.priority === "URGENT" ? colors.urgent : colors.muted}>
             {priorityLabel(card.data.priority)}
-            {readOnly ? "" : " ▾"}
+            {readOnly || !canEdit ? "" : " ▾"}
           </AppText>
         </Pressable>
 
-        {!isViewer ? (
+        {canEdit ? (
           // Lit only while there is something to save — so it doubles as the
           // "you have unsaved edits" signal the instant-save fields never raise.
           <Pressable
@@ -379,6 +383,23 @@ export default function CardDetailScreen() {
             {isSupervised ? "وضع المتابعة — للقراءة فقط" : "للعرض فقط — أنت مشاهد في هذه اللوحة"}
           </AppText>
         </View>
+      ) : !canEdit ? (
+        <View
+          style={{
+            marginHorizontal: spacing.xl,
+            marginTop: spacing.sm,
+            backgroundColor: colors.canvas,
+            borderRadius: radii.field,
+            padding: spacing.sm,
+            alignItems: "center",
+          }}
+        >
+          <AppText size="small" color={colors.muted}>
+            {mayOnlyClose
+              ? "يعدّل المهمة مالكُها فقط — يمكنك إنجاز المهام الفرعية والتعليق ونقلها إلى «انتهى»"
+              : "يعدّل المهمة مالكُها فقط — يمكنك إنجاز المهام الفرعية والتعليق"}
+          </AppText>
+        </View>
       ) : null}
 
       <RevealScrollView
@@ -395,7 +416,7 @@ export default function CardDetailScreen() {
             onFocus={() => setTitleFocused(true)}
             onBlur={() => setTitleFocused(false)}
             multiline
-            editable={!isViewer}
+            editable={canEdit}
             accessibilityLabel="عنوان المهمة"
             style={{
               fontFamily: fonts.bold,
@@ -404,15 +425,15 @@ export default function CardDetailScreen() {
               textAlign: "right",
               writingDirection: "rtl",
               lineHeight: fontSizes.heading * 1.5,
-              paddingBottom: isViewer ? 0 : spacing.xs,
-              borderBottomWidth: isViewer ? 0 : 1,
+              paddingBottom: canEdit ? spacing.xs : 0,
+              borderBottomWidth: canEdit ? 1 : 0,
               borderBottomColor: titleFocused ? colors.accent : colors.line,
             }}
           />
           <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md, flexWrap: "wrap" }}>
             <Pressable
               accessibilityRole="button"
-              disabled={isViewer}
+              disabled={!canEdit}
               onPress={() => setPickingDueDate(true)}
               style={{
                 flexDirection: "row",
@@ -430,7 +451,7 @@ export default function CardDetailScreen() {
             </Pressable>
             <Pressable
               accessibilityRole="button"
-              disabled={isViewer}
+              disabled={!canEdit}
               onPress={() => setPickingRecurrence(true)}
               style={{
                 flexDirection: "row",
@@ -463,7 +484,7 @@ export default function CardDetailScreen() {
         {/* §3c-1 "التكلفة" — collapsed row that opens the amount/note sheet; after saving, a details-only chip. */}
         <Pressable
           accessibilityRole="button"
-          disabled={isViewer}
+          disabled={!canEdit}
           onPress={() => setPickingCost(true)}
           style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}
         >
@@ -471,7 +492,7 @@ export default function CardDetailScreen() {
             التكلفة
           </AppText>
           <AppText size="small" weight="semibold" color={card.data.costAmount ? colors.ink : colors.accent}>
-            {card.data.costAmount ? formatCostChip(card.data.costAmount, card.data.costNote, currencySymbol) : isViewer ? "—" : "إضافة ▾"}
+            {card.data.costAmount ? formatCostChip(card.data.costAmount, card.data.costNote, currencySymbol) : canEdit ? "إضافة ▾" : "—"}
           </AppText>
         </Pressable>
 
@@ -483,7 +504,7 @@ export default function CardDetailScreen() {
             value={description}
             onChangeText={setDescription}
             multiline
-            editable={!isViewer}
+            editable={canEdit}
             placeholder="أضف وصفًا للمهمة"
             placeholderTextColor={colors.muted}
             style={{
@@ -511,18 +532,18 @@ export default function CardDetailScreen() {
           onChange={assigneeSelection.change}
           saving={assigneeSelection.saving}
           failed={assigneeSelection.failed}
-          readOnly={isViewer}
+          readOnly={!canEdit}
           placeholder="اكتب اسمًا لإسناد المهمة"
           accessibilityLabel="أضف مسؤولًا عن المهمة"
           emptyHint="لا يوجد أعضاء في اللوحة لإسنادها إليهم."
           noneLabel="لا يوجد مسؤولون."
         />
 
-        <SubtasksSection cardId={id} boardMembers={assignableMembers} readOnly={isViewer} />
+        <SubtasksSection cardId={id} boardMembers={assignableMembers} readOnly={readOnly} canEdit={canEdit && !readOnly} />
 
-        <AttachmentsSection cardId={id} readOnly={isViewer} />
+        <AttachmentsSection cardId={id} readOnly={isViewer} canAttach={canEdit && !readOnly} />
 
-        {canManageAccess ? (
+        {canEdit ? (
           <View style={{ gap: spacing.md, borderTopWidth: 1, borderTopColor: colors.line, paddingTop: spacing.lg }}>
             <Pressable
               accessibilityRole="checkbox"
@@ -622,7 +643,7 @@ export default function CardDetailScreen() {
         visible={pickingStatus}
         onClose={() => setPickingStatus(false)}
         card={card.data}
-        lists={board.data.lists}
+        lists={canEdit ? board.data.lists : board.data.lists.filter((l) => l.statusCategory === "CLOSED")}
         nextListId={nextListId}
         canCloseCard={canCloseCard}
         onMove={(targetListId) => moveCard.mutate(targetListId)}
