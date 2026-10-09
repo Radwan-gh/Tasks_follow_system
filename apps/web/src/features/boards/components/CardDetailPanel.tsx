@@ -83,8 +83,8 @@ export function CardDetailPanel({
   const [dayOfMonth, setDayOfMonth] = useState(card.recurrence?.freq === "MONTHLY" ? card.recurrence.dayOfMonth : 1);
   const [saving, setSaving] = useState(false);
 
-  // Only the task's owner — board owner or creator — edits its details, assignees, checklist
-  // items and access; everyone else may still tick sub-tasks, comment and attach files.
+  // Only the task's owner — board owner or creator — changes the task: its details, status,
+  // assignees, checklist items, attachments and access. Everyone else ticks sub-tasks and comments.
   const canEdit = !readOnly && (boardOwnerId === currentUserId || card.createdById === currentUserId);
   const [restricted, setRestricted] = useState(card.isRestricted);
   const [accessFailed, setAccessFailed] = useState(false);
@@ -171,7 +171,7 @@ export function CardDetailPanel({
       <div className="flex-1 space-y-4 overflow-y-auto p-5">
         {!readOnly && !canEdit && (
           <p className="rounded-field bg-canvas px-3 py-2 text-xs text-muted">
-            يعدّل تفاصيل المهمة مالكُها فقط. يمكنك إنجاز المهام الفرعية والتعليق وإرفاق الملفات.
+            يعدّل المهمة مالكُها فقط. يمكنك إنجاز المهام الفرعية والتعليق.
           </p>
         )}
         <input
@@ -274,6 +274,7 @@ export function CardDetailPanel({
           currentUserId={currentUserId}
           canManageCard={canEdit}
           readOnly={readOnly}
+          canAttach={canEdit}
         />
 
         {/* Recurrence */}
@@ -684,11 +685,14 @@ function AttachmentsSection({
   currentUserId,
   canManageCard,
   readOnly,
+  canAttach,
 }: {
   cardId: string;
   currentUserId: string;
   canManageCard: boolean;
   readOnly: boolean;
+  /** Only the task's owner adds files; others can still delete what they uploaded earlier. */
+  canAttach: boolean;
 }) {
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -791,7 +795,7 @@ function AttachmentsSection({
             )}
           </div>
         ))}
-        {!readOnly && (
+        {!readOnly && canAttach && (
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={uploading}
@@ -801,7 +805,7 @@ function AttachmentsSection({
             {uploading ? "…" : "+"}
           </button>
         )}
-        {!readOnly && <input ref={fileInputRef} type="file" onChange={onFileChange} className="hidden" />}
+        {!readOnly && canAttach && <input ref={fileInputRef} type="file" onChange={onFileChange} className="hidden" />}
       </div>
       {error && <p className="text-xs text-alert">{error}</p>}
     </div>

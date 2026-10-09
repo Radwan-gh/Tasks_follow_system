@@ -16,6 +16,7 @@ export function ListColumn({
   hasNext,
   nextListIsClosed,
   canCloseCard,
+  canEditCard,
   readOnly,
   onMoveCardNext,
   onLongPressCard,
@@ -34,6 +35,8 @@ export function ListColumn({
   nextListIsClosed: boolean;
   /** Whether the current user may move a given card into «انتهى» (board owner or the card's own assignees). */
   canCloseCard: (card: Card) => boolean;
+  /** Whether the current user owns a card (board owner or creator) — only then may they move it at all. */
+  canEditCard: (card: Card) => boolean;
   /** The board is archived: no add/move/drag — §3b-3. */
   readOnly: boolean;
   onMoveCardNext: (cardId: string) => void;
@@ -60,7 +63,9 @@ export function ListColumn({
       slot++;
     }
     const blockedByClose = nextListIsClosed && !canCloseCard(card);
-    const draggable = dragEnabled && !readOnly && !card.id.startsWith("temp:");
+    // A task the user doesn't own can't be moved: no arrow, no drag, no move sheet.
+    const locked = readOnly || !canEditCard(card);
+    const draggable = dragEnabled && !locked && !card.id.startsWith("temp:");
     items.push(
       <DraggableCard
         key={card.id}
@@ -72,11 +77,11 @@ export function ListColumn({
         <CardItem
           card={card}
           assignees={resolveAssignees(card.assigneeIds)}
-          hasNext={!readOnly && hasNext && !blockedByClose}
+          hasNext={!locked && hasNext && !blockedByClose}
           onMoveNext={() => onMoveCardNext(card.id)}
           // On a draggable card the same hold lifts it instead; letting go
           // without moving opens the sheet from there (`board-drag.tsx`).
-          onLongPress={draggable || readOnly ? undefined : () => onLongPressCard(card.id)}
+          onLongPress={draggable || locked ? undefined : () => onLongPressCard(card.id)}
           onOpenActions={draggable ? () => onLongPressCard(card.id) : undefined}
           onOpen={() => onOpenCard(card.id)}
         />

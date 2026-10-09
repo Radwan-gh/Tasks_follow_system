@@ -118,18 +118,17 @@ describe("task ownership", () => {
     expect(writes).toEqual([]);
   });
 
-  it("still lets any member move the task to another status", async () => {
+  it("lets only the task's owner move it to another status or reorder it", async () => {
     const { cards, writes } = setup();
-    await cards.update(MEMBER, "card-1", { targetListId: "list-doing" });
-    expect(writes).toEqual(["card.update"]);
-  });
-
-  it("refuses a move that smuggles a detail edit along", async () => {
-    const { cards, writes } = setup();
+    await expect(cards.update(MEMBER, "card-1", { targetListId: "list-doing" })).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
     await expect(
-      cards.update(MEMBER, "card-1", { targetListId: "list-doing", dueDate: null }),
+      cards.update(MEMBER, "card-1", { move: { beforeId: null, afterId: null } }),
     ).rejects.toBeInstanceOf(ForbiddenException);
     expect(writes).toEqual([]);
+    await cards.update(CREATOR, "card-1", { targetListId: "list-doing" });
+    expect(writes).toEqual(["card.update"]);
   });
 
   it("keeps assigning and deleting the task to its owner", async () => {

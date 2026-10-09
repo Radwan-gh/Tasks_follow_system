@@ -122,12 +122,19 @@ export class AttachmentsService {
     return { attachment: serialize(row), data };
   }
 
-  /** Who may add a file to a card: an editing member who can open it, on a live board, under the per-card cap. */
+  /**
+   * Who may add a file to a card: the task's owner (board owner or creator) —
+   * attachments are part of the task's details — on a live board, under the
+   * per-card cap.
+   */
   private async assertCanAttach(userId: string, cardId: string) {
     const card = await this.loadCard(cardId);
     await this.boards.assertMembership(userId, card.boardId);
     const ownerId = await this.boardOwnerId(card.boardId);
     if (!canAccessCard(userId, ownerId, card)) throw new NotFoundException("Card not found");
+    if (!canManageCard(userId, ownerId, card)) {
+      throw new ForbiddenException("Only the board owner or the task creator can attach files to this task");
+    }
     await this.boards.assertBoardMutable(card.boardId);
 
     const count = await this.prisma.attachment.count({ where: { cardId } });

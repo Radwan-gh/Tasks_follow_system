@@ -322,7 +322,7 @@ export function BoardPage() {
                 }
                 onOpenCard={setOpenCardId}
                 onDeleteCard={(id) => deleteCardMutation.mutate(id)}
-                canDeleteCard={(card) => board.ownerId === user?.id || card.createdById === user?.id}
+                canEditCard={(card) => board.ownerId === user?.id || card.createdById === user?.id}
               />
             ))}
           </div>

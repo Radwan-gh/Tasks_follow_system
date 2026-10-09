@@ -263,8 +263,8 @@ export default function CardDetailScreen() {
   // Opened from «المتابعة» without being a member: read-only like a viewer.
   const isSupervised = board.data.supervised;
   const isViewer = myRole === "VIEWER" || isSupervised;
-  // Only the task's owner — board owner or creator — edits its details, assignees, checklist
-  // items and access; any other member may still move it, tick sub-tasks, comment and attach.
+  // Only the task's owner — board owner or creator — changes the task: details, status,
+  // assignees, checklist items, attachments and access. Others tick sub-tasks and comment.
   const canEdit = !isViewer && (user?.id === board.data.ownerId || user?.id === card.data.createdById);
   // §3c-4 "منتقي المسؤولين لا يعرض المشاهدين".
   const assignableMembers = board.data.members.filter((m) => m.role !== "VIEWER");
@@ -299,7 +299,7 @@ export default function CardDetailScreen() {
             accessibilityRole="button"
             accessibilityLabel={`الحالة: ${list.name}. اضغط للنقل إلى حالة أخرى`}
             onPress={() => setPickingStatus(true)}
-            disabled={readOnly || moveCard.isPending}
+            disabled={readOnly || !canEdit || moveCard.isPending}
             style={{
               flexDirection: "row",
               alignItems: "center",
@@ -320,7 +320,7 @@ export default function CardDetailScreen() {
             />
             <AppText size="caption" weight="semibold">
               {list.name}
-              {readOnly ? "" : " ▾"}
+              {readOnly || !canEdit ? "" : " ▾"}
             </AppText>
           </Pressable>
         ) : null}
@@ -393,7 +393,7 @@ export default function CardDetailScreen() {
           }}
         >
           <AppText size="small" color={colors.muted}>
-            يعدّل التفاصيل مالكُ المهمة فقط — يمكنك إنجاز المهام الفرعية والتعليق
+            يعدّل المهمة مالكُها فقط — يمكنك إنجاز المهام الفرعية والتعليق
           </AppText>
         </View>
       ) : null}
@@ -537,7 +537,7 @@ export default function CardDetailScreen() {
 
         <SubtasksSection cardId={id} boardMembers={assignableMembers} readOnly={readOnly} canEdit={canEdit && !readOnly} />
 
-        <AttachmentsSection cardId={id} readOnly={isViewer} />
+        <AttachmentsSection cardId={id} readOnly={isViewer} canAttach={canEdit && !readOnly} />
 
         {canEdit ? (
           <View style={{ gap: spacing.md, borderTopWidth: 1, borderTopColor: colors.line, paddingTop: spacing.lg }}>

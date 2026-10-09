@@ -240,12 +240,9 @@ export class CardsService {
     await this.boards.assertBoardMutable(card.boardId);
     const ownerId = await this.boardOwnerId(card.boardId);
     if (!canAccessCard(userId, ownerId, card)) throw new NotFoundException("Card not found");
-    // Moving the card (its status) stays open to every member who can open it;
-    // any other field is one of the task's details, which only its owner edits.
-    const editsDetails = Object.entries(input).some(
-      ([key, value]) => value !== undefined && key !== "targetListId" && key !== "move",
-    );
-    if (editsDetails && !canManageCard(userId, ownerId, card)) {
+    // Every change — its details and its status (moving it) alike — is the
+    // task owner's; other members only tick sub-tasks and comment.
+    if (!canManageCard(userId, ownerId, card)) {
       throw new ForbiddenException("Only the board owner or the task creator can edit this task");
     }
 

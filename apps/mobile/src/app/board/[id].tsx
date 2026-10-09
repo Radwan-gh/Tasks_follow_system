@@ -327,8 +327,8 @@ export default function BoardScreen() {
   const isSupervised = !!board.data?.supervised;
   const isViewer = myRole === "VIEWER" || isSupervised;
   const boardReadOnly = !!board.data?.isArchived || isViewer;
-  /** Only the task's owner — board owner or creator — may delete it. */
-  function canDeleteCard(card: Card): boolean {
+  /** Only the task's owner — board owner or creator — may move or delete it. */
+  function canEditCard(card: Card): boolean {
     return !!user && (board.data?.ownerId === user.id || card.createdById === user.id);
   }
   /** Board owner or this card's own assignees may move it into «انتهى» — §3b-4. */
@@ -659,7 +659,7 @@ export default function BoardScreen() {
                           assignees={resolveAssignees(card.assigneeIds)}
                           hasNext={false}
                           onMoveNext={() => {}}
-                          onLongPress={() => !boardReadOnly && setMovingCardId(card.id)}
+                          onLongPress={() => !boardReadOnly && canEditCard(card) && setMovingCardId(card.id)}
                           onOpen={() => openCard(card.id, id)}
                           highlightQuery={trimmedSearch}
                         />
@@ -771,6 +771,7 @@ export default function BoardScreen() {
                         hasNext={index < board.data!.lists.length - 1}
                         nextListIsClosed={board.data!.lists[index + 1]?.statusCategory === "CLOSED"}
                         canCloseCard={canCloseCard}
+                        canEditCard={canEditCard}
                         readOnly={boardReadOnly}
                         onMoveCardNext={(cardId) => {
                           if (cardId.startsWith("temp:")) return;
@@ -851,14 +852,12 @@ export default function BoardScreen() {
         onMove={(targetListId) => {
           if (activeCardInfo) move.mutate({ cardId: activeCardInfo.card.id, targetListId });
         }}
-        onRequestDelete={
-          activeCardInfo && canDeleteCard(activeCardInfo.card)
-            ? () => {
-                setDeletingCardId(activeCardInfo.card.id);
-                setMovingCardId(null);
-              }
-            : undefined
-        }
+        onRequestDelete={() => {
+          if (activeCardInfo) {
+            setDeletingCardId(activeCardInfo.card.id);
+            setMovingCardId(null);
+          }
+        }}
       />
 
       <ConfirmSheet
