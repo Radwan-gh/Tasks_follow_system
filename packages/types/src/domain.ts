@@ -424,6 +424,8 @@ export const NotificationType = z.enum([
   "OVERDUE",
   "COMMENT",
   "CARD_CLOSED",
+  "SUBTASK_ASSIGNED",
+  "SUBTASK_COMPLETED",
 ]);
 export type NotificationType = z.infer<typeof NotificationType>;
 

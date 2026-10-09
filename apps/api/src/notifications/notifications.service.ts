@@ -19,6 +19,8 @@ const PREF_GATE: Record<NotificationType, keyof NotificationPrefs> = {
   DUE_SOON: "dueDatesAndOverdue",
   OVERDUE: "dueDatesAndOverdue",
   CARD_CLOSED: "myCardsMoved",
+  SUBTASK_ASSIGNED: "assignmentsAndComments",
+  SUBTASK_COMPLETED: "myCardsMoved",
 };
 
 const MAX_NOTIFICATIONS = 100;
@@ -122,29 +124,5 @@ export class NotificationsService {
         payload: (input.payload as Prisma.InputJsonValue) ?? undefined,
       },
     });
-  }
-
-  /**
-   * Same as `notify`, but only if no notification of this exact
-   * (userId, type, cardId) has ever been sent — the due-soon/overdue reminder
-   * fires once per card, not once per scheduler tick (`scheduled-jobs.service.ts`).
-   */
-  async notifyOnce(
-    tx: Tx,
-    input: {
-      userId: string;
-      actorId: string;
-      type: NotificationType;
-      cardId: string;
-      boardId?: string | null;
-      payload?: Record<string, unknown>;
-    },
-  ): Promise<void> {
-    const existing = await tx.notification.findFirst({
-      where: { userId: input.userId, type: input.type, cardId: input.cardId },
-      select: { id: true },
-    });
-    if (existing) return;
-    await this.notify(tx, input);
   }
 }

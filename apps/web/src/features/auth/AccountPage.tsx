@@ -8,7 +8,7 @@ import { useAuth } from "./AuthContext";
 const PREF_LABELS: { key: keyof NotificationPrefs; label: string }[] = [
   { key: "assignmentsAndComments", label: "الإسناد والتعليقات" },
   { key: "dueDatesAndOverdue", label: "المواعيد والتأخّر" },
-  { key: "myCardsMoved", label: "نقل مهامي إلى «انتهى»" },
+  { key: "myCardsMoved", label: "نقل مهامي إلى «انتهى» وإنجاز مهامها الفرعية" },
 ];
 
 /** Three always-on-by-default toggles, saved immediately per switch. */

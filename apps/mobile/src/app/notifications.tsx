@@ -16,6 +16,8 @@ const ICONS: Record<NotificationType, string> = {
   OVERDUE: "◷",
   COMMENT: "💬",
   CARD_CLOSED: "✓",
+  SUBTASK_ASSIGNED: "◍",
+  SUBTASK_COMPLETED: "✓",
 };
 
 /**
