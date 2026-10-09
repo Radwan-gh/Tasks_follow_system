@@ -20,7 +20,9 @@ export function BoardsListPage() {
   const { data: boards, isLoading } = useQuery({ queryKey: ["boards"], queryFn: api.boards.list });
   const { data: categories } = useBoardCategories();
   const [creatingOpen, setCreatingOpen] = useState(false);
-  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
+  // Section keys: a category id, or `NONE` for «بلا تصنيف». Sections start
+  // folded; the ones this user opened are remembered in this browser.
+  const [openSections, setOpenSections] = useState<ReadonlySet<string>>(() => loadOpenSections(user?.id));
   const moveCategory = useMoveBoardCategory();
 
   const createBoard = useMutation({
@@ -40,11 +42,15 @@ export function BoardsListPage() {
   const grouped = sections.some((s) => s.category !== null);
 
   function toggle(key: string) {
-    setCollapsed((current) => {
-      const next = new Set(current);
-      if (!next.delete(key)) next.add(key);
-      return next;
-    });
+    const next = new Set(openSections);
+    if (!next.delete(key)) next.add(key);
+    // Drop ids of categories that no longer exist so the stored list stays short.
+    if (categories) {
+      const live = new Set(categories.map((c) => c.id));
+      for (const k of next) if (k !== "NONE" && !live.has(k)) next.delete(k);
+    }
+    setOpenSections(next);
+    saveOpenSections(user?.id, next);
   }
 
   const grid = (list: NonNullable<typeof boards>) => (
@@ -88,7 +94,7 @@ export function BoardsListPage() {
         {grouped
           ? sections.map((section) => {
               const key = section.category?.id ?? "NONE";
-              const open = !collapsed.has(key);
+              const open = openSections.has(key);
               // Admins see every category as a section, so this is the full order.
               const index = categories?.findIndex((c) => c.id === section.category?.id) ?? -1;
               return (
@@ -128,6 +134,28 @@ export function BoardsListPage() {
       )}
     </div>
   );
+}
+
+const openSectionsKey = (userId: string) => `kanban.openSections.${userId}`;
+
+/** Only the open sections are stored, so a category created later starts folded too. */
+function loadOpenSections(userId: string | undefined): ReadonlySet<string> {
+  if (!userId) return new Set();
+  try {
+    const parsed: unknown = JSON.parse(localStorage.getItem(openSectionsKey(userId)) ?? "[]");
+    return new Set(Array.isArray(parsed) ? parsed.filter((k): k is string => typeof k === "string") : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function saveOpenSections(userId: string | undefined, open: ReadonlySet<string>) {
+  if (!userId) return;
+  try {
+    localStorage.setItem(openSectionsKey(userId), JSON.stringify([...open]));
+  } catch {
+    // Storage full or blocked — the fold state just won't survive a reload.
+  }
 }
 
 /** A section heading: fold/unfold, and — for admins — move up/down, rename or delete in place. */

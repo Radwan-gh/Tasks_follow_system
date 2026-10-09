@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Pressable, RefreshControl, ScrollView, View } from "react-native";
 import { useRouter } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -22,6 +22,7 @@ import { NewBoardSheet } from "@/features/boards/new-board-sheet";
 import { NotificationBell } from "@/features/notifications/notification-bell";
 import { useAuth } from "@/features/auth/auth-context";
 import { api } from "@/lib/api";
+import { loadOpenSections, saveOpenSections } from "@/lib/open-sections";
 import { BOARDS, countLabel } from "@/lib/plural";
 import { MIN_TOUCH_TARGET, colors, spacing } from "@/theme/tokens";
 
@@ -33,9 +34,10 @@ export default function BoardsScreen() {
   const archivedBoards = useQuery({ queryKey: ["boards", "archived"], queryFn: () => api.boards.listArchived() });
   const categories = useBoardCategories();
   const [creatingBoard, setCreatingBoard] = useState(false);
-  // Section keys: a category id, or `NONE` for «بلا تصنيف». In memory only — a
-  // fresh launch shows everything expanded.
-  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
+  // Section keys: a category id, or `NONE` for «بلا تصنيف». Sections start
+  // folded; the ones this user opened are remembered across launches.
+  const [openSections, setOpenSections] = useState<ReadonlySet<string>>(new Set());
+  const touchedSections = useRef(false);
   const [creatingCategory, setCreatingCategory] = useState(false);
   const [reorderingCategories, setReorderingCategories] = useState(false);
   const [actionsFor, setActionsFor] = useState<{ id: string; name: string; boardCount: number } | null>(null);
@@ -52,12 +54,33 @@ export default function BoardsScreen() {
   );
   const grouped = sections.some((s) => s.category !== null);
 
-  function toggle(key: string) {
-    setCollapsed((current) => {
-      const next = new Set(current);
-      if (!next.delete(key)) next.add(key);
-      return next;
+  const userId = user?.id;
+  useEffect(() => {
+    if (!userId) return;
+    touchedSections.current = false;
+    setOpenSections(new Set());
+    let cancelled = false;
+    void loadOpenSections(userId).then((saved) => {
+      // A tap that landed before the read finished wins over the saved state.
+      if (!cancelled && !touchedSections.current) setOpenSections(saved);
     });
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
+
+  function toggle(key: string) {
+    if (!userId) return;
+    touchedSections.current = true;
+    const next = new Set(openSections);
+    if (!next.delete(key)) next.add(key);
+    // Drop ids of categories that no longer exist so the stored list stays short.
+    if (categories.data) {
+      const live = new Set(categories.data.map((c) => c.id));
+      for (const k of next) if (k !== "NONE" && !live.has(k)) next.delete(k);
+    }
+    setOpenSections(next);
+    saveOpenSections(userId, next);
   }
 
   const createBoard = useMutation({
@@ -154,7 +177,7 @@ export default function BoardsScreen() {
             {grouped
               ? sections.map((section) => {
                   const key = section.category?.id ?? "NONE";
-                  const open = !collapsed.has(key);
+                  const open = openSections.has(key);
                   const category = section.category;
                   const manageable = !!category && isCategoryAdmin;
                   return (
