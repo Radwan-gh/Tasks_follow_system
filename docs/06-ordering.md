@@ -75,7 +75,8 @@ collation قاعدة البيانات محليًّا (locale-aware، مثل
 `English_United States.1254` على Windows) بدل `"C"`، فإن `ORDER BY position
 ASC` قد يُعيد الصفوف بترتيب **مختلف** عن ترتيب توليد المفاتيح — رغم أن
 المفاتيح نفسها صحيحة! لذلك أعمدة `position` في `List`/`Card`/`Subtask` مثبَّتة
-صراحةً على `COLLATE "C"` (انظر مِهجرة `fix_position_collation`). أي عمود جديد
+صراحةً على `COLLATE "C"` (انظر مِهجرة `fix_position_collation`)، وكذلك
+`BoardCategory.position` منذ إنشائه (مِهجرة `board_category_position`). أي عمود جديد
 يُقارَن أو يُرتَّب بنفس أسلوب الفهرسة الكسرية يجب أن يحمل نفس الـ collation،
 وإلا انكسر ضمان الترتيب بصمت دون أي خطأ ظاهر.
 

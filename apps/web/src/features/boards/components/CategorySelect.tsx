@@ -4,12 +4,42 @@ import type { BoardCategory } from "@app/types";
 import { ApiError } from "@app/api-client";
 import { api } from "../../../lib/api-client";
 import { useAuth } from "../../auth/AuthContext";
-import { canManageBoardCategories } from "../lib/board-sections";
+import { canManageBoardCategories, categoryMoveFor } from "../lib/board-sections";
 
 export const BOARD_CATEGORIES_KEY = ["board-categories"] as const;
 
 export function useBoardCategories() {
   return useQuery({ queryKey: BOARD_CATEGORIES_KEY, queryFn: api.boardCategories.list });
+}
+
+/**
+ * One step up or down, applied to the cached order at once and sent as a
+ * neighbour-id move. Mirrors mobile's `useMoveBoardCategory`.
+ */
+export function useMoveBoardCategory() {
+  const queryClient = useQueryClient();
+  const mutation = useMutation({
+    mutationFn: ({ id, move }: { id: string; move: { beforeId: string | null; afterId: string | null } }) =>
+      api.boardCategories.update(id, { move }),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: BOARD_CATEGORIES_KEY }),
+  });
+
+  return (id: string, direction: "up" | "down") => {
+    const current = queryClient.getQueryData<BoardCategory[]>(BOARD_CATEGORIES_KEY);
+    if (!current) return;
+    const move = categoryMoveFor(
+      current.map((c) => c.id),
+      id,
+      direction,
+    );
+    if (!move) return;
+    const from = current.findIndex((c) => c.id === id);
+    const next = [...current];
+    const [moved] = next.splice(from, 1);
+    next.splice(direction === "up" ? from - 1 : from + 1, 0, moved!);
+    queryClient.setQueryData(BOARD_CATEGORIES_KEY, next);
+    mutation.mutate({ id, move });
+  };
 }
 
 export function categoryErrorMessage(err: unknown): string {
@@ -36,7 +66,8 @@ export function CategorySelect({ value, onChange }: { value: string | null; onCh
     mutationFn: (newName: string) => api.boardCategories.create({ name: newName }),
     onSuccess: (category) => {
       queryClient.setQueryData<BoardCategory[]>(BOARD_CATEGORIES_KEY, (old) =>
-        old ? [...old, category].sort((a, b) => a.name.localeCompare(b.name, "ar")) : [category],
+        // The server puts a new category last.
+        old ? [...old, category] : [category],
       );
       onChange(category.id);
       setAdding(false);

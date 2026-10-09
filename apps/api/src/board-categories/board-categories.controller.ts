@@ -40,18 +40,18 @@ export class BoardCategoriesController {
   }
 
   @Patch(":id")
-  @ApiOperation({ summary: "Rename a board category — admin-only" })
+  @ApiOperation({ summary: "Rename and/or reorder (move: { beforeId, afterId }) a board category — admin-only" })
   @ApiParam({ name: "id", description: "Category ID" })
   @ApiBody({ schema: zodRef("UpdateBoardCategoryRequest") })
   @ApiResponse({ status: 200, schema: zodRef("BoardCategory") })
   @ApiResponse({ status: 403, description: "Requires ADMIN role" })
   @ApiResponse({ status: 409, description: "A category with this name already exists" })
-  rename(
+  update(
     @CurrentUser() user: AuthUser,
     @Param("id") id: string,
     @Body(new ZodValidationPipe(UpdateBoardCategoryRequestSchema)) body: UpdateBoardCategoryRequest,
   ) {
-    return this.categories.rename(user.id, id, body.name);
+    return this.categories.update(user.id, id, body);
   }
 
   @Delete(":id")

@@ -246,12 +246,13 @@ export function createApiClient({ baseUrl, storage, onUnauthorized }: ApiClientO
     },
     boardCategories: {
       list: () => request<BoardCategory[]>("/board-categories"),
+      /** ADMIN only; the new category goes last. */
       create: (body: CreateBoardCategoryRequest) =>
         request<BoardCategory>("/board-categories", { method: "POST", body: JSON.stringify(body) }),
-      /** Creator or ADMIN only. */
-      rename: (id: string, body: UpdateBoardCategoryRequest) =>
+      /** ADMIN only: `{ name }` renames, `{ move: { beforeId, afterId } }` reorders. */
+      update: (id: string, body: UpdateBoardCategoryRequest) =>
         request<BoardCategory>(`/board-categories/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
-      /** Creator or ADMIN only; its boards fall back to «بلا تصنيف». */
+      /** ADMIN only; its boards fall back to «بلا تصنيف». */
       remove: (id: string) => request<void>(`/board-categories/${id}`, { method: "DELETE" }),
     },
     boards: {

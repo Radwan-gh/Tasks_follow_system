@@ -3,7 +3,7 @@ import { Pressable, TextInput, View } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError } from "@app/api-client";
-import { canManageBoardCategories, type BoardCategory } from "@app/types";
+import { canManageBoardCategories, categoryMoveFor, type BoardCategory } from "@app/types";
 import { BottomSheet } from "@/components/bottom-sheet";
 import { AppText } from "@/components/text";
 import { useAuth } from "@/features/auth/auth-context";
@@ -21,6 +21,37 @@ export const BOARD_CATEGORIES_KEY = ["board-categories"] as const;
 
 export function useBoardCategories() {
   return useQuery({ queryKey: BOARD_CATEGORIES_KEY, queryFn: () => api.boardCategories.list() });
+}
+
+/**
+ * One step up or down, applied to the cached order at once and sent as a
+ * neighbour-id move. Each tap is computed from the already-moved cache, so
+ * quick repeated taps land where they look like they will.
+ */
+export function useMoveBoardCategory() {
+  const queryClient = useQueryClient();
+  const mutation = useMutation({
+    mutationFn: ({ id, move }: { id: string; move: { beforeId: string | null; afterId: string | null } }) =>
+      api.boardCategories.update(id, { move }),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: BOARD_CATEGORIES_KEY }),
+  });
+
+  return (id: string, direction: "up" | "down") => {
+    const current = queryClient.getQueryData<BoardCategory[]>(BOARD_CATEGORIES_KEY);
+    if (!current) return;
+    const move = categoryMoveFor(
+      current.map((c) => c.id),
+      id,
+      direction,
+    );
+    if (!move) return;
+    const from = current.findIndex((c) => c.id === id);
+    const next = [...current];
+    const [moved] = next.splice(from, 1);
+    next.splice(direction === "up" ? from - 1 : from + 1, 0, moved!);
+    queryClient.setQueryData(BOARD_CATEGORIES_KEY, next);
+    mutation.mutate({ id, move });
+  };
 }
 
 /** Each category keeps one dot colour everywhere — the design's «● الجامع». */
@@ -156,7 +187,8 @@ export function CategoryPickerSheet({
     mutationFn: (newName: string) => api.boardCategories.create({ name: newName }),
     onSuccess: (category) => {
       queryClient.setQueryData<BoardCategory[]>(BOARD_CATEGORIES_KEY, (old) =>
-        old ? [...old, category].sort((a, b) => a.name.localeCompare(b.name, "ar")) : [category],
+        // The server puts a new category last.
+        old ? [...old, category] : [category],
       );
       onChange(category.id);
     },
@@ -277,7 +309,7 @@ export function CategoryNameSheet({
 
   const save = useMutation({
     mutationFn: (newName: string) =>
-      category ? api.boardCategories.rename(category.id, { name: newName }) : api.boardCategories.create({ name: newName }),
+      category ? api.boardCategories.update(category.id, { name: newName }) : api.boardCategories.create({ name: newName }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: BOARD_CATEGORIES_KEY });
       // Every board summary embeds its category's name.
@@ -347,13 +379,14 @@ export function CategoryNameSheet({
   );
 }
 
-/** Long-press on a section header: rename or delete — admins only. */
+/** Long-press on a section header: rename, reorder or delete — admins only. */
 export function CategoryActionsSheet({
   visible,
   category,
   boardCount,
   onClose,
   onRename,
+  onReorder,
   onDelete,
 }: {
   visible: boolean;
@@ -361,6 +394,7 @@ export function CategoryActionsSheet({
   boardCount: number;
   onClose: () => void;
   onRename: () => void;
+  onReorder: () => void;
   onDelete: () => void;
 }) {
   return (
@@ -370,6 +404,7 @@ export function CategoryActionsSheet({
           {category?.name ?? ""}
         </AppText>
         <ActionRow icon="create-outline" label="إعادة التسمية" onPress={onRename} />
+        <ActionRow icon="swap-vertical-outline" label="ترتيب التصنيفات" onPress={onReorder} />
         <ActionRow
           icon="trash-outline"
           label="حذف التصنيف"
@@ -454,4 +489,91 @@ function Option({
 
 export function Dot({ color }: { color: string }) {
   return <View style={{ width: 8, height: 8, borderRadius: 999, backgroundColor: color }} />;
+}
+
+/**
+ * «ترتيب التصنيفات» — every category in its current order with ↑/↓, the
+ * order the boards list shows its sections in. Admins only. Arrows rather
+ * than drag: a short list, and each tap is one exact, undoable step.
+ */
+export function CategoryOrderSheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+  const categories = useBoardCategories();
+  const move = useMoveBoardCategory();
+  const list = categories.data ?? [];
+
+  return (
+    <BottomSheet visible={visible} onClose={onClose}>
+      <View style={{ paddingHorizontal: spacing.xl, paddingBottom: spacing.sm, gap: spacing.xs }}>
+        <AppText weight="bold" size="title">
+          ترتيب التصنيفات
+        </AppText>
+        <AppText size="small" color={colors.muted} style={{ marginBottom: spacing.sm }}>
+          بهذا الترتيب تظهر التصنيفات في قائمة اللوحات لدى الجميع.
+        </AppText>
+        {list.map((category, index) => (
+          <View
+            key={category.id}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: spacing.md,
+              minHeight: MIN_TOUCH_TARGET + 4,
+              borderBottomWidth: index === list.length - 1 ? 0 : 1,
+              borderBottomColor: colors.line,
+            }}
+          >
+            <Dot color={categoryColor(category.id)} />
+            <AppText weight="semibold" numberOfLines={1} style={{ flex: 1 }}>
+              {category.name}
+            </AppText>
+            <StepButton
+              icon="chevron-up"
+              label={`تحريك «${category.name}» لأعلى`}
+              disabled={index === 0}
+              onPress={() => move(category.id, "up")}
+            />
+            <StepButton
+              icon="chevron-down"
+              label={`تحريك «${category.name}» لأسفل`}
+              disabled={index === list.length - 1}
+              onPress={() => move(category.id, "down")}
+            />
+          </View>
+        ))}
+      </View>
+    </BottomSheet>
+  );
+}
+
+function StepButton({
+  icon,
+  label,
+  disabled,
+  onPress,
+}: {
+  icon: React.ComponentProps<typeof Ionicons>["name"];
+  label: string;
+  disabled: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ disabled }}
+      disabled={disabled}
+      onPress={onPress}
+      style={({ pressed }) => ({
+        width: MIN_TOUCH_TARGET,
+        height: MIN_TOUCH_TARGET,
+        borderRadius: radii.field,
+        alignItems: "center",
+        justifyContent: "center",
+        backgroundColor: pressed ? colors.accentSoft : colors.canvas,
+        opacity: disabled ? 0.35 : 1,
+      })}
+    >
+      <Ionicons name={icon} size={18} color={colors.ink} />
+    </Pressable>
+  );
 }

@@ -152,7 +152,7 @@ Nest يتخطّى تسجيل محلّله العام إن وجد وسيطًا ب
 | `add_attachment` | `AttachmentsService.attachStaged` / `create` | الخطوة 2: إمّا `uploadId` من الرفع (يُحوَّل إلى مرفق)، أو `text` + `fileName` لملاحظة نصّية قصيرة (حتى 1MB) — واحد فقط. تسري قاعدة 10 مرفقات للبطاقة وكل فحوص الرفع العادي |
 | `delete_attachment` | `AttachmentsService.remove` | للرافع أو منشئ البطاقة أو مالك اللوحة؛ `destructiveHint: true` |
 | `create_board` | `BoardsService.create` | المستخدم يصبح المالك؛ **`template` غير مكشوف** فتأتي اللوحة دائمًا بالقوائم الخمس. `categoryId` اختياري |
-| `create_board_category` | `BoardCategoriesService.create` | **للمشرف فقط**: تصنيف جديد بالاسم (فريد دون اعتبار لحالة الأحرف). إعادة التسمية والحذف غير مكشوفين عبر MCP |
+| `create_board_category` | `BoardCategoriesService.create` | **للمشرف فقط**: تصنيف جديد بالاسم (فريد دون اعتبار لحالة الأحرف). إعادة التسمية والترتيب والحذف غير مكشوفة عبر MCP |
 | `find_users_to_add` | `BoardsService.listMemberCandidates` | للمالك فقط |
 | `add_board_member` | `BoardsService.addMember` | للمالك فقط؛ الدور `MEMBER` أو `VIEWER` |
 | `set_board_member_role` | `BoardsService.updateMemberRole` | للمالك فقط؛ تبديل عضو بين `MEMBER` و`VIEWER` |
