@@ -213,7 +213,9 @@ statuses, assignees, access, attachments, delete, and adding/renaming/
 reordering/assigning/deleting its subtasks — belongs to its owner only: the
 board owner or the card's creator (`canManageCard` in `boards.service.ts`;
 `BoardsService.assertCanManageCard` wraps it for services that don't already
-hold the board's owner id). Other members only tick subtasks and comment.
+hold the board's owner id). Other members only tick subtasks and comment —
+except that a card's assignees may still close it (a move into the `CLOSED`
+list and nothing else; closing itself stays board owner or assignees only).
 
 ### Auth
 

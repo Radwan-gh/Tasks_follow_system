@@ -240,11 +240,6 @@ export class CardsService {
     await this.boards.assertBoardMutable(card.boardId);
     const ownerId = await this.boardOwnerId(card.boardId);
     if (!canAccessCard(userId, ownerId, card)) throw new NotFoundException("Card not found");
-    // Every change — its details and its status (moving it) alike — is the
-    // task owner's; other members only tick sub-tasks and comment.
-    if (!canManageCard(userId, ownerId, card)) {
-      throw new ForbiddenException("Only the board owner or the task creator can edit this task");
-    }
 
     const targetListId = input.targetListId ?? card.listId;
     const isMovingLists = targetListId !== card.listId;
@@ -254,17 +249,26 @@ export class CardsService {
       if (targetList.boardId !== card.boardId) {
         throw new BadRequestException("Cannot move a card to a list on a different board");
       }
-      // §3b-4 "تعديل لقرار سابق": moving *into* «انتهى» (CLOSED) is restricted
-      // to the board owner and this card's own assignees — every other move
-      // stays open to any board member.
-      if (targetList.statusCategory === "CLOSED") {
-        const isAssignee = card.assignees.some((a) => a.userId === userId);
-        if (ownerId !== userId && !isAssignee) {
-          throw new ForbiddenException(
-            'Only the board owner or this task\'s assignees can move it to "انتهى"',
-          );
-        }
-      }
+    }
+    const isAssignee = card.assignees.some((a) => a.userId === userId);
+    const closesIt = targetList?.statusCategory === "CLOSED";
+
+    // Every change — its details and its status (moving it) alike — is the
+    // task owner's; other members only tick sub-tasks and comment. The one
+    // exception: an assignee may close the task, i.e. a request that does
+    // nothing but move it into «انتهى».
+    const onlyMoves = Object.entries(input).every(
+      ([key, value]) => value === undefined || key === "targetListId" || key === "move",
+    );
+    const assigneeClosing = closesIt && isAssignee && onlyMoves;
+    if (!canManageCard(userId, ownerId, card) && !assigneeClosing) {
+      throw new ForbiddenException("Only the board owner or the task creator can edit this task");
+    }
+    // §3b-4 "تعديل لقرار سابق": moving *into* «انتهى» (CLOSED) is restricted
+    // to the board owner and this card's own assignees — even the creator
+    // closes it only if they are also assigned.
+    if (closesIt && ownerId !== userId && !isAssignee) {
+      throw new ForbiddenException('Only the board owner or this task\'s assignees can move it to "انتهى"');
     }
     if (input.move) {
       await this.validateNeighborsBelongToList(targetListId, [input.move.beforeId, input.move.afterId], cardId);

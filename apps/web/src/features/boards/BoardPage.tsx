@@ -337,6 +337,7 @@ export function BoardPage() {
           boardOwnerId={board.ownerId}
           currentUserId={user?.id ?? ""}
           readOnly={readOnly}
+          closedListId={lists.find((l) => l.statusCategory === "CLOSED")?.id ?? null}
           onClose={() => setOpenCardId(null)}
           onSave={async (updates) => {
             await api.cards.update(openCard.id, updates);

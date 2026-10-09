@@ -9,6 +9,7 @@ import { CardsService } from "./cards.service";
 const BOARD_OWNER = "u-board-owner";
 const CREATOR = "u-creator";
 const MEMBER = "u-member";
+const ASSIGNEE = "u-assignee";
 
 /** Just enough of Prisma for a card on an open board, kept in memory. */
 function setup() {
@@ -31,7 +32,7 @@ function setup() {
     createdAt: new Date(),
     updatedAt: new Date(),
     members: [],
-    assignees: [],
+    assignees: [{ userId: ASSIGNEE }],
   };
   const subtask = {
     id: "st-1",
@@ -47,6 +48,7 @@ function setup() {
   const lists: Record<string, { id: string; boardId: string; name: string; statusCategory: string }> = {
     "list-new": { id: "list-new", boardId: card.boardId, name: "جديد", statusCategory: "NEW" },
     "list-doing": { id: "list-doing", boardId: card.boardId, name: "قيد التنفيذ", statusCategory: "IN_PROGRESS" },
+    "list-closed": { id: "list-closed", boardId: card.boardId, name: "انتهى", statusCategory: "CLOSED" },
   };
   const writes: string[] = [];
   const db = {
@@ -128,6 +130,31 @@ describe("task ownership", () => {
     ).rejects.toBeInstanceOf(ForbiddenException);
     expect(writes).toEqual([]);
     await cards.update(CREATOR, "card-1", { targetListId: "list-doing" });
+    expect(writes).toEqual(["card.update"]);
+  });
+
+  it("lets an assignee close the task, but nothing more", async () => {
+    const { cards, writes } = setup();
+    await expect(cards.update(MEMBER, "card-1", { targetListId: "list-closed" })).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+    await expect(cards.update(ASSIGNEE, "card-1", { targetListId: "list-doing" })).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+    await expect(
+      cards.update(ASSIGNEE, "card-1", { targetListId: "list-closed", title: "مغلقة" }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(writes).toEqual([]);
+    await cards.update(ASSIGNEE, "card-1", { targetListId: "list-closed" });
+    expect(writes).toEqual(["card.update"]);
+  });
+
+  it("still keeps closing to the board owner and assignees, not an unassigned creator", async () => {
+    const { cards, writes } = setup();
+    await expect(cards.update(CREATOR, "card-1", { targetListId: "list-closed" })).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+    await cards.update(BOARD_OWNER, "card-1", { targetListId: "list-closed" });
     expect(writes).toEqual(["card.update"]);
   });
 

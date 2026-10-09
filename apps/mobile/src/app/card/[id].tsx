@@ -275,6 +275,8 @@ export default function CardDetailScreen() {
   const nextListId = board.data.lists[listIndex + 1]?.id ?? null;
   // §3b-4: only the board owner or this task's assignees may move it into «انتهى».
   const canCloseCard = !!user && (board.data.ownerId === user.id || card.data.assigneeIds.includes(user.id));
+  // Not the owner but assigned to it: the status chip still closes the task, and only that.
+  const mayOnlyClose = !canEdit && !isViewer && canCloseCard && list?.statusCategory !== "CLOSED";
 
   return (
     <Screen edges={{ top: true, bottom: true }} style={{ backgroundColor: colors.surface }}>
@@ -299,7 +301,7 @@ export default function CardDetailScreen() {
             accessibilityRole="button"
             accessibilityLabel={`الحالة: ${list.name}. اضغط للنقل إلى حالة أخرى`}
             onPress={() => setPickingStatus(true)}
-            disabled={readOnly || !canEdit || moveCard.isPending}
+            disabled={readOnly || !(canEdit || mayOnlyClose) || moveCard.isPending}
             style={{
               flexDirection: "row",
               alignItems: "center",
@@ -320,7 +322,7 @@ export default function CardDetailScreen() {
             />
             <AppText size="caption" weight="semibold">
               {list.name}
-              {readOnly || !canEdit ? "" : " ▾"}
+              {readOnly || !(canEdit || mayOnlyClose) ? "" : " ▾"}
             </AppText>
           </Pressable>
         ) : null}
@@ -393,7 +395,9 @@ export default function CardDetailScreen() {
           }}
         >
           <AppText size="small" color={colors.muted}>
-            يعدّل المهمة مالكُها فقط — يمكنك إنجاز المهام الفرعية والتعليق
+            {mayOnlyClose
+              ? "يعدّل المهمة مالكُها فقط — يمكنك إنجاز المهام الفرعية والتعليق ونقلها إلى «انتهى»"
+              : "يعدّل المهمة مالكُها فقط — يمكنك إنجاز المهام الفرعية والتعليق"}
           </AppText>
         </View>
       ) : null}
@@ -639,7 +643,7 @@ export default function CardDetailScreen() {
         visible={pickingStatus}
         onClose={() => setPickingStatus(false)}
         card={card.data}
-        lists={board.data.lists}
+        lists={canEdit ? board.data.lists : board.data.lists.filter((l) => l.statusCategory === "CLOSED")}
         nextListId={nextListId}
         canCloseCard={canCloseCard}
         onMove={(targetListId) => moveCard.mutate(targetListId)}
