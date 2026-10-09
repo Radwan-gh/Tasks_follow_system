@@ -92,6 +92,9 @@ export class CardsService {
    * previous one was assigned are dropped rather than carried over.
    * Cost is deliberately not carried: each instance's spend is its own
    * (docs/05-boards-lists-cards.md).
+   * The carried-over assignees are notified (`ASSIGNED` / `SUBTASK_ASSIGNED`)
+   * as if newly assigned — it is a new task on their plate — except whoever
+   * closed the previous instance (`actorId`), via `notify`'s own guard.
    */
   private async spawnNextRecurrence(
     tx: Tx,
@@ -109,6 +112,7 @@ export class CardsService {
       assignees: { userId: string }[];
       members: { userId: string }[];
     },
+    actorId: string,
   ): Promise<void> {
     const rule = RecurrenceRuleSchema.safeParse(card.recurrence);
     if (!rule.success) return;
@@ -167,6 +171,16 @@ export class CardsService {
       await tx.cardAssignee.createMany({
         data: cardAssignees.map((a) => ({ cardId: created.id, userId: a.userId })),
       });
+      for (const a of cardAssignees) {
+        await this.notifications.notify(tx, {
+          userId: a.userId,
+          actorId,
+          type: "ASSIGNED",
+          cardId: created.id,
+          boardId: card.boardId,
+          payload: { cardTitle: created.title },
+        });
+      }
     }
     if (card.isRestricted && card.members.length > 0) {
       await tx.cardMember.createMany({
@@ -183,6 +197,16 @@ export class CardsService {
         await tx.subtaskAssignee.createMany({
           data: subtaskAssignees.map((a) => ({ subtaskId: copy.id, userId: a.userId })),
         });
+        for (const a of subtaskAssignees) {
+          await this.notifications.notify(tx, {
+            userId: a.userId,
+            actorId,
+            type: "SUBTASK_ASSIGNED",
+            cardId: created.id,
+            boardId: card.boardId,
+            payload: { cardTitle: created.title, subtaskTitle: copy.title },
+          });
+        }
       }
     }
     await this.recordActivity(tx, created.id, card.boardId, card.createdById, {
@@ -321,7 +345,7 @@ export class CardsService {
         });
 
         if (card.recurrence) {
-          await this.spawnNextRecurrence(tx, card);
+          await this.spawnNextRecurrence(tx, card, userId);
         }
       }
 

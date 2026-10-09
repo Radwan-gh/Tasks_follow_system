@@ -4,12 +4,14 @@ import { generateKeyBetween } from "@app/ordering";
 import { computeMovePosition } from "../common/util/position.util";
 import { PrismaService } from "../prisma/prisma.service";
 import { BoardsService, canAccessCard } from "../boards/boards.service";
+import { NotificationsService } from "../notifications/notifications.service";
 
 @Injectable()
 export class SubtasksService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly boards: BoardsService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   /**
@@ -21,7 +23,7 @@ export class SubtasksService {
   private async assertCardAccess(userId: string, cardId: string, minRole: BoardRole = "MEMBER") {
     const card = await this.prisma.card.findUnique({
       where: { id: cardId },
-      include: { members: { select: { userId: true } } },
+      include: { members: { select: { userId: true } }, assignees: { select: { userId: true } } },
     });
     if (!card) throw new NotFoundException("Card not found");
     const access = await this.boards.assertMembership(userId, card.boardId, minRole);
@@ -91,11 +93,36 @@ export class SubtasksService {
           return neighbor?.position ?? null;
         });
       }
-      return tx.subtask.update({
+      const result = await tx.subtask.update({
         where: { id: subtaskId },
         data: { title: input.title, isDone: input.isDone, position },
         include: { assignees: { select: { userId: true } } },
       });
+
+      // Ticking it off (not re-saving an already-done one, not unticking):
+      // tell everyone with a stake in it — the parent card's creator and
+      // assignees, plus whoever created or is assigned to this subtask.
+      // `notify` drops the actor themself.
+      if (input.isDone === true && !subtask.isDone) {
+        const interested = new Set<string>([
+          card.createdById,
+          ...card.assignees.map((a) => a.userId),
+          subtask.createdById,
+          ...subtask.assignees.map((a) => a.userId),
+        ]);
+        for (const recipientId of interested) {
+          await this.notifications.notify(tx, {
+            userId: recipientId,
+            actorId: userId,
+            type: "SUBTASK_COMPLETED",
+            cardId: card.id,
+            boardId: card.boardId,
+            payload: { cardTitle: card.title, subtaskTitle: result.title },
+          });
+        }
+      }
+
+      return result;
     });
 
     return serializeSubtask(updated);
@@ -119,6 +146,7 @@ export class SubtasksService {
     await this.boards.assertBoardMutable(card.boardId);
 
     const userIds = [...new Set(input.userIds)];
+    const before = new Set(subtask.assignees.map((a) => a.userId));
     if (userIds.length > 0) {
       // §3c-4: viewers never appear in the assignee picker — see `CardsService.updateAssignees`.
       const members = await this.prisma.boardMember.findMany({
@@ -130,7 +158,6 @@ export class SubtasksService {
       }
       // Already-assigned people survive a later deactivation; only additions
       // have to be active accounts.
-      const before = new Set(subtask.assignees.map((a) => a.userId));
       if (members.some((m) => !m.user.isActive && !before.has(m.userId))) {
         throw new BadRequestException("Cannot assign a deactivated user");
       }
@@ -140,6 +167,17 @@ export class SubtasksService {
       await tx.subtaskAssignee.deleteMany({ where: { subtaskId } });
       if (userIds.length > 0) {
         await tx.subtaskAssignee.createMany({ data: userIds.map((id) => ({ subtaskId, userId: id })) });
+      }
+      // Only the newly-added assignees — same rule as `CardsService.updateAssignees`.
+      for (const addedUserId of userIds.filter((id) => !before.has(id))) {
+        await this.notifications.notify(tx, {
+          userId: addedUserId,
+          actorId: userId,
+          type: "SUBTASK_ASSIGNED",
+          cardId: card.id,
+          boardId: card.boardId,
+          payload: { cardTitle: card.title, subtaskTitle: subtask.title },
+        });
       }
       return tx.subtask.findUniqueOrThrow({
         where: { id: subtaskId },

@@ -13,6 +13,7 @@ import type { NotificationType } from "@app/types";
  */
 export function describeNotification(input: { type: NotificationType; payload?: Record<string, unknown> | null }): string {
   const title = typeof input.payload?.cardTitle === "string" ? input.payload.cardTitle : "مهمة";
+  const subtask = typeof input.payload?.subtaskTitle === "string" ? input.payload.subtaskTitle : "مهمة فرعية";
   switch (input.type) {
     case "ASSIGNED":
       return `أُسندت إليك: ${title}`;
@@ -24,6 +25,10 @@ export function describeNotification(input: { type: NotificationType; payload?: 
       return `تعليق جديد على «${title}»`;
     case "CARD_CLOSED":
       return `نُقلت «${title}» إلى «انتهى»`;
+    case "SUBTASK_ASSIGNED":
+      return `أُسندت إليك مهمة فرعية «${subtask}» في «${title}»`;
+    case "SUBTASK_COMPLETED":
+      return `أُنجزت المهمة الفرعية «${subtask}» في «${title}»`;
     default:
       return title;
   }

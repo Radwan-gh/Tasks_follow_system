@@ -9,7 +9,7 @@ import { colors, radii, spacing } from "@/theme/tokens";
 const TOGGLES: { key: keyof NotificationPrefs; label: string; hint: string }[] = [
   { key: "assignmentsAndComments", label: "الإسناد والتعليقات", hint: "عند إسناد مهمة إليك أو تعليق على بطاقة تخصّك" },
   { key: "dueDatesAndOverdue", label: "المواعيد والتأخّر", hint: "قبل يوم من الموعد، وعند تأخّر مهمة عن موعدها" },
-  { key: "myCardsMoved", label: "حركة بطاقاتي", hint: "عند نقل بطاقة أنشأتها إلى «انتهى»" },
+  { key: "myCardsMoved", label: "حركة بطاقاتي", hint: "عند نقل بطاقة أنشأتها إلى «انتهى» أو إنجاز مهمة فرعية فيها" },
 ];
 
 /** "الإشعارات" section in `/account` (`design-prompt-group-3.md` §3a-2) — three switches, all on by default. */
