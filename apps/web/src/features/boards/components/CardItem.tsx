@@ -11,13 +11,11 @@ interface CardItemProps {
   boardMembers: BoardMember[];
   /** True when this card's list is `DONE`/`CLOSED` — suppresses the overdue-red due-date styling. */
   isListCompleted: boolean;
-  /**
-   * Archived board, VIEWER role, or a task the user doesn't own (board owner or creator) —
-   * the server already rejects the move/delete; this only hides the drag and the menu.
-   */
+  /** Archived board or VIEWER role — server already rejects the mutation; this only hides the affordance. */
   readOnly: boolean;
   onOpen: () => void;
-  onDelete: () => void;
+  /** Absent when the user doesn't own this task (board owner or creator) — no actions menu then. */
+  onDelete?: () => void;
 }
 
 export function CardItem({ card, boardMembers, isListCompleted, readOnly, onOpen, onDelete }: CardItemProps) {
@@ -112,7 +110,7 @@ export function CardItem({ card, boardMembers, isListCompleted, readOnly, onOpen
         )}
       </div>
 
-      {!readOnly && (
+      {!readOnly && onDelete && (
         <button
           {...stop}
           onClick={(e) => {
@@ -126,7 +124,7 @@ export function CardItem({ card, boardMembers, isListCompleted, readOnly, onOpen
           …
         </button>
       )}
-      {!readOnly && menuOpen && (
+      {!readOnly && onDelete && menuOpen && (
         <>
           <div {...stop} className="fixed inset-0 z-10" onClick={(e) => { e.stopPropagation(); closeMenu(); }} />
           <div

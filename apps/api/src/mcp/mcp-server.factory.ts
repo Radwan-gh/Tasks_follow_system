@@ -41,7 +41,7 @@ Every board starts with five status lists (جديد/NEW, جاهز/READY, قيد 
 People are shown by displayName with username as their unique handle; tools take user ids, which get_board lists under members.
 All actions run as the signed-in user with their own board permissions.
 Only a board's owner can archive it, delete it (archive first) or manage its members; any other member can leave it with leave_board.
-Only a card's owner — the board owner or the card's creator — can change it: edit its details (update_card), move it (move_card), set its assignees or access, attach files, or add, rename, reorder, assign and delete its subtasks. Every other member can only tick subtasks done (update_subtask isDone) and comment — and a card's assignees can close it, i.e. move_card it into the CLOSED list (only the board owner or assignees can close a card, the creator included).
+Only a card's owner — the board owner or the card's creator — can edit its details (update_card), set its assignees or access, attach files, or add, rename, reorder, assign and delete its subtasks. Every other member can still change its status with move_card, tick subtasks done (update_subtask isDone) and comment. Moving a card into the CLOSED list is limited to the board owner and the card's assignees (the creator included).
 A supervisor (an admin, or a user granted «الاطلاع على كل اللوحات») can also read every board and task through list_all_boards and search_all_tasks, and open any board or card read-only — they still cannot change boards they are not a member of.`;
 
 /**

@@ -32,8 +32,6 @@ interface CardDetailPanelProps {
   currentUserId: string;
   /** VIEWER role or archived board — server already rejects writes; this only hides the controls. */
   readOnly: boolean;
-  /** The board's «انتهى» list — an assignee who doesn't own the task may still move it there. */
-  closedListId: string | null;
   onClose: () => void;
   onSave: (updates: UpdateCardRequest) => Promise<void>;
   onSaveAccess: (updates: UpdateCardAccessRequest) => Promise<void>;
@@ -62,7 +60,6 @@ export function CardDetailPanel({
   boardOwnerId,
   currentUserId,
   readOnly,
-  closedListId,
   onClose,
   onSave,
   onSaveAccess,
@@ -86,14 +83,10 @@ export function CardDetailPanel({
   const [dayOfMonth, setDayOfMonth] = useState(card.recurrence?.freq === "MONTHLY" ? card.recurrence.dayOfMonth : 1);
   const [saving, setSaving] = useState(false);
 
-  // Only the task's owner — board owner or creator — changes the task: its details, status,
-  // assignees, checklist items, attachments and access. Everyone else ticks sub-tasks and comments.
+  // Only the task's owner — board owner or creator — edits its details, assignees, checklist
+  // items, attachments and access. Everyone else moves it between statuses (by dragging it on
+  // the board), ticks sub-tasks and comments.
   const canEdit = !readOnly && (boardOwnerId === currentUserId || card.createdById === currentUserId);
-  // Assigned but not the owner: closing the task is the one change left to them (§3b-4).
-  const mayOnlyClose =
-    !readOnly && !canEdit && card.assigneeIds.includes(currentUserId) && !!closedListId && card.listId !== closedListId;
-  const [closing, setClosing] = useState(false);
-  const [closeFailed, setCloseFailed] = useState(false);
   const [restricted, setRestricted] = useState(card.isRestricted);
   const [accessFailed, setAccessFailed] = useState(false);
   // People pickers save on every add/remove — no save buttons.
@@ -143,20 +136,6 @@ export function CardDetailPanel({
     }
   }
 
-  async function closeTask() {
-    if (!closedListId) return;
-    setClosing(true);
-    setCloseFailed(false);
-    try {
-      await onSave({ targetListId: closedListId });
-      onClose();
-    } catch {
-      setCloseFailed(true);
-    } finally {
-      setClosing(false);
-    }
-  }
-
   function toggleWeekday(day: number) {
     setWeekdays((prev) => (prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day].sort()));
   }
@@ -192,27 +171,9 @@ export function CardDetailPanel({
 
       <div className="flex-1 space-y-4 overflow-y-auto p-5">
         {!readOnly && !canEdit && (
-          <div className="space-y-2 rounded-field bg-canvas px-3 py-2">
-            <p className="text-xs text-muted">
-              {mayOnlyClose
-                ? "يعدّل المهمة مالكُها فقط. يمكنك إنجاز المهام الفرعية والتعليق ونقلها إلى «انتهى»."
-                : "يعدّل المهمة مالكُها فقط. يمكنك إنجاز المهام الفرعية والتعليق."}
-            </p>
-            {mayOnlyClose && (
-              <button
-                onClick={() => void closeTask()}
-                disabled={closing}
-                className="rounded-field bg-accent px-3 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50"
-              >
-                {closing ? "جارٍ النقل..." : "نقل إلى «انتهى»"}
-              </button>
-            )}
-            {closeFailed && (
-              <p role="alert" className="text-[11px] text-alert">
-                تعذّر نقل المهمة إلى «انتهى».
-              </p>
-            )}
-          </div>
+          <p className="rounded-field bg-canvas px-3 py-2 text-xs text-muted">
+            يعدّل تفاصيل المهمة مالكُها فقط. يمكنك نقلها بين الحالات وإنجاز المهام الفرعية والتعليق.
+          </p>
         )}
         <input
           value={title}

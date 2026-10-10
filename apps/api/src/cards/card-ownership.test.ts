@@ -120,30 +120,26 @@ describe("task ownership", () => {
     expect(writes).toEqual([]);
   });
 
-  it("lets only the task's owner move it to another status or reorder it", async () => {
+  it("lets any member change the task's status", async () => {
     const { cards, writes } = setup();
-    await expect(cards.update(MEMBER, "card-1", { targetListId: "list-doing" })).rejects.toBeInstanceOf(
-      ForbiddenException,
-    );
-    await expect(
-      cards.update(MEMBER, "card-1", { move: { beforeId: null, afterId: null } }),
-    ).rejects.toBeInstanceOf(ForbiddenException);
-    expect(writes).toEqual([]);
-    await cards.update(CREATOR, "card-1", { targetListId: "list-doing" });
-    expect(writes).toEqual(["card.update"]);
+    await cards.update(MEMBER, "card-1", { targetListId: "list-doing" });
+    await cards.update(MEMBER, "card-1", { move: { beforeId: null, afterId: null } });
+    expect(writes).toEqual(["card.update", "card.update"]);
   });
 
-  it("lets an assignee close the task, but nothing more", async () => {
+  it("refuses a status change that carries a detail edit along", async () => {
+    const { cards, writes } = setup();
+    await expect(
+      cards.update(MEMBER, "card-1", { targetListId: "list-doing", dueDate: null }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(writes).toEqual([]);
+  });
+
+  it("keeps closing the task to the board owner and its assignees", async () => {
     const { cards, writes } = setup();
     await expect(cards.update(MEMBER, "card-1", { targetListId: "list-closed" })).rejects.toBeInstanceOf(
       ForbiddenException,
     );
-    await expect(cards.update(ASSIGNEE, "card-1", { targetListId: "list-doing" })).rejects.toBeInstanceOf(
-      ForbiddenException,
-    );
-    await expect(
-      cards.update(ASSIGNEE, "card-1", { targetListId: "list-closed", title: "مغلقة" }),
-    ).rejects.toBeInstanceOf(ForbiddenException);
     expect(writes).toEqual([]);
     await cards.update(ASSIGNEE, "card-1", { targetListId: "list-closed" });
     expect(writes).toEqual(["card.update"]);

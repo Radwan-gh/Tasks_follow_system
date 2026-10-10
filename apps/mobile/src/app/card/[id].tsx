@@ -263,8 +263,8 @@ export default function CardDetailScreen() {
   // Opened from «المتابعة» without being a member: read-only like a viewer.
   const isSupervised = board.data.supervised;
   const isViewer = myRole === "VIEWER" || isSupervised;
-  // Only the task's owner — board owner or creator — changes the task: details, status,
-  // assignees, checklist items, attachments and access. Others tick sub-tasks and comment.
+  // Only the task's owner — board owner or creator — edits its details, assignees, checklist
+  // items, attachments and access. Others move it between statuses, tick sub-tasks and comment.
   const canEdit = !isViewer && (user?.id === board.data.ownerId || user?.id === card.data.createdById);
   // §3c-4 "منتقي المسؤولين لا يعرض المشاهدين".
   const assignableMembers = board.data.members.filter((m) => m.role !== "VIEWER");
@@ -275,8 +275,6 @@ export default function CardDetailScreen() {
   const nextListId = board.data.lists[listIndex + 1]?.id ?? null;
   // §3b-4: only the board owner or this task's assignees may move it into «انتهى».
   const canCloseCard = !!user && (board.data.ownerId === user.id || card.data.assigneeIds.includes(user.id));
-  // Not the owner but assigned to it: the status chip still closes the task, and only that.
-  const mayOnlyClose = !canEdit && !isViewer && canCloseCard && list?.statusCategory !== "CLOSED";
 
   return (
     <Screen edges={{ top: true, bottom: true }} style={{ backgroundColor: colors.surface }}>
@@ -301,7 +299,7 @@ export default function CardDetailScreen() {
             accessibilityRole="button"
             accessibilityLabel={`الحالة: ${list.name}. اضغط للنقل إلى حالة أخرى`}
             onPress={() => setPickingStatus(true)}
-            disabled={readOnly || !(canEdit || mayOnlyClose) || moveCard.isPending}
+            disabled={readOnly || moveCard.isPending}
             style={{
               flexDirection: "row",
               alignItems: "center",
@@ -322,7 +320,7 @@ export default function CardDetailScreen() {
             />
             <AppText size="caption" weight="semibold">
               {list.name}
-              {readOnly || !(canEdit || mayOnlyClose) ? "" : " ▾"}
+              {readOnly ? "" : " ▾"}
             </AppText>
           </Pressable>
         ) : null}
@@ -395,9 +393,7 @@ export default function CardDetailScreen() {
           }}
         >
           <AppText size="small" color={colors.muted}>
-            {mayOnlyClose
-              ? "يعدّل المهمة مالكُها فقط — يمكنك إنجاز المهام الفرعية والتعليق ونقلها إلى «انتهى»"
-              : "يعدّل المهمة مالكُها فقط — يمكنك إنجاز المهام الفرعية والتعليق"}
+            يعدّل تفاصيل المهمة مالكُها فقط — يمكنك نقلها بين الحالات وإنجاز المهام الفرعية والتعليق
           </AppText>
         </View>
       ) : null}
@@ -643,7 +639,7 @@ export default function CardDetailScreen() {
         visible={pickingStatus}
         onClose={() => setPickingStatus(false)}
         card={card.data}
-        lists={canEdit ? board.data.lists : board.data.lists.filter((l) => l.statusCategory === "CLOSED")}
+        lists={board.data.lists}
         nextListId={nextListId}
         canCloseCard={canCloseCard}
         onMove={(targetListId) => moveCard.mutate(targetListId)}

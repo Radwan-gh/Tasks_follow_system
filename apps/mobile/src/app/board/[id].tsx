@@ -327,8 +327,8 @@ export default function BoardScreen() {
   const isSupervised = !!board.data?.supervised;
   const isViewer = myRole === "VIEWER" || isSupervised;
   const boardReadOnly = !!board.data?.isArchived || isViewer;
-  /** Only the task's owner — board owner or creator — may move it freely or delete it. */
-  function canEditCard(card: Card): boolean {
+  /** Only the task's owner — board owner or creator — may delete it; any member may move it. */
+  function canDeleteCard(card: Card): boolean {
     return !!user && (board.data?.ownerId === user.id || card.createdById === user.id);
   }
   /** Board owner or this card's own assignees may move it into «انتهى» — §3b-4. */
@@ -659,11 +659,7 @@ export default function BoardScreen() {
                           assignees={resolveAssignees(card.assigneeIds)}
                           hasNext={false}
                           onMoveNext={() => {}}
-                          onLongPress={() =>
-                            !boardReadOnly &&
-                            (canEditCard(card) || (canCloseCard(card) && list.statusCategory !== "CLOSED")) &&
-                            setMovingCardId(card.id)
-                          }
+                          onLongPress={() => !boardReadOnly && setMovingCardId(card.id)}
                           onOpen={() => openCard(card.id, id)}
                           highlightQuery={trimmedSearch}
                         />
@@ -775,7 +771,6 @@ export default function BoardScreen() {
                         hasNext={index < board.data!.lists.length - 1}
                         nextListIsClosed={board.data!.lists[index + 1]?.statusCategory === "CLOSED"}
                         canCloseCard={canCloseCard}
-                        canEditCard={canEditCard}
                         readOnly={boardReadOnly}
                         onMoveCardNext={(cardId) => {
                           if (cardId.startsWith("temp:")) return;
@@ -850,19 +845,14 @@ export default function BoardScreen() {
         visible={!!movingCardId}
         onClose={() => setMovingCardId(null)}
         card={activeCardInfo?.card ?? null}
-        // An assignee who doesn't own the task may only close it, so «انتهى» is all they're offered.
-        lists={
-          activeCardInfo && !canEditCard(activeCardInfo.card)
-            ? (board.data?.lists ?? []).filter((l) => l.statusCategory === "CLOSED")
-            : (board.data?.lists ?? [])
-        }
+        lists={board.data?.lists ?? []}
         nextListId={activeCardInfo?.nextListId ?? null}
         canCloseCard={activeCardInfo ? canCloseCard(activeCardInfo.card) : false}
         onMove={(targetListId) => {
           if (activeCardInfo) move.mutate({ cardId: activeCardInfo.card.id, targetListId });
         }}
         onRequestDelete={
-          activeCardInfo && canEditCard(activeCardInfo.card)
+          activeCardInfo && canDeleteCard(activeCardInfo.card)
             ? () => {
                 setDeletingCardId(activeCardInfo.card.id);
                 setMovingCardId(null);
