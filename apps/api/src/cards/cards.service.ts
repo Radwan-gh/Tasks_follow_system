@@ -277,15 +277,14 @@ export class CardsService {
     const isAssignee = card.assignees.some((a) => a.userId === userId);
     const closesIt = targetList?.statusCategory === "CLOSED";
 
-    // Every change — its details and its status (moving it) alike — is the
-    // task owner's; other members only tick sub-tasks and comment. The one
-    // exception: an assignee may close the task, i.e. a request that does
-    // nothing but move it into «انتهى».
-    const onlyMoves = Object.entries(input).every(
-      ([key, value]) => value === undefined || key === "targetListId" || key === "move",
+    // Moving the card — changing its status — is open to every member who can
+    // open it; any other field is one of the task's details, which only its
+    // owner edits. Checked by exclusion, so a field added to the request later
+    // is owner-only by default.
+    const editsDetails = Object.entries(input).some(
+      ([key, value]) => value !== undefined && key !== "targetListId" && key !== "move",
     );
-    const assigneeClosing = closesIt && isAssignee && onlyMoves;
-    if (!canManageCard(userId, ownerId, card) && !assigneeClosing) {
+    if (editsDetails && !canManageCard(userId, ownerId, card)) {
       throw new ForbiddenException("Only the board owner or the task creator can edit this task");
     }
     // §3b-4 "تعديل لقرار سابق": moving *into* «انتهى» (CLOSED) is restricted

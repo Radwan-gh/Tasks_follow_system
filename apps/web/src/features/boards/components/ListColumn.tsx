@@ -13,8 +13,8 @@ interface ListColumnProps {
   onShowOlderClosed?: () => void;
   onOpenCard: (id: string) => void;
   onDeleteCard: (id: string) => void;
-  /** Only the task's owner (board owner or creator) may move or delete it. */
-  canEditCard: (card: Card) => boolean;
+  /** Only the task's owner (board owner or creator) may delete it; any member may drag it. */
+  canDeleteCard: (card: Card) => boolean;
 }
 
 /**
@@ -31,7 +31,7 @@ export function ListColumn({
   onShowOlderClosed,
   onOpenCard,
   onDeleteCard,
-  canEditCard,
+  canDeleteCard,
 }: ListColumnProps) {
   const { setNodeRef: setDropzoneRef } = useDroppable({
     id: `${list.id}::empty`,
@@ -55,9 +55,9 @@ export function ListColumn({
               card={card}
               boardMembers={boardMembers}
               isListCompleted={isListCompleted}
-              readOnly={readOnly || !canEditCard(card)}
+              readOnly={readOnly}
               onOpen={() => onOpenCard(card.id)}
-              onDelete={() => onDeleteCard(card.id)}
+              onDelete={canDeleteCard(card) ? () => onDeleteCard(card.id) : undefined}
             />
           ))}
         </SortableContext>
