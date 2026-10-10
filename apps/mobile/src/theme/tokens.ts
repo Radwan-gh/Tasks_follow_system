@@ -32,6 +32,12 @@ export const colors = {
 
   /** The dim behind a bottom sheet — `ink` at 40%. */
   scrim: "rgba(35,35,42,0.4)",
+
+  /** The غِراس green. Must equal `expo-splash-screen`'s `backgroundColor` in
+   *  `app.json`, or the hand-off from the native splash visibly flashes. */
+  brand: "#1F7A5C",
+  /** Text and marks drawn on `brand`. */
+  onBrand: "#FFFFFF",
 } as const;
 
 /** One colour per status category, keyed to `ListStatusCategory`. */

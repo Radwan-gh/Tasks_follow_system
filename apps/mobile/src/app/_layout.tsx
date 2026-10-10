@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { I18nManager, View } from "react-native";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
@@ -14,6 +14,7 @@ import {
   useFonts,
 } from "@expo-google-fonts/cairo";
 
+import { LaunchSplash } from "@/components/launch-splash";
 import { AuthProvider, useAuth } from "@/features/auth/auth-context";
 import { usePushRegistration } from "@/features/notifications/use-push-registration";
 import { setUnauthorizedHandler } from "@/lib/api";
@@ -76,6 +77,15 @@ function RootNavigator() {
   );
 }
 
+/** Holds `LaunchSplash` over the app until the stored session is restored. */
+function LaunchGate() {
+  const { isLoading } = useAuth();
+  const [shown, setShown] = useState(true);
+  const hide = useCallback(() => setShown(false), []);
+  if (!shown) return null;
+  return <LaunchSplash ready={!isLoading} onFinished={hide} />;
+}
+
 export default function RootLayout() {
   useAutoUpdate();
 
@@ -86,17 +96,10 @@ export default function RootLayout() {
     Cairo_700Bold,
   });
 
-  // Hide the splash only once Cairo is in memory, otherwise the first frame
-  // renders in the system font and visibly reflows. A font *error* still
-  // releases the splash — a fallback face beats a stuck splash screen.
-  const onReady = useCallback(async () => {
-    if (fontsLoaded || fontError) await SplashScreen.hideAsync();
-  }, [fontsLoaded, fontError]);
-
-  useEffect(() => {
-    void onReady();
-  }, [onReady]);
-
+  // Keep the native splash up until Cairo is in memory, otherwise the first
+  // frame renders in the system font and visibly reflows. A font *error* still
+  // lets the app through — a fallback face beats a stuck splash screen.
+  // `LaunchSplash` then takes over from the native splash and hides it.
   if (!fontsLoaded && !fontError) return null;
 
   return (
@@ -107,6 +110,7 @@ export default function RootLayout() {
             <View ref={windowRootRef} style={{ flex: 1, backgroundColor: colors.canvas }}>
               <StatusBar style="dark" />
               <RootNavigator />
+              <LaunchGate />
             </View>
           </AuthProvider>
         </QueryClientProvider>
