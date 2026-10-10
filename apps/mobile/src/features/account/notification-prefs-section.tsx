@@ -1,4 +1,6 @@
-import { Switch, View } from "react-native";
+import { Linking, Platform, Pressable, Switch, View } from "react-native";
+import Constants from "expo-constants";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { NotificationPrefs } from "@app/types";
 import { AppText } from "@/components/text";
@@ -11,6 +13,21 @@ const TOGGLES: { key: keyof NotificationPrefs; label: string; hint: string }[] =
   { key: "dueDatesAndOverdue", label: "المواعيد والتأخّر", hint: "قبل يوم من الموعد، وعند تأخّر مهمة عن موعدها" },
   { key: "myCardsMoved", label: "حركة بطاقاتي", hint: "عند نقل بطاقة أنشأتها إلى «انتهى» أو إنجاز مهمة فرعية فيها" },
 ];
+
+/**
+ * Android's per-app notification screen, which lists every `PUSH_CHANNELS`
+ * entry with its own sound picker. Falls back to the general app settings page
+ * on a device that refuses the intent.
+ */
+function openNotificationSettings(): void {
+  const pkg = Constants.expoConfig?.android?.package;
+  const intent = pkg
+    ? Linking.sendIntent("android.settings.APP_NOTIFICATION_SETTINGS", [
+        { key: "android.provider.extra.APP_PACKAGE", value: pkg },
+      ])
+    : Promise.reject(new Error("no package name"));
+  intent.catch(() => Linking.openSettings());
+}
 
 /** "الإشعارات" section in `/account` (`design-prompt-group-3.md` §3a-2) — three switches, all on by default. */
 export function NotificationPrefsSection() {
@@ -69,6 +86,31 @@ export function NotificationPrefsSection() {
           </View>
         ))
       )}
+
+      {Platform.OS === "android" ? (
+        <Pressable
+          accessibilityRole="button"
+          onPress={openNotificationSettings}
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            gap: spacing.md,
+            paddingTop: spacing.lg,
+            borderTopWidth: 1,
+            borderTopColor: colors.line,
+          }}
+        >
+          <View style={{ flex: 1, gap: 2 }}>
+            <AppText weight="semibold" size="small">
+              أصوات الإشعارات
+            </AppText>
+            <AppText size="caption" color={colors.muted}>
+              نغمة مختلفة للمهام العاجلة والمواعيد والإسناد والتعليقات، من إعدادات الهاتف
+            </AppText>
+          </View>
+          <Ionicons name="musical-notes-outline" size={20} color={colors.muted} />
+        </Pressable>
+      ) : null}
     </View>
   );
 }

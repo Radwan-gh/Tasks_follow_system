@@ -27,7 +27,7 @@ export class PushSenderService {
 
     const tokens = await this.devices.tokensForTarget(request.target);
     const results = await this.fcm.send(
-      tokens.map((token) => ({ token, title: request.title, body: request.body, data: {} })),
+      tokens.map((token) => ({ token, title: request.title, body: request.body, data: {}, channelId: "general" as const })),
     );
     await this.devices.removeDeadTokens(results.filter((r) => r.unregistered).map((r) => r.token));
 

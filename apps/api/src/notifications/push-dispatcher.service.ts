@@ -1,6 +1,6 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { Cron, CronExpression } from "@nestjs/schedule";
-import { describeNotification, PUSH_TITLE, type NotificationType } from "@app/types";
+import { describeNotification, PUSH_TITLE, pushChannelFor, type NotificationType } from "@app/types";
 import { PrismaService } from "../prisma/prisma.service";
 import { FcmService, type PushMessage } from "./push/fcm.service";
 import { PushDevicesService } from "./push/push-devices.service";
@@ -66,19 +66,29 @@ export class PushDispatcherService {
     }
     if (tokensByUser.size === 0) return;
 
+    // Priority is read now, not snapshotted on the row: the channel should
+    // reflect how urgent the task is at delivery time. A deleted card simply
+    // has no entry and falls back to the type's channel.
+    const cardIds = [...new Set(fresh.flatMap((row) => (row.cardId ? [row.cardId] : [])))];
+    const priorityByCard = new Map(
+      (
+        await this.prisma.card.findMany({ where: { id: { in: cardIds } }, select: { id: true, priority: true } })
+      ).map((card) => [card.id, card.priority]),
+    );
+
     const messages: PushMessage[] = [];
     for (const row of fresh) {
       const tokens = tokensByUser.get(row.userId);
       if (!tokens) continue;
-      const body = describeNotification({
-        type: row.type as NotificationType,
-        payload: row.payload as Record<string, unknown> | null,
-      });
+      const type = row.type as NotificationType;
+      const body = describeNotification({ type, payload: row.payload as Record<string, unknown> | null });
+      const channelId = pushChannelFor(type, row.cardId ? priorityByCard.get(row.cardId) : null);
       for (const token of tokens) {
         messages.push({
           token,
           title: PUSH_TITLE,
           body,
+          channelId,
           // FCM data values must be strings; the app reads `cardId` to deep-link on tap.
           data: {
             notificationId: row.id,

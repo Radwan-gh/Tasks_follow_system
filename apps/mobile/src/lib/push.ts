@@ -2,7 +2,7 @@ import { Platform } from "react-native";
 import Constants, { ExecutionEnvironment } from "expo-constants";
 import * as Device from "expo-device";
 import type * as NotificationsModule from "expo-notifications";
-import type { DevicePlatform } from "@app/types";
+import { PUSH_CHANNELS, type DevicePlatform } from "@app/types";
 import { colors } from "@/theme/tokens";
 
 type Notifications = typeof NotificationsModule;
@@ -38,17 +38,28 @@ notifications?.setNotificationHandler({
 
 /**
  * Android 8+ drops any notification whose channel does not exist, so this must
- * run before the first push arrives. The name is user-visible in Android's
- * system settings, hence Arabic. The id must match the `channelId` the server
- * sends (`apps/api/src/notifications/push/fcm.service.ts`).
+ * run before the first push arrives. One channel per kind of push
+ * (`PUSH_CHANNELS`) so the user can pick a different sound for each in the
+ * system settings — Android keys sound, vibration and importance off the
+ * channel, never the message. Names are user-visible there, hence Arabic. The
+ * server chooses the channel per message (`pushChannelFor`).
+ *
+ * Re-creating an existing channel only updates its name/description; Android
+ * keeps whatever sound the user chose, so this is safe to call on every launch.
  */
-export async function ensureAndroidChannel(): Promise<void> {
+export async function ensureAndroidChannels(): Promise<void> {
   if (Platform.OS !== "android" || !notifications) return;
-  await notifications.setNotificationChannelAsync("default", {
-    name: "الإشعارات",
-    importance: notifications.AndroidImportance.MAX,
-    lightColor: colors.accent,
-  });
+  for (const channel of PUSH_CHANNELS) {
+    await notifications.setNotificationChannelAsync(channel.id, {
+      name: channel.name,
+      description: channel.description,
+      importance: notifications.AndroidImportance.MAX,
+      lightColor: colors.accent,
+    });
+  }
+  // The single channel every push used before the split. Left in place it would
+  // show up in settings as a sound control that no longer does anything.
+  await notifications.deleteNotificationChannelAsync("default").catch(() => undefined);
 }
 
 /**
@@ -63,7 +74,7 @@ export async function registerForPush(): Promise<{ token: string; platform: Devi
   // Simulators and emulators cannot receive push, and asking would just fail.
   if (!Device.isDevice || !notifications) return null;
 
-  await ensureAndroidChannel();
+  await ensureAndroidChannels();
 
   const existing = await notifications.getPermissionsAsync();
   // Only prompt once. If the user has said no, re-asking does nothing on

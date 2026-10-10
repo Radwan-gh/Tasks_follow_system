@@ -3,12 +3,15 @@ import { ConfigService } from "@nestjs/config";
 import { readFileSync } from "node:fs";
 import { cert, initializeApp, type App, type ServiceAccount } from "firebase-admin/app";
 import { getMessaging } from "firebase-admin/messaging";
+import type { PushChannelId } from "@app/types";
 
 export interface PushMessage {
   token: string;
   title: string;
   body: string;
   data: Record<string, string>;
+  /** Android channel — decides the sound/vibration the user configured for this kind of push (`pushChannelFor`). */
+  channelId: PushChannelId;
 }
 
 export interface PushResult {
@@ -101,9 +104,9 @@ export class FcmService implements OnModuleInit {
           android: {
             priority: "high" as const,
             notification: {
-              // Must match the channel created in `apps/mobile/src/lib/push.ts`,
-              // otherwise Android 8+ drops the notification silently.
-              channelId: "default",
+              // One of `PUSH_CHANNELS`, all created by `apps/mobile/src/lib/push.ts`;
+              // an unknown id lands in FCM's generic fallback channel instead.
+              channelId: message.channelId,
             },
           },
         })),
