@@ -216,7 +216,9 @@ represent **responsibility for the work**, not visibility.
   التعطيل بديلًا — انظر [`07-admin.md`](./07-admin.md).
 - **Indexes:** indexes exist on `(boardId, position)` for lists and
   `(listId, position)` for cards to speed up ordered fetches, and on
-  `(boardId, isArchived)` for cards.
+  `(boardId, isArchived)` for cards. `CardActivity` is indexed on `(cardId, createdAt)`
+  for a card's history and on `(actorId, boardId, createdAt)` for "your latest-used boards"
+  in the add-board popup (`GET /cards/:id/board-options`).
 - **A card's `boardId`** must stay in sync with `list.boardId` (its home placement), and
   each `CardBoardLink.listId` must be a list on that link's board. A move may target a list on
   any of the task's boards, never on a board it is not on; changing its boards goes through

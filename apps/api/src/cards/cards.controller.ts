@@ -109,6 +109,15 @@ export class CardsController {
     return this.cards.getBoards(user.id, id);
   }
 
+  @Get("cards/:id/board-options")
+  @ApiOperation({ summary: "Boards the task could be added to, the caller's most recently used first" })
+  @ApiParam({ name: "id", description: "Card ID" })
+  @ApiResponse({ status: 200, schema: zodArrayRef("CardBoardRef") })
+  @ApiResponse({ status: 403, description: "Not the task's owner or an admin" })
+  getBoardOptions(@CurrentUser() user: AuthUser, @Param("id") id: string) {
+    return this.cards.boardOptions(user.id, id);
+  }
+
   @Put("cards/:id/boards")
   @ApiOperation({ summary: "Replace the boards a task is on (task owner or admin)" })
   @ApiParam({ name: "id", description: "Card ID" })

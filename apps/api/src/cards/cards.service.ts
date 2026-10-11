@@ -3,6 +3,7 @@ import {
   RecurrenceRuleSchema,
   describeRecurrence,
   type CardActivityType,
+  type CardBoardRef,
   type CardBoardsResponse,
   type CreateCardRequest,
   type SetCardBoardsRequest,
@@ -467,26 +468,19 @@ export class CardsService {
   }
 
   /**
-   * The «اللوحات» field on the task screen (docs/18-multi-board-tasks.md): the
-   * boards the task is on, whether the caller may change them, and which
-   * boards they could add it to. Readable by anyone who can open the task.
-   *
-   * Changing them is the task owner's (`canManageCard`, through a live board
-   * they can write on) or any ADMIN's, member or not. A non-admin can only
-   * add the task to, or take it off, boards they are a member (not a viewer)
-   * of; an admin can use any live board.
+   * Who may change a task's boards, and through which boards: the task owner
+   * (`canManageCard`, through a live board they can write on) or any ADMIN,
+   * member or not. `writable` is the caller's live boards where they are a
+   * member, not a viewer — the only ones a non-admin can add the task to or
+   * take it off.
    */
-  async getBoards(userId: string, cardId: string): Promise<CardBoardsResponse> {
+  private async boardsAccess(userId: string, cardId: string) {
     const access = await this.boards.assertCardAccess(userId, cardId, "VIEWER");
-    const [isAdmin, onBoards, memberships] = await Promise.all([
+    const [isAdmin, memberships] = await Promise.all([
       this.boards.isActiveAdmin(userId),
-      this.prisma.board.findMany({
-        where: { id: { in: access.boardIds } },
-        select: { id: true, name: true, isArchived: true },
-      }),
       this.prisma.boardMember.findMany({
         where: { userId, role: { not: "VIEWER" }, board: { isArchived: false } },
-        select: { board: { select: { id: true, name: true, isArchived: true } } },
+        select: { board: { select: { id: true, name: true, isArchived: true, updatedAt: true } } },
       }),
     ]);
     const writable = new Map(memberships.map((m) => [m.board.id, m.board]));
@@ -495,7 +489,21 @@ export class CardsService {
       (!access.supervised &&
         canManageCard(userId, access.ownerIds, access.card) &&
         access.boardIds.some((id) => writable.has(id)));
+    return { access, isAdmin, writable, canChange };
+  }
 
+  /**
+   * The «اللوحات» field on the task screen (docs/18-multi-board-tasks.md): the
+   * boards the task is on and whether the caller may change them — readable by
+   * anyone who can open the task. Fetched on every opening, so it stays cheap:
+   * the boards it could join are `boardOptions`, read only when asked for.
+   */
+  async getBoards(userId: string, cardId: string): Promise<CardBoardsResponse> {
+    const { access, isAdmin, writable, canChange } = await this.boardsAccess(userId, cardId);
+    const onBoards = await this.prisma.board.findMany({
+      where: { id: { in: access.boardIds } },
+      select: { id: true, name: true, isArchived: true },
+    });
     const order = new Map(access.boardIds.map((id, i) => [id, i]));
     const boards = onBoards
       .sort((a, b) => order.get(a.id)! - order.get(b.id)!)
@@ -503,18 +511,45 @@ export class CardsService {
         ...board,
         canRemove: canChange && !board.isArchived && (isAdmin || writable.has(board.id)),
       }));
+    return { boards, canChange };
+  }
 
-    let options: { id: string; name: string; isArchived: boolean }[] = [];
-    if (canChange) {
-      options = isAdmin
+  /**
+   * The add-board popup: every board the caller could add the task to — their
+   * own live boards, or every live board for an admin — minus the ones it is
+   * already on, the boards they used most recently first. "Used" is their own
+   * latest activity on the board (creating, moving or editing a task, from
+   * `CardActivity`, indexed on `actorId, boardId`); boards they have not
+   * touched follow, most recently updated first. Only for whoever may change
+   * the task's boards.
+   */
+  async boardOptions(userId: string, cardId: string): Promise<CardBoardRef[]> {
+    const { access, isAdmin, writable, canChange } = await this.boardsAccess(userId, cardId);
+    if (!canChange) throw new ForbiddenException("Only the task's owner or an admin can change its boards");
+
+    const onTask = new Set(access.boardIds);
+    const candidates = (
+      isAdmin
         ? await this.prisma.board.findMany({
-            where: { isArchived: false, id: { notIn: access.boardIds } },
-            select: { id: true, name: true, isArchived: true },
+            where: { isArchived: false },
+            select: { id: true, name: true, isArchived: true, updatedAt: true },
           })
-        : [...writable.values()].filter((board) => !order.has(board.id));
-      options.sort((a, b) => a.name.localeCompare(b.name, "ar"));
-    }
-    return { boards, options, canChange };
+        : [...writable.values()]
+    ).filter((board) => !onTask.has(board.id));
+    if (candidates.length === 0) return [];
+
+    const used = await this.prisma.cardActivity.groupBy({
+      by: ["boardId"],
+      where: { actorId: userId, boardId: { in: candidates.map((b) => b.id) } },
+      _max: { createdAt: true },
+    });
+    const lastUsed = new Map(used.map((row) => [row.boardId, row._max.createdAt?.getTime() ?? 0]));
+    return candidates
+      .sort(
+        (a, b) =>
+          (lastUsed.get(b.id) ?? 0) - (lastUsed.get(a.id) ?? 0) || b.updatedAt.getTime() - a.updatedAt.getTime(),
+      )
+      .map(({ id, name, isArchived }) => ({ id, name, isArchived }));
   }
 
   /**

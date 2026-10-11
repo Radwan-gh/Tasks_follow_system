@@ -288,14 +288,14 @@ export type CardBoardRef = z.infer<typeof CardBoardRefSchema>;
 
 /**
  * `GET /cards/:id/boards` (and `PUT`'s response) — the «اللوحات» field on the
- * task edit screen. `boards` is the task's boards, home first; `options` the
- * boards the caller could add it to. `canChange` is the task owner's or an
- * admin's; a non-admin can only add or remove boards they are a member
- * (not a viewer) of, which `canRemove` reports per board.
+ * task edit screen: the task's boards, home first. `canChange` is the task
+ * owner's or an admin's; a non-admin can only add or remove boards they are a
+ * member (not a viewer) of, which `canRemove` reports per board. The boards it
+ * could be added to come separately, from `GET /cards/:id/board-options`, only
+ * when the add-board popup opens.
  */
 export const CardBoardsResponseSchema = z.object({
   boards: z.array(CardBoardRefSchema.extend({ canRemove: z.boolean() })),
-  options: z.array(CardBoardRefSchema),
   canChange: z.boolean(),
 });
 export type CardBoardsResponse = z.infer<typeof CardBoardsResponseSchema>;

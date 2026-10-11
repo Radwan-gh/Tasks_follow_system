@@ -12,6 +12,7 @@ import {
   BoardDetailSchema,
   BoardOwnerSummarySchema,
   CardSchema,
+  CardBoardRefSchema,
   CardBoardsResponseSchema,
   SubtaskSchema,
   CardActivitySchema,
@@ -90,6 +91,7 @@ registry.register("BoardCategory", BoardCategorySchema);
 registry.register("BoardDetail", BoardDetailSchema);
 registry.register("BoardOwnerSummary", BoardOwnerSummarySchema);
 registry.register("Card", CardSchema);
+registry.register("CardBoardRef", CardBoardRefSchema);
 registry.register("CardBoardsResponse", CardBoardsResponseSchema);
 registry.register("Subtask", SubtaskSchema);
 registry.register("CardActivity", CardActivitySchema);

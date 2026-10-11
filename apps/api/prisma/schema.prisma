@@ -486,6 +486,9 @@ model CardActivity {
   actor User @relation("CardActivityActor", fields: [actorId], references: [id])
 
   @@index([cardId, createdAt])
+  /// "Your latest-used boards" in the add-board popup (`CardsService.boardOptions`):
+  /// the caller's last activity per board, read without scanning everyone's history.
+  @@index([actorId, boardId, createdAt])
 }
 
 model CardMember {
