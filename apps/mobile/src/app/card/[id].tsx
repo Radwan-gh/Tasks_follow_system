@@ -507,7 +507,15 @@ export default function CardDetailScreen() {
           ) : null}
         </View>
 
-        <CardBoardsField cardId={id} readOnly={readOnly} onSaved={(boardIds) => invalidateCard(boardIds)} />
+        <CardBoardsField
+          cardId={id}
+          readOnly={readOnly}
+          onSaved={(boardIds) => {
+            invalidateCard(boardIds);
+            // The boards list counts each board's tasks, and this just changed which boards hold one.
+            void queryClient.invalidateQueries({ queryKey: ["boards"] });
+          }}
+        />
 
         {/* §3c-1 "التكلفة" — collapsed row that opens the amount/note sheet; after saving, a details-only chip. */}
         <Pressable

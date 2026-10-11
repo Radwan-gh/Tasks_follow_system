@@ -360,7 +360,11 @@ export function BoardPage() {
             await api.cards.updateAssignees(openCard.id, updates);
             invalidateBoards(openCard.placements.map((p) => p.boardId));
           }}
-          onBoardsChanged={invalidateBoards}
+          onBoardsChanged={(boardIds) => {
+            invalidateBoards(boardIds);
+            // Each board's task count in the boards list just changed.
+            void queryClient.invalidateQueries({ queryKey: ["boards"], exact: true });
+          }}
         />
       )}
       {creatingCardOpen && (
