@@ -3,7 +3,7 @@ import type { BoardRole, CreateSubtaskRequest, UpdateAssigneesRequest, UpdateSub
 import { generateKeyBetween } from "@app/ordering";
 import { computeMovePosition } from "../common/util/position.util";
 import { PrismaService } from "../prisma/prisma.service";
-import { BoardsService, canAccessCard } from "../boards/boards.service";
+import { BoardsService } from "../boards/boards.service";
 import { NotificationsService } from "../notifications/notifications.service";
 
 @Injectable()
@@ -15,28 +15,17 @@ export class SubtasksService {
   ) {}
 
   /**
-   * Load the parent card and assert the user may access it. Subtasks inherit
-   * the parent card's access: any board member who can open the card may tick
-   * its subtasks — so authorization routes through `assertMembership` + the same
-   * `canAccessCard` predicate used for the card itself, never a bespoke check.
-   * Adding, renaming, reordering, assigning or deleting one edits the task's
-   * details, so those also go through `BoardsService.assertCanManageCard`.
+   * Assert the user may reach the parent card. Subtasks inherit the parent
+   * card's access: any member of one of its boards who can open the card may
+   * tick its subtasks — so authorization routes through
+   * `BoardsService.assertCardAccess`, the same check as the card itself, never
+   * a bespoke one (a supervisor, only ever admitted on a `VIEWER` read, sees
+   * restricted cards too). Every write needs a live board. Adding, renaming,
+   * reordering, assigning or deleting one edits the task's details, so those
+   * also go through `BoardsService.assertCanManageCard`.
    */
-  private async assertCardAccess(userId: string, cardId: string, minRole: BoardRole = "MEMBER") {
-    const card = await this.prisma.card.findUnique({
-      where: { id: cardId },
-      include: { members: { select: { userId: true } }, assignees: { select: { userId: true } } },
-    });
-    if (!card) throw new NotFoundException("Card not found");
-    const access = await this.boards.assertMembership(userId, card.boardId, minRole);
-    const board = await this.prisma.board.findUnique({
-      where: { id: card.boardId },
-      select: { ownerId: true },
-    });
-    if (!board) throw new NotFoundException("Board not found");
-    // A supervisor (only ever admitted on a `VIEWER` read) oversees restricted cards too.
-    if (!access.supervised && !canAccessCard(userId, board.ownerId, card)) throw new NotFoundException("Card not found");
-    return card;
+  private assertCardAccess(userId: string, cardId: string, minRole: BoardRole = "MEMBER") {
+    return this.boards.assertCardAccess(userId, cardId, minRole, { mutable: minRole !== "VIEWER" });
   }
 
   private async loadSubtask(subtaskId: string) {
@@ -59,9 +48,7 @@ export class SubtasksService {
   }
 
   async create(userId: string, cardId: string, input: CreateSubtaskRequest) {
-    const card = await this.assertCardAccess(userId, cardId);
-    await this.boards.assertCanManageCard(userId, card);
-    await this.boards.assertBoardMutable(card.boardId);
+    this.boards.assertCanManageCard(userId, await this.assertCardAccess(userId, cardId));
     const last = await this.prisma.subtask.findFirst({
       where: { cardId },
       orderBy: { position: "desc" },
@@ -77,12 +64,12 @@ export class SubtasksService {
 
   async update(userId: string, subtaskId: string, input: UpdateSubtaskRequest) {
     const subtask = await this.loadSubtask(subtaskId);
-    const card = await this.assertCardAccess(userId, subtask.cardId);
+    const access = await this.assertCardAccess(userId, subtask.cardId);
+    const { card } = access;
     // Ticking (`isDone`) is open to everyone with access; renaming or reordering is the owner's.
     if (input.title !== undefined || input.move !== undefined) {
-      await this.boards.assertCanManageCard(userId, card);
+      this.boards.assertCanManageCard(userId, access);
     }
-    await this.boards.assertBoardMutable(card.boardId);
 
     if (input.move) {
       await this.validateNeighborsBelongToCard(
@@ -124,6 +111,7 @@ export class SubtasksService {
             type: "SUBTASK_COMPLETED",
             cardId: card.id,
             boardId: card.boardId,
+            boardIds: access.boardIds,
             payload: { cardTitle: card.title, subtaskTitle: result.title },
           });
         }
@@ -137,33 +125,29 @@ export class SubtasksService {
 
   async remove(userId: string, subtaskId: string) {
     const subtask = await this.loadSubtask(subtaskId);
-    const card = await this.assertCardAccess(userId, subtask.cardId);
-    await this.boards.assertCanManageCard(userId, card);
-    await this.boards.assertBoardMutable(card.boardId);
+    this.boards.assertCanManageCard(userId, await this.assertCardAccess(userId, subtask.cardId));
     await this.prisma.subtask.delete({ where: { id: subtaskId } });
   }
 
   /**
-   * Replace a subtask's assignee set. Every listed user must be a board member,
-   * and every *newly* added one must be an active account — same rules as
-   * `CardsService.updateAssignees`, including that only the task's owner assigns.
+   * Replace a subtask's assignee set. Every listed user must be a member of one
+   * of the task's boards, and every *newly* added one must be an active account
+   * — same rules as `CardsService.updateAssignees`, including that only the
+   * task's owner assigns.
    */
   async updateAssignees(userId: string, subtaskId: string, input: UpdateAssigneesRequest) {
     const subtask = await this.loadSubtask(subtaskId);
-    const card = await this.assertCardAccess(userId, subtask.cardId);
-    await this.boards.assertCanManageCard(userId, card);
-    await this.boards.assertBoardMutable(card.boardId);
+    const access = await this.assertCardAccess(userId, subtask.cardId);
+    const { card } = access;
+    this.boards.assertCanManageCard(userId, access);
 
     const userIds = [...new Set(input.userIds)];
     const before = new Set(subtask.assignees.map((a) => a.userId));
     if (userIds.length > 0) {
       // §3c-4: viewers never appear in the assignee picker — see `CardsService.updateAssignees`.
-      const members = await this.prisma.boardMember.findMany({
-        where: { boardId: card.boardId, userId: { in: userIds }, role: { not: "VIEWER" } },
-        select: { userId: true, user: { select: { isActive: true } } },
-      });
+      const members = (await this.boards.cardPeople(access.boardIds, userIds)).filter((m) => m.role !== "VIEWER");
       if (members.length !== userIds.length) {
-        throw new BadRequestException("Every assignee must be a member of the board");
+        throw new BadRequestException("Every assignee must be a member of one of the task's boards");
       }
       // Already-assigned people survive a later deactivation; only additions
       // have to be active accounts.
@@ -185,6 +169,7 @@ export class SubtasksService {
           type: "SUBTASK_ASSIGNED",
           cardId: card.id,
           boardId: card.boardId,
+          boardIds: access.boardIds,
           payload: { cardTitle: card.title, subtaskTitle: subtask.title },
         });
       }

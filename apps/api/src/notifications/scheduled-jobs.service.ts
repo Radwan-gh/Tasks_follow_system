@@ -51,6 +51,7 @@ export class ScheduledJobsService {
         id: true,
         title: true,
         boardId: true,
+        boardLinks: { orderBy: { createdAt: "asc" }, select: { boardId: true } },
         dueDate: true,
         dueDateHasTime: true,
         createdById: true,
@@ -84,6 +85,7 @@ export class ScheduledJobsService {
           type,
           cardId: card.id,
           boardId: card.boardId,
+          boardIds: [card.boardId, ...card.boardLinks.map((l) => l.boardId)],
           // Without `cardTitle` this renders as «موعد «مهمة» يقترب» — tolerable in
           // the bell, but the push banner is the only thing the user sees.
           // `dueDate` is the dedupe key above.

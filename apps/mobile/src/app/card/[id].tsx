@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Pressable, RefreshControl, TextInput, View } from "react-native";
 import { useLocalSearchParams, useNavigation, useRouter } from "expo-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -7,8 +7,9 @@ import { AppText } from "@/components/text";
 import { Skeleton } from "@/components/skeleton";
 import { ErrorState } from "@/components/state-views";
 import { ConfirmSheet } from "@/components/confirm-sheet";
-import type { Card, CardPriority, RecurrenceRule } from "@app/types";
+import type { BoardSummary, Card, CardPriority, RecurrenceRule } from "@app/types";
 import { PeopleField } from "@/features/cards/people-field";
+import { CardBoardsField, cardBoardsKey } from "@/features/cards/card-boards-field";
 import { AttachmentsSection } from "@/features/cards/attachments-section";
 import { MoveCardSheet } from "@/features/boards/move-card-sheet";
 import { CostSheet, formatCostChip } from "@/components/cost-sheet";
@@ -19,6 +20,7 @@ import { SubtasksSection } from "@/features/cards/subtasks-section";
 import { HistorySection } from "@/features/cards/history-section";
 import { useAuth } from "@/features/auth/auth-context";
 import { useAutoSavedIds } from "@/lib/use-auto-saved-ids";
+import { contextBoardId, listOnBoard, withMove } from "@/lib/card-boards";
 import { useCurrencySymbol } from "@/lib/currency";
 import { formatDueDate, isOverdue } from "@/lib/date";
 import { formatHijri } from "@/lib/hijri";
@@ -79,8 +81,19 @@ export default function CardDetailScreen() {
     refetchInterval: LIVE_REFETCH_MS,
   });
   // `boardId` comes in the URL from every entry point, so this no longer waits
-  // for the card request — both start together when nothing is cached.
-  const boardId = params.boardId || card.data?.boardId;
+  // for the card request — both start together when nothing is cached. A task
+  // can be on several boards (docs/18-multi-board-tasks.md): the screen works
+  // in the one it was opened from while the task is still on it, else in one
+  // of the user's own — the boards list is only fetched to find that one.
+  const placements = card.data?.placements;
+  const openedBoardGone = !!placements && !placements.some((p) => p.boardId === params.boardId);
+  const myBoards = useQuery({
+    queryKey: ["boards"],
+    queryFn: () => api.boards.list(),
+    enabled: openedBoardGone && placements.length > 1,
+  });
+  const myBoardIds = useMemo(() => (myBoards.data ? new Set(myBoards.data.map((b: BoardSummary) => b.id)) : undefined), [myBoards.data]);
+  const boardId = contextBoardId(params.boardId, placements, myBoardIds);
   const board = useQuery({
     queryKey: boardDetailKey(boardId ?? "", "recent"),
     queryFn: () => api.boards.get(boardId!, recentClosedSince()),
@@ -89,13 +102,25 @@ export default function CardDetailScreen() {
     initialDataUpdatedAt: () => (boardId ? findCachedBoard(queryClient, boardId)?.updatedAt : undefined),
     refetchInterval: LIVE_REFETCH_MS,
   });
+  // Everyone on any of the task's boards — whom it can be assigned to. Read
+  // once per opening, not polled; the board's members stand in until it lands.
+  const people = useQuery({ queryKey: ["cardPeople", id], queryFn: () => api.cards.people(id) });
 
   const [pullRefreshing, setPullRefreshing] = useState(false);
   async function pullToRefresh() {
     setPullRefreshing(true);
     try {
       await Promise.all(
-        [["card", id], ["board", boardId ?? ""], ["subtasks", id], ["cardAttachments", id], ["cardHistory", id], ["cardComments", id]].map(
+        [
+          ["card", id],
+          ["board", boardId ?? ""],
+          ["subtasks", id],
+          ["cardAttachments", id],
+          ["cardHistory", id],
+          ["cardComments", id],
+          cardBoardsKey(id),
+          ["cardPeople", id],
+        ].map(
           (queryKey) => queryClient.refetchQueries({ queryKey, type: "active" }),
         ),
       );
@@ -170,9 +195,11 @@ export default function CardDetailScreen() {
     setSeeded(server);
   }, [card.data, seeded, title, description, dueDate, recurrence, restricted]);
 
-  function invalidateCard() {
+  /** Refreshes the task and every board it shows on (plus `extraBoardIds`, e.g. ones it just left). */
+  function invalidateCard(extraBoardIds: string[] = []) {
     void queryClient.invalidateQueries({ queryKey: ["card", id] });
-    if (card.data) void queryClient.invalidateQueries({ queryKey: ["board", card.data.boardId] });
+    const boardIds = new Set([...(card.data?.placements ?? []).map((p) => p.boardId), ...extraBoardIds]);
+    for (const b of boardIds) void queryClient.invalidateQueries({ queryKey: ["board", b] });
   }
 
   const save = useMutation({
@@ -196,7 +223,7 @@ export default function CardDetailScreen() {
 
   const unrestrict = useMutation({
     mutationFn: () => api.cards.updateAccess(id, { isRestricted: false, memberUserIds: [] }),
-    onSuccess: invalidateCard,
+    onSuccess: () => invalidateCard(),
     onError: () => setRestricted(true),
   });
 
@@ -217,13 +244,13 @@ export default function CardDetailScreen() {
       setPickingStatus(false);
       await queryClient.cancelQueries({ queryKey: ["card", id] });
       const previous = queryClient.getQueryData<Card>(["card", id]);
-      if (previous) queryClient.setQueryData<Card>(["card", id], { ...previous, listId: targetListId });
+      if (previous && boardId) queryClient.setQueryData<Card>(["card", id], withMove(previous, boardId, targetListId));
       return { previous };
     },
     onError: (_err, _targetListId, context) => {
       if (context?.previous) queryClient.setQueryData(["card", id], context.previous);
     },
-    onSettled: invalidateCard,
+    onSettled: () => invalidateCard(),
   });
 
   const updateCost = useMutation({
@@ -252,9 +279,12 @@ export default function CardDetailScreen() {
     );
   }
 
-  const list = board.data.lists.find((l) => l.id === card.data.listId);
-  const creator = board.data.members.find((m) => m.userId === card.data.createdById);
-  const nonImplicitMembers = board.data.members.filter(
+  // The task's column on the board this screen works in — not necessarily its home list.
+  const listId = listOnBoard(card.data, boardId);
+  const list = board.data.lists.find((l) => l.id === listId);
+  const members = people.data ?? board.data.members;
+  const creator = members.find((m) => m.userId === card.data.createdById);
+  const nonImplicitMembers = members.filter(
     (m) => m.userId !== board.data!.ownerId && m.userId !== card.data.createdById,
   );
   const overdue = dueDate ? isOverdue(dueDate) : false;
@@ -267,11 +297,11 @@ export default function CardDetailScreen() {
   // items, attachments and access. Others move it between statuses, tick sub-tasks and comment.
   const canEdit = !isViewer && (user?.id === board.data.ownerId || user?.id === card.data.createdById);
   // §3c-4 "منتقي المسؤولين لا يعرض المشاهدين".
-  const assignableMembers = board.data.members.filter((m) => m.role !== "VIEWER");
+  const assignableMembers = members.filter((m) => m.role !== "VIEWER");
   // An archived board refuses every write (`assertBoardMutable`), so its chips don't offer them.
   const readOnly = isViewer || board.data.isArchived;
   const canSave = dirty && title.trim().length > 0 && !save.isPending;
-  const listIndex = board.data.lists.findIndex((l) => l.id === card.data.listId);
+  const listIndex = board.data.lists.findIndex((l) => l.id === listId);
   const nextListId = board.data.lists[listIndex + 1]?.id ?? null;
   // §3b-4: only the board owner or this task's assignees may move it into «انتهى».
   const canCloseCard = !!user && (board.data.ownerId === user.id || card.data.assigneeIds.includes(user.id));
@@ -465,7 +495,7 @@ export default function CardDetailScreen() {
             </Pressable>
             {creator ? (
               <AppText size="caption" color={colors.muted}>
-                أنشأها {creator.user.displayName} · {board.data.name}
+                أنشأها {creator.user.displayName}
               </AppText>
             ) : null}
           </View>
@@ -476,6 +506,8 @@ export default function CardDetailScreen() {
             </AppText>
           ) : null}
         </View>
+
+        <CardBoardsField cardId={id} readOnly={readOnly} onSaved={(boardIds) => invalidateCard(boardIds)} />
 
         {/* §3c-1 "التكلفة" — collapsed row that opens the amount/note sheet; after saving, a details-only chip. */}
         <Pressable
@@ -523,7 +555,7 @@ export default function CardDetailScreen() {
         <PeopleField
           label="المسؤولون عن المهمة"
           members={assignableMembers}
-          lookup={board.data.members}
+          lookup={members}
           selectedIds={assigneeSelection.ids}
           onChange={assigneeSelection.change}
           saving={assigneeSelection.saving}
@@ -580,7 +612,7 @@ export default function CardDetailScreen() {
               <>
                 <PeopleField
                   members={nonImplicitMembers}
-                  lookup={board.data.members}
+                  lookup={members}
                   selectedIds={accessSelection.ids}
                   onChange={accessSelection.change}
                   saving={accessSelection.saving}
@@ -638,7 +670,7 @@ export default function CardDetailScreen() {
       <MoveCardSheet
         visible={pickingStatus}
         onClose={() => setPickingStatus(false)}
-        card={card.data}
+        card={{ ...card.data, listId }}
         lists={board.data.lists}
         nextListId={nextListId}
         canCloseCard={canCloseCard}

@@ -1,7 +1,7 @@
 import { ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
 import type { Comment, CreateCommentRequest } from "@app/types";
 import { PrismaService } from "../prisma/prisma.service";
-import { BoardsService, canAccessCard } from "../boards/boards.service";
+import { BoardsService } from "../boards/boards.service";
 import { NotificationsService } from "../notifications/notifications.service";
 
 function serialize(row: {
@@ -34,26 +34,9 @@ export class CommentsService {
     private readonly notifications: NotificationsService,
   ) {}
 
-  private async loadCard(cardId: string) {
-    const card = await this.prisma.card.findUnique({
-      where: { id: cardId },
-      include: { members: { select: { userId: true } }, assignees: { select: { userId: true } } },
-    });
-    if (!card) throw new NotFoundException("Card not found");
-    return card;
-  }
-
-  private async boardOwnerId(boardId: string): Promise<string> {
-    const board = await this.prisma.board.findUnique({ where: { id: boardId }, select: { ownerId: true } });
-    if (!board) throw new NotFoundException("Board not found");
-    return board.ownerId;
-  }
-
   async list(userId: string, cardId: string): Promise<Comment[]> {
-    const card = await this.loadCard(cardId);
-    const access = await this.boards.assertMembership(userId, card.boardId, "VIEWER");
-    const ownerId = await this.boardOwnerId(card.boardId);
-    if (!access.supervised && !canAccessCard(userId, ownerId, card)) throw new NotFoundException("Card not found");
+    // Anyone who can open the task, on any of its boards; a supervisor on every card.
+    await this.boards.assertCardAccess(userId, cardId, "VIEWER");
 
     const rows = await this.prisma.comment.findMany({
       where: { cardId },
@@ -64,11 +47,7 @@ export class CommentsService {
   }
 
   async create(userId: string, cardId: string, input: CreateCommentRequest): Promise<Comment> {
-    const card = await this.loadCard(cardId);
-    await this.boards.assertMembership(userId, card.boardId);
-    await this.boards.assertBoardMutable(card.boardId);
-    const ownerId = await this.boardOwnerId(card.boardId);
-    if (!canAccessCard(userId, ownerId, card)) throw new NotFoundException("Card not found");
+    const { card, boardIds } = await this.boards.assertCardAccess(userId, cardId, "MEMBER", { mutable: true });
 
     const comment = await this.prisma.$transaction(async (tx) => {
       const created = await tx.comment.create({
@@ -91,6 +70,7 @@ export class CommentsService {
           type: "COMMENT",
           cardId,
           boardId: card.boardId,
+          boardIds,
           payload: { cardTitle: card.title },
         });
       }

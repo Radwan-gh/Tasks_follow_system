@@ -32,6 +32,7 @@ enum CardActivityType {
   COST_UPDATED
   PRIORITY_CHANGED
   RECURRENCE_CHANGED
+  BOARDS_CHANGED
 }
 
 /// Semantic status of a list, set when a board is seeded from a built-in
@@ -188,6 +189,7 @@ model Board {
   members   BoardMember[]
   lists     List[]
   templates Template[]
+  cardLinks CardBoardLink[]
 
   @@index([ownerId])
   @@index([categoryId])
@@ -238,8 +240,9 @@ model List {
   createdAt      DateTime            @default(now())
   updatedAt      DateTime            @updatedAt
 
-  board Board  @relation(fields: [boardId], references: [id], onDelete: Cascade)
-  cards Card[]
+  board     Board           @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  cards     Card[]
+  cardLinks CardBoardLink[]
 
   @@index([boardId, position])
 }
@@ -285,9 +288,38 @@ model Card {
   subtasks    Subtask[]
   comments    Comment[]
   attachments Attachment[]
+  /// The other boards this task also appears on — see `CardBoardLink`.
+  boardLinks  CardBoardLink[]
 
   @@index([listId, position])
   @@index([boardId, isArchived])
+}
+
+/// "This task also appears on this board" (docs/18-multi-board-tasks.md). The
+/// card's own `boardId`/`listId`/`position` stay its *home* placement — its
+/// status, and the board reports, recurrence and templates use; each link is
+/// one more board it shows on, in the column with the same `statusCategory`.
+/// `listId` is kept in step with the home status inside every move's
+/// transaction (`CardsService.update`), and `position` (`COLLATE "C"`, like
+/// `Card.position`) orders it within that column alongside the column's own
+/// cards. Deleting the card, the board or the list removes the link; deleting
+/// the card's home board re-homes it onto its first link instead
+/// (`BoardsService.remove`).
+model CardBoardLink {
+  id        String   @id @default(cuid())
+  cardId    String
+  boardId   String
+  listId    String
+  position  String
+  createdAt DateTime @default(now())
+
+  card  Card  @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  board Board @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  list  List  @relation(fields: [listId], references: [id], onDelete: Cascade)
+
+  @@unique([cardId, boardId])
+  @@index([listId, position])
+  @@index([boardId])
 }
 
 /// A text comment on a card, merged with `CardActivity` into one timeline by

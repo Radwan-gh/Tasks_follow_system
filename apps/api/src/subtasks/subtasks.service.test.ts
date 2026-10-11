@@ -27,6 +27,7 @@ function setup(subtaskOverrides: { isDone?: boolean; assigneeIds?: string[] } = 
     isRestricted: false,
     members: [],
     assignees: [{ userId: CARD_ASSIGNEE }],
+    boardLinks: [],
   };
   const subtask = {
     id: "st-1",
@@ -58,23 +59,20 @@ function setup(subtaskOverrides: { isDone?: boolean; assigneeIds?: string[] } = 
     },
   };
   const prisma = {
-    card: { findUnique: async () => card },
-    board: { findUnique: async () => ({ ownerId: CREATOR }) },
-    boardMember: {
-      findMany: async ({ where }: { where: { userId: { in: string[] } } }) =>
-        where.userId.in.map((userId) => ({ userId, user: { isActive: true } })),
-    },
     subtask: subtaskModel,
     subtaskAssignee,
     $transaction: async <T>(fn: (tx: unknown) => Promise<T>) => fn({ subtask: subtaskModel, subtaskAssignee }),
   } as unknown as PrismaService;
+  // The card's only board is owned by its creator.
+  const access = { role: "MEMBER", supervised: false, card, boardIds: [card.boardId], ownerIds: [CREATOR] };
   const boards = {
-    assertMembership: async () => ({ supervised: false }),
-    assertBoardMutable: async () => undefined,
+    assertCardAccess: async () => access,
     // Same rule as the real method: assigning and renaming are the task owner's (here, its creator).
-    assertCanManageCard: async (userId: string, c: { createdById: string }) => {
-      if (!canManageCard(userId, CREATOR, c)) throw new ForbiddenException();
+    assertCanManageCard: (userId: string, a: typeof access) => {
+      if (!canManageCard(userId, a.ownerIds, a.card)) throw new ForbiddenException();
     },
+    cardPeople: async (_boardIds: string[], userIds: string[]) =>
+      userIds.map((userId) => ({ userId, role: "MEMBER", user: { isActive: true } })),
   } as unknown as BoardsService;
 
   const sent: Sent[] = [];

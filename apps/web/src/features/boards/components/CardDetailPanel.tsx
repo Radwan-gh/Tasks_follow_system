@@ -5,6 +5,7 @@ import type {
   BoardMember,
   Card,
   CardActivity,
+  CardBoardsResponse,
   CardPriority,
   Comment,
   RecurrenceRule,
@@ -22,6 +23,7 @@ import {
 } from "../../../lib/attachment-url";
 import { useCurrencySymbol } from "../../../lib/use-app-settings";
 import { useAutoSavedIds } from "../../../lib/use-auto-saved-ids";
+import { boardRows, type BoardRow } from "../../../lib/card-boards";
 import { useDismissableLayer } from "../../../lib/use-dismissable-layer";
 import { UserTypeahead } from "./MemberPicker";
 
@@ -36,6 +38,8 @@ interface CardDetailPanelProps {
   onSave: (updates: UpdateCardRequest) => Promise<void>;
   onSaveAccess: (updates: UpdateCardAccessRequest) => Promise<void>;
   onSaveAssignees: (updates: UpdateAssigneesRequest) => Promise<void>;
+  /** After the task's boards change — every board it was or is now on, to refresh. */
+  onBoardsChanged: (boardIds: string[]) => void;
 }
 
 const PRIORITY_LABEL: Record<CardPriority, string> = { LOW: "منخفضة", NORMAL: "عادية", URGENT: "عاجل" };
@@ -64,6 +68,7 @@ export function CardDetailPanel({
   onSave,
   onSaveAccess,
   onSaveAssignees,
+  onBoardsChanged,
 }: CardDetailPanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const currencySymbol = useCurrencySymbol();
@@ -92,8 +97,12 @@ export function CardDetailPanel({
   // People pickers save on every add/remove — no save buttons.
   const access = useAutoSavedIds(card.memberIds, (memberUserIds) => onSaveAccess({ isRestricted: true, memberUserIds }));
   const assignees = useAutoSavedIds(card.assigneeIds, (userIds) => onSaveAssignees({ userIds }));
+  // A task on several boards can go to anyone on any of them (docs/18-multi-board-tasks.md);
+  // this board's members stand in until that list arrives.
+  const people = useQuery({ queryKey: ["cardPeople", card.id], queryFn: () => api.cards.people(card.id) });
+  const members = people.data ?? boardMembers;
   // VIEWERs are read-only and the server refuses to assign them, so they are never suggested.
-  const assignableMembers = useMemo(() => boardMembers.filter((m) => m.role !== "VIEWER"), [boardMembers]);
+  const assignableMembers = useMemo(() => members.filter((m) => m.role !== "VIEWER"), [members]);
 
   const dirty =
     title !== card.title ||
@@ -181,6 +190,8 @@ export function CardDetailPanel({
           disabled={!canEdit}
           className="w-full border-b border-line pb-1 text-lg font-bold text-ink focus:outline-none disabled:bg-transparent"
         />
+
+        <CardBoardsSection cardId={card.id} readOnly={readOnly} onSaved={onBoardsChanged} />
 
         {/* Priority — 3-way toggle, only URGENT gets a face indicator elsewhere. */}
         <div className="flex items-center gap-1.5">
@@ -346,7 +357,7 @@ export function CardDetailPanel({
           <p className="text-sm font-semibold text-ink">المسؤولون عن المهمة</p>
           {!canEdit ? (
             <p className="text-sm text-ink/70">
-              {boardMembers
+              {members
                 .filter((m) => assignees.ids.includes(m.userId))
                 .map((m) => m.user.displayName)
                 .join("، ") || "لا يوجد مسؤولون."}
@@ -354,6 +365,7 @@ export function CardDetailPanel({
           ) : (
             <UserTypeahead
               members={assignableMembers}
+              lookup={members}
               selectedIds={assignees.ids}
               onChange={assignees.change}
               saving={assignees.saving}
@@ -380,9 +392,8 @@ export function CardDetailPanel({
                   مالك اللوحة وأنت (المُنشئ) تملكان الوصول دائمًا. اختر من يمكنه أيضًا رؤية هذه المهمة:
                 </p>
                 <UserTypeahead
-                  members={boardMembers.filter(
-                    (m) => m.userId !== boardOwnerId && m.userId !== card.createdById,
-                  )}
+                  members={members.filter((m) => m.userId !== boardOwnerId && m.userId !== card.createdById)}
+                  lookup={members}
                   selectedIds={access.ids}
                   onChange={access.change}
                   saving={access.saving}
@@ -406,6 +417,131 @@ export function CardDetailPanel({
 
         <HistoryAndComments cardId={card.id} currentUserId={currentUserId} readOnly={readOnly} />
       </div>
+    </div>
+  );
+}
+
+const NO_IDS: string[] = [];
+/** Above this many boards, the checklist gets a search box. */
+const BOARD_SEARCH_THRESHOLD = 6;
+const BOARD_LOCK_REASON: Record<NonNullable<BoardRow["lock"]>, string> = {
+  notMember: "لست عضوًا فيها",
+  archived: "لوحة مؤرشفة",
+  lastOfMine: "تبقى المهمة في لوحة واحدة لك على الأقل",
+};
+
+/**
+ * «اللوحات» (docs/18-multi-board-tasks.md): every board the task is on, and —
+ * for its owner or an admin — «تغيير», a checklist of boards that saves on
+ * every tick, like the people pickers. One task, one status: on a board it is
+ * added to it shows in the column with the same status.
+ */
+function CardBoardsSection({
+  cardId,
+  readOnly,
+  onSaved,
+}: {
+  cardId: string;
+  readOnly: boolean;
+  onSaved: (boardIds: string[]) => void;
+}) {
+  const queryClient = useQueryClient();
+  const boards = useQuery({ queryKey: ["cardBoards", cardId], queryFn: () => api.cards.boards(cardId) });
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const serverIds = useMemo(() => boards.data?.boards.map((b) => b.id) ?? NO_IDS, [boards.data]);
+  const selection = useAutoSavedIds(serverIds, async (boardIds) => {
+    const before = queryClient.getQueryData<CardBoardsResponse>(["cardBoards", cardId])?.boards.map((b) => b.id) ?? [];
+    const result = await api.cards.setBoards(cardId, { boardIds });
+    queryClient.setQueryData(["cardBoards", cardId], result);
+    onSaved([...new Set([...before, ...boardIds])]);
+  });
+
+  if (!boards.data) return null;
+  const canChange = boards.data.canChange && !readOnly;
+  const names = new Map([...boards.data.boards, ...boards.data.options].map((b) => [b.id, b.name]));
+  const rows = boardRows(boards.data, selection.ids);
+  const term = search.trim().toLowerCase();
+  // Ticked boards always stay in view, so a search never hides where the task is.
+  const visibleRows = term ? rows.filter((r) => r.checked || r.name.toLowerCase().includes(term)) : rows;
+
+  function toggle(row: BoardRow) {
+    if (row.lock) return;
+    selection.change(row.checked ? selection.ids.filter((id) => id !== row.id) : [...selection.ids, row.id]);
+  }
+
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-medium text-muted">اللوحات</span>
+        {canChange && (
+          <button
+            type="button"
+            aria-expanded={open}
+            onClick={() => setOpen((o) => !o)}
+            className="rounded px-1.5 text-xs font-semibold text-accent hover:bg-accent-soft"
+          >
+            {open ? "تم" : "تغيير"}
+          </button>
+        )}
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        {selection.ids
+          .filter((id) => names.has(id))
+          .map((id) => (
+            <span key={id} className="rounded-full bg-canvas px-2.5 py-1 text-xs font-semibold text-ink">
+              {names.get(id)}
+            </span>
+          ))}
+      </div>
+      {open && (
+        <div className="space-y-1 rounded-field border border-line p-2">
+          <p className="px-1 pb-1 text-[11px] text-muted">
+            تظهر المهمة في كل لوحة تختارها بالحالة نفسها، ونقلها في إحداها ينقلها في الجميع.
+          </p>
+          {rows.length > BOARD_SEARCH_THRESHOLD && (
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="ابحث عن لوحة"
+              aria-label="ابحث عن لوحة"
+              className="w-full rounded-field border border-line px-2 py-1 text-sm"
+            />
+          )}
+          {visibleRows.map((row) => (
+            <label
+              key={row.id}
+              className={`flex items-start gap-2 rounded-field px-2 py-1.5 text-sm ${row.checked ? "bg-accent-soft" : ""} ${
+                row.lock ? "cursor-not-allowed" : "cursor-pointer hover:bg-canvas"
+              }`}
+            >
+              <input
+                type="checkbox"
+                className="mt-1"
+                checked={row.checked}
+                disabled={!!row.lock}
+                onChange={() => toggle(row)}
+              />
+              <span className="min-w-0">
+                <span className={`block truncate ${row.checked ? "font-semibold text-ink" : "text-ink/80"}`}>{row.name}</span>
+                {row.lock && row.checked && (
+                  <span className="block text-[11px] text-muted">{BOARD_LOCK_REASON[row.lock]}</span>
+                )}
+              </span>
+            </label>
+          ))}
+          {boards.data.options.length === 0 && (
+            <p className="px-1 text-[11px] text-muted">لا توجد لوحات أخرى يمكنك إضافة المهمة إليها.</p>
+          )}
+        </div>
+      )}
+      {selection.saving ? (
+        <p className="text-[11px] text-muted">جارٍ الحفظ…</p>
+      ) : selection.failed ? (
+        <p role="alert" className="text-[11px] text-alert">
+          تعذّر الحفظ، فأُعيدت اللوحات إلى آخر حالة محفوظة.
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -850,6 +986,8 @@ function describeActivity(activity: CardActivity): string {
     case "RECURRENCE_CHANGED":
       if (!toValue) return "أوقف تكرار المهمة";
       return fromValue ? `غيّر التكرار من «${fromValue}» إلى «${toValue}»` : `عيّن التكرار «${toValue}»`;
+    case "BOARDS_CHANGED":
+      return `غيّر لوحات المهمة من «${fromValue ?? "؟"}» إلى «${toValue ?? "؟"}»`;
     default:
       return "حدّث البطاقة";
   }

@@ -201,8 +201,10 @@
 1. **تعديل الحقول فقط** (عنوان/وصف/تاريخ استحقاق/أرشفة) دون نقل.
 2. **النقل داخل نفس القائمة** عبر `move: { beforeId, afterId }`.
 3. **النقل إلى قائمة أخرى** عبر `targetListId`:
-   - يُتحقّق أن القائمة الهدف **تنتمي لنفس اللوحة**؛ يُرفض النقل بين لوحتين مختلفتين
-     ("Cannot move a card to a list on a different board").
+   - يُتحقّق أن القائمة الهدف في **إحدى لوحات المهمة** (المهمة قد تكون في أكثر من لوحة)،
+     وإلا يُرفض ("Cannot move a card to a list on a board it is not on"). الحالة واحدة في كل
+     لوحاتها: تنتقل في كل لوحة أخرى إلى القائمة ذات `statusCategory` نفسها، في نهايتها —
+     انظر [`18-multi-board-tasks.md`](./18-multi-board-tasks.md).
    - **النقل إلى قائمة فئتها `CLOSED` («انتهى»)** مقصور على **مالك اللوحة** أو
      **المسؤولين عن البطاقة نفسها** (`card.assignees`) — تعديل لقرار سابق كان متاحًا
      لأي عضو، انظر `design-prompt-group-3.md` §3b-4 — حتى منشئ البطاقة لا يغلقها إن لم
@@ -248,6 +250,7 @@
 | `PRIORITY_CHANGED` | رمزا الأولوية (`LOW`/`NORMAL`/`URGENT`) |
 | `RECURRENCE_CHANGED` | ملخّص القاعدة بالعربية (`describeRecurrence`: «يوميًا»، «أسبوعيًا: الأحد، الخميس»، «شهريًا: يوم 15»)، أو `null` بلا تكرار |
 | `COST_UPDATED` | المبلغان كسلسلة نصّية |
+| `BOARDS_CHANGED` | أسماء لوحات المهمة قبل التغيير وبعده، مفصولة بـ «، » (`PUT /cards/:id/boards`، انظر [`18-multi-board-tasks.md`](./18-multi-board-tasks.md)) |
 | `ARCHIVED` / `UNARCHIVED` | — |
 | `ASSIGNED` / `UNASSIGNED` | أسماء المُسنَدين بعد التغيير (انظر [`10-subtasks-and-assignment.md`](./10-subtasks-and-assignment.md)) |
 

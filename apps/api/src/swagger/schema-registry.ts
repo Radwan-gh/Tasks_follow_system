@@ -12,6 +12,7 @@ import {
   BoardDetailSchema,
   BoardOwnerSummarySchema,
   CardSchema,
+  CardBoardsResponseSchema,
   SubtaskSchema,
   CardActivitySchema,
   ListSchema,
@@ -45,6 +46,7 @@ import {
   CreateCardRequestSchema,
   UpdateCardRequestSchema,
   UpdateCardAccessRequestSchema,
+  SetCardBoardsRequestSchema,
   CreateSubtaskRequestSchema,
   UpdateSubtaskRequestSchema,
   UpdateAssigneesRequestSchema,
@@ -88,6 +90,7 @@ registry.register("BoardCategory", BoardCategorySchema);
 registry.register("BoardDetail", BoardDetailSchema);
 registry.register("BoardOwnerSummary", BoardOwnerSummarySchema);
 registry.register("Card", CardSchema);
+registry.register("CardBoardsResponse", CardBoardsResponseSchema);
 registry.register("Subtask", SubtaskSchema);
 registry.register("CardActivity", CardActivitySchema);
 registry.register("List", ListSchema);
@@ -123,6 +126,7 @@ registry.register("UpdateListRequest", UpdateListRequestSchema);
 registry.register("CreateCardRequest", CreateCardRequestSchema);
 registry.register("UpdateCardRequest", UpdateCardRequestSchema);
 registry.register("UpdateCardAccessRequest", UpdateCardAccessRequestSchema);
+registry.register("SetCardBoardsRequest", SetCardBoardsRequestSchema);
 registry.register("CreateSubtaskRequest", CreateSubtaskRequestSchema);
 registry.register("UpdateSubtaskRequest", UpdateSubtaskRequestSchema);
 registry.register("UpdateAssigneesRequest", UpdateAssigneesRequestSchema);

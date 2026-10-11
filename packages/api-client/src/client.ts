@@ -19,6 +19,7 @@ import type {
   BoardCategory,
   Card,
   CardActivity,
+  CardBoardsResponse,
   CompletedTasksReport,
   CreateBoardRequest,
   CreateBoardCategoryRequest,
@@ -40,6 +41,7 @@ import type {
   RegisterPushDeviceRequest,
   ReportOverview,
   SaveCardAsTemplateRequest,
+  SetCardBoardsRequest,
   SendPushRequest,
   SendPushResponse,
   Subtask,
@@ -307,6 +309,12 @@ export function createApiClient({ baseUrl, storage, onUnauthorized }: ApiClientO
         request<Card>(`/cards/${id}/access`, { method: "PATCH", body: JSON.stringify(body) }),
       updateAssignees: (id: string, body: UpdateAssigneesRequest) =>
         request<Card>(`/cards/${id}/assignees`, { method: "PATCH", body: JSON.stringify(body) }),
+      /** The «اللوحات» field: the boards the task is on, and the ones the caller may add. */
+      boards: (id: string) => request<CardBoardsResponse>(`/cards/${id}/boards`),
+      setBoards: (id: string, body: SetCardBoardsRequest) =>
+        request<CardBoardsResponse>(`/cards/${id}/boards`, { method: "PUT", body: JSON.stringify(body) }),
+      /** Everyone on any of the task's boards — who its assignee and access pickers offer. */
+      people: (id: string) => request<BoardMember[]>(`/cards/${id}/people`),
       remove: (id: string) => request<void>(`/cards/${id}`, { method: "DELETE" }),
       saveAsTemplate: (id: string, body: SaveCardAsTemplateRequest) =>
         request<Template>(`/cards/${id}/save-as-template`, { method: "POST", body: JSON.stringify(body) }),

@@ -228,8 +228,22 @@ export const BoardSummarySchema = z.object({
 });
 export type BoardSummary = z.infer<typeof BoardSummarySchema>;
 
+/**
+ * Where a task sits on one of its boards (docs/18-multi-board-tasks.md): the
+ * board and the list — the column — it shows in there.
+ */
+export const CardPlacementSchema = z.object({
+  boardId: z.string(),
+  listId: z.string(),
+});
+export type CardPlacement = z.infer<typeof CardPlacementSchema>;
+
 export const CardSchema = z.object({
   id: z.string(),
+  // The task's *home* placement: the board it belongs to and the list that is
+  // its status — except inside `GET /boards/:id`, where `listId` and
+  // `position` are the card's placement on *that* board (a task shared onto it
+  // from another board shows in the column with the same status).
   listId: z.string(),
   boardId: z.string(),
   title: z.string().min(1).max(300),
@@ -255,10 +269,36 @@ export const CardSchema = z.object({
   costAmount: z.string().nullable(),
   costNote: z.string().max(500).nullable(),
   recurrence: RecurrenceRuleSchema.nullable(),
+  // Every board the task is on, home board first, each with its column there.
+  // One status shared by all of them — moving the task on any board moves it
+  // on every other. Changed with `PUT /cards/:id/boards`.
+  placements: z.array(CardPlacementSchema),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 });
 export type Card = z.infer<typeof CardSchema>;
+
+/** A board as the task-boards field lists it. */
+export const CardBoardRefSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  isArchived: z.boolean(),
+});
+export type CardBoardRef = z.infer<typeof CardBoardRefSchema>;
+
+/**
+ * `GET /cards/:id/boards` (and `PUT`'s response) — the «اللوحات» field on the
+ * task edit screen. `boards` is the task's boards, home first; `options` the
+ * boards the caller could add it to. `canChange` is the task owner's or an
+ * admin's; a non-admin can only add or remove boards they are a member
+ * (not a viewer) of, which `canRemove` reports per board.
+ */
+export const CardBoardsResponseSchema = z.object({
+  boards: z.array(CardBoardRefSchema.extend({ canRemove: z.boolean() })),
+  options: z.array(CardBoardRefSchema),
+  canChange: z.boolean(),
+});
+export type CardBoardsResponse = z.infer<typeof CardBoardsResponseSchema>;
 
 /**
  * A card as `GET /boards/:id` returns it inside its list: the card plus the
@@ -314,6 +354,8 @@ export const CardActivityType = z.enum([
   "PRIORITY_CHANGED",
   // `fromValue`/`toValue` are `describeRecurrence` summaries, null when the card doesn't repeat.
   "RECURRENCE_CHANGED",
+  // The boards the task is on: `fromValue`/`toValue` are the board names before/after, joined with «، ».
+  "BOARDS_CHANGED",
 ]);
 export type CardActivityType = z.infer<typeof CardActivityType>;
 

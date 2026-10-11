@@ -33,6 +33,7 @@ function setup() {
     updatedAt: new Date(),
     members: [],
     assignees: [{ userId: ASSIGNEE }],
+    boardLinks: [],
   };
   const subtask = {
     id: "st-1",
@@ -64,12 +65,8 @@ function setup() {
         writes.push("card.delete");
       },
     },
-    board: { findUnique: async () => ({ ownerId: BOARD_OWNER }) },
     list: { findUnique: async ({ where }: { where: { id: string } }) => lists[where.id] ?? null },
-    boardMember: {
-      findMany: async ({ where }: { where: { userId: { in: string[] } } }) =>
-        where.userId.in.map((userId) => ({ userId, user: { displayName: userId, isActive: true } })),
-    },
+    cardBoardLink: { findFirst: async () => null },
     cardActivity: { create: async () => undefined },
     cardAssignee: { deleteMany: async () => undefined, createMany: async () => undefined },
     subtask: {
@@ -90,13 +87,16 @@ function setup() {
     subtaskAssignee: { deleteMany: async () => undefined, createMany: async () => undefined },
   };
   const prisma = { ...db, $transaction: async <T>(fn: (tx: unknown) => Promise<T>) => fn(db) } as unknown as PrismaService;
+  // A card on one board, which every caller here is a member of.
+  const access = { role: "MEMBER", supervised: false, card, boardIds: [card.boardId], ownerIds: [BOARD_OWNER] };
   const boards = {
-    assertMembership: async () => ({ role: "MEMBER", supervised: false }),
-    assertBoardMutable: async () => undefined,
-    // Same rule as the real method, against the in-memory board.
-    assertCanManageCard: async (userId: string, c: { createdById: string }) => {
-      if (!canManageCard(userId, BOARD_OWNER, c)) throw new ForbiddenException();
+    assertCardAccess: async () => access,
+    // Same rule as the real method.
+    assertCanManageCard: (userId: string, a: typeof access) => {
+      if (!canManageCard(userId, a.ownerIds, a.card)) throw new ForbiddenException();
     },
+    cardPeople: async (_boardIds: string[], userIds: string[]) =>
+      userIds.map((userId) => ({ userId, role: "MEMBER", user: { displayName: userId, isActive: true } })),
   } as unknown as BoardsService;
   const notifications = { notify: async () => undefined } as unknown as NotificationsService;
 

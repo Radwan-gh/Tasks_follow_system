@@ -68,8 +68,11 @@ PATCH /subtasks/:id/assignees   { userIds: string[] }   (استبدال كامل
 
 - كل عملية إسناد هي **استبدال كامل** لمجموعة المُسنَدين (تُحذف القديمة وتُكتب الجديدة
   داخل معاملة) — على نمط `PATCH /cards/:id/access`.
-- **كل مُسنَد يجب أن يكون عضوًا في اللوحة وليس بدور `VIEWER`**؛ إن وُجد معرّف لغير عضو
-  (أو لعضو مشاهد) يُرفض الطلب بـ "Every assignee must be a member of the board" —
+- **كل مُسنَد يجب أن يكون عضوًا في إحدى لوحات المهمة وليس بدور `VIEWER`** (المهمة قد تكون
+  في أكثر من لوحة، ويُعتمد أعلى دور للشخص بينها — `BoardsService.cardPeople`، وهو أيضًا ما
+  يُعيده `GET /cards/:id/people` لمنتقيات الواجهتين، انظر
+  [`18-multi-board-tasks.md`](./18-multi-board-tasks.md))؛ إن وُجد معرّف لغير عضو (أو لعضو
+  مشاهد) يُرفض الطلب بـ "Every assignee must be a member of one of the task's boards" —
   §3c-4 "منتقي المسؤولين لا يعرض المشاهدين"، مطبَّق خادميًا عبر فلتر `role: { not:
   "VIEWER" }` عند التحقّق، لا فقط إخفاءً في الواجهة. انظر
   [`04-authorization.md`](./04-authorization.md).

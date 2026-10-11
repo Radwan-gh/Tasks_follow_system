@@ -42,6 +42,25 @@ BoardsService.assertMembership(userId, boardId, minRole = "MEMBER")
 تُفوّضان التحقّق إلى `assertMembership`. **أي مورد جديد مرتبط بلوحة يجب أن يتبع نفس
 النمط بدلًا من تكرار منطق الأدوار.**
 
+### على مستوى المهمة: `assertCardAccess`
+
+المهمة قد تكون في **أكثر من لوحة** (انظر [`18-multi-board-tasks.md`](./18-multi-board-tasks.md))،
+فكل ما يخصّ بطاقةً — البطاقة نفسها وتعليقاتها ومرفقاتها ومهامها الفرعية — يمرّ عبر:
+
+```
+BoardsService.assertCardAccess(userId, cardId, minRole = "MEMBER", { mutable, requireCardAccess })
+```
+
+- العضوية في **أي** لوحة من لوحات المهمة تكفي، والمعتمد **أعلى دور** بينها
+  (`resolveCardRole`). المسار الاحتياطي للمتابع وقاعدة «العضوية الحقيقية تغلب» كما في
+  `assertMembership`.
+- `mutable` (كل كتابة) يتطلّب أن تكون إحدى اللوحات التي تمنح الدور المطلوب غير مؤرشفة،
+  وهو بديل `assertBoardMutable` على مستوى المهمة.
+- يُعيد `{ role, supervised, card, boardIds, ownerIds }`. `ownerIds` ملّاك كل لوحاتها:
+  **«مالك اللوحة» في قواعد المهمة هو مالك أيٍّ من لوحاتها.**
+- البطاقة المقيّدة التي لا يراها الطالب تُعاد 404، ما لم يكن متابعًا أو طُلب
+  `requireCardAccess: false` (حذف مرفق رفعه صاحبه).
+
 ### مصفوفة الصلاحيات على اللوحة
 
 | العملية | الدور المطلوب |
@@ -112,24 +131,28 @@ BoardsService.assertMembership(userId, boardId, minRole = "MEMBER")
 هذه القيود تُفحَص **بعد** `assertMembership`، لا بدلًا منه — عضوية كافية للقراءة، لكن
 غير كافية وحدها لهذه العمليات تحديدًا:
 
-- **ملكية المهمة (`canManageCard`):** «مالك المهمة» هو **مالك اللوحة** أو **منشئ البطاقة**
-  (`createdById`) — نفس الثنائي الذي يملك أصلًا وصولًا دائمًا للبطاقة المقيّدة ويدير
+- **ملكية المهمة (`canManageCard`):** «مالك المهمة» هو **مالك أيٍّ من لوحاتها** أو **منشئ
+  البطاقة** (`createdById`) — نفس الثنائي الذي يملك أصلًا وصولًا دائمًا للبطاقة المقيّدة ويدير
   تقييدها. هو وحده يعدّل تفاصيل المهمة: حقول `PATCH /cards/:id` عدا النقل (`targetListId`/
   `move`)، و`PATCH /cards/:id/assignees`، و`PATCH /cards/:id/access`، و`DELETE /cards/:id`،
   وإضافة مرفق، وإضافة مهمة فرعية أو إعادة تسميتها أو ترتيبها أو إسنادها أو حذفها. أي عضو
   آخر يستطيع فتح البطاقة يملك **نقلها بين الحالات** (مع قاعدة «انتهى» أدناه)، و**تحديد مهامها
   الفرعية كمنجزة**، و**التعليق** (وحذف مرفق رفعه هو سابقًا)؛ وغير ذلك يُرفض بـ 403. طلب
   نقل يحمل معه حقلًا آخر من غير المالك يُرفض **كاملًا** — لا تطبيق جزئي. التحقّق في الخادم: `CardsService` و
-  `AttachmentsService` يستدعيان `canManageCard` مباشرة (لأنهما حمّلا `ownerId` أصلًا)، و
-  `SubtasksService` يمرّ عبر `BoardsService.assertCanManageCard`. وفي `PATCH /subtasks/:id`،
-  `isDone` وحده متاح للجميع، بينما `title` أو `move` يتطلّبان المالك.
+  `AttachmentsService` يستدعيان `canManageCard` مباشرة بـ `ownerIds` التي أعادها
+  `assertCardAccess`، و`SubtasksService` يمرّ عبر `BoardsService.assertCanManageCard`. وفي
+  `PATCH /subtasks/:id`، `isDone` وحده متاح للجميع، بينما `title` أو `move` يتطلّبان المالك.
+- **تغيير لوحات المهمة (`PUT /cards/:id/boards`):** لمالك المهمة، أو **لأي ADMIN** حتى دون
+  عضوية في لوحاتها — المسار الوحيد الذي يكتب فيه مدير النظام دون `assertMembership`. غير
+  المدير لا يضيف المهمة إلى لوحة ولا يزيلها منها إلا إن كان عضوًا (لا مشاهدًا) فيها. انظر
+  [`18-multi-board-tasks.md`](./18-multi-board-tasks.md).
 
 - **لوحة مؤرشفة = للقراءة فقط:** `BoardsService.assertBoardMutable(boardId)` تُلقي 403
   عند أي تعديل (إنشاء/تعديل قائمة أو بطاقة أو مهمة فرعية، أو إضافة تعليق/مرفق) على لوحة
   `isArchived: true`، بمعزل عن دور الطالب — حتى OWNER لا يعدّل محتوى لوحة مؤرشفة، عليه
   استعادتها أولًا (`PATCH /boards/:id { isArchived: false }`). تفاصيل كاملة في
   [`05-boards-lists-cards.md`](./05-boards-lists-cards.md).
-- **النقل إلى «انتهى» (`CLOSED`):** مقصور على **مالك اللوحة** أو **المسؤولين عن البطاقة
+- **النقل إلى «انتهى» (`CLOSED`):** مقصور على **مالك أيٍّ من لوحات المهمة** أو **المسؤولين عن البطاقة
   نفسها** (`card.assignees`) — حتى منشئها لا يغلقها إن لم يكن مُسنَدًا إليها — لا كل الأعضاء:
   الاستثناء الوحيد من «النقل متاح لكل عضو». انظر [`05-boards-lists-cards.md`](./05-boards-lists-cards.md).
 
