@@ -20,11 +20,13 @@ import {
   UpdateBoardRequestSchema,
   UpdateCardAccessRequestSchema,
   UpdateCardRequestSchema,
+  SetCardBoardsRequestSchema,
 } from "@app/types";
 import { z } from "zod";
 import { BoardCategoriesService } from "../board-categories/board-categories.service";
 import { BoardsService } from "../boards/boards.service";
 import { AttachmentsService } from "../cards/attachments.service";
+import { cardIdsInColumn } from "../cards/card-placement.util";
 import { CardsService } from "../cards/cards.service";
 import { CommentsService } from "../cards/comments.service";
 import { MyTasksService } from "../my-tasks/my-tasks.service";
@@ -37,11 +39,13 @@ import { UploadLinkService } from "./uploads/upload-link.service";
 
 const SERVER_INSTRUCTIONS = `غِراس (Ghiras) is a Kanban task tracker: boards contain lists, lists contain cards (tasks).
 A card's status IS the list it sits in — to change a task's status, move the card with move_card.
+A task can be on several boards at once (set_card_boards) with one shared status: on each board it sits in the column with the same status, and moving it on any of its boards moves it on all of them. get_card lists its boards.
 Every board starts with five status lists (جديد/NEW, جاهز/READY, قيد التنفيذ/IN_PROGRESS, منجز/DONE, انتهى/CLOSED); lists cannot be created here.
 People are shown by displayName with username as their unique handle; tools take user ids, which get_board lists under members.
 All actions run as the signed-in user with their own board permissions.
 Only a board's owner can archive it, delete it (archive first) or manage its members; any other member can leave it with leave_board.
-Only a card's owner — the board owner or the card's creator — can edit its details (update_card), set its assignees or access, attach files, or add, rename, reorder, assign and delete its subtasks. Every other member can still change its status with move_card, tick subtasks done (update_subtask isDone) and comment. Moving a card into the CLOSED list is limited to the board owner and the card's assignees (the creator included).
+Only a card's owner — the owner of any board it is on, or the card's creator — can edit its details (update_card), set its assignees or access, attach files, or add, rename, reorder, assign and delete its subtasks. Every other member can still change its status with move_card, tick subtasks done (update_subtask isDone) and comment. Moving a card into the CLOSED list is limited to the board owner and the card's assignees (the creator included).
+Changing which boards a task is on is its owner's, or any admin's; a non-admin can only add it to or remove it from boards they are a member of.
 A supervisor (an admin, or a user granted «الاطلاع على كل اللوحات») can also read every board and task through list_all_boards and search_all_tasks, and open any board or card read-only — they still cannot change boards they are not a member of.`;
 
 /**
@@ -269,18 +273,19 @@ export class McpServerFactory {
       "get_card",
       {
         title: "Get card",
-        description: "Everything about one card: all fields, its list (status), assignees, access, subtasks, comments and attachments (with ids and links — open one with read_attachment).",
+        description: "Everything about one card: all fields, its list (status), the boards it is on, assignees, access, subtasks, comments and attachments (with ids and links — open one with read_attachment).",
         inputSchema: { cardId: z.string() },
         annotations: readOnly,
       },
       ({ cardId }) =>
         run(async () => {
           const card = await this.cards.getDetail(userId, cardId);
-          const [subtasks, comments, attachments, list] = await Promise.all([
+          const [subtasks, comments, attachments, list, boards] = await Promise.all([
             this.subtasks.list(userId, cardId),
             this.comments.list(userId, cardId),
             this.attachments.list(userId, cardId),
             this.prisma.list.findUnique({ where: { id: card.listId }, select: { name: true, statusCategory: true } }),
+            this.cards.getBoards(userId, cardId),
           ]);
           const people = await this.peopleById([
             ...card.assigneeIds,
@@ -291,6 +296,11 @@ export class McpServerFactory {
           return {
             ...card,
             list: { id: card.listId, name: list?.name, status: list?.statusCategory },
+            boards: boards.boards.map((b) => ({
+              id: b.id,
+              name: b.name,
+              listId: card.placements.find((p) => p.boardId === b.id)?.listId,
+            })),
             createdBy: people.get(card.createdById),
             assignees: card.assigneeIds.map((id) => people.get(id)),
             accessMembers: card.memberIds.map((id) => people.get(id)),
@@ -458,7 +468,7 @@ export class McpServerFactory {
       {
         title: "Move card",
         description:
-          "Change a card's status by moving it to another list on the same board (or reorder within its list). position: 'top', 'bottom' (default), or the id of a card in the target list to place it after.",
+          "Change a card's status by moving it to another list on any board it is on (or reorder within its list) — its other boards follow to the same status. position: 'top', 'bottom' (default), or the id of a card in the target list to place it after.",
         inputSchema: {
           cardId: z.string(),
           targetListId: z.string(),
@@ -468,13 +478,10 @@ export class McpServerFactory {
       },
       ({ cardId, targetListId, position }) =>
         run(async () => {
-          const siblings = await this.prisma.card.findMany({
-            where: { listId: targetListId, isArchived: false, id: { not: cardId } },
-            orderBy: { position: "asc" },
-            select: { id: true },
-          });
+          // The column's own cards and the tasks shared onto it, in board order.
+          const siblings = (await cardIdsInColumn(this.prisma, targetListId)).filter((id) => id !== cardId);
           const move = neighbours(
-            siblings.map((s) => s.id),
+            siblings,
             position,
             "afterCardId is not a card in the target list",
           );
@@ -483,10 +490,26 @@ export class McpServerFactory {
     );
 
     tool(
+      "set_card_boards",
+      {
+        title: "Set card boards",
+        description:
+          "Replace the boards a task is on (board ids, at least one). It keeps one status: on a newly added board it appears in the column with the same status. Dropping its first (home) board makes the first board you list its home. Only the task's owner or an admin; a non-admin can only add or remove boards they are a member of.",
+        inputSchema: { cardId: z.string(), ...SetCardBoardsRequestSchema.shape },
+        annotations: write,
+      },
+      ({ cardId, boardIds }) =>
+        run(async () => {
+          const result = await this.cards.setBoards(userId, cardId, { boardIds });
+          return { boards: result.boards.map((b) => ({ id: b.id, name: b.name })) };
+        }),
+    );
+
+    tool(
       "set_card_assignees",
       {
         title: "Set card assignees",
-        description: "Replace who the card is assigned to (user ids of board members). Pass an empty list to unassign everyone.",
+        description: "Replace who the card is assigned to (user ids of members of any of its boards). Pass an empty list to unassign everyone.",
         inputSchema: { cardId: z.string(), userIds: z.array(z.string()) },
         annotations: write,
       },

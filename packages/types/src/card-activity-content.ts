@@ -68,6 +68,8 @@ export function describeCardActivity(activity: Pick<CardActivity, "type" | "from
     case "RECURRENCE_CHANGED":
       if (!toValue) return "أوقف تكرار المهمة";
       return fromValue ? `غيّر التكرار من «${fromValue}» إلى «${toValue}»` : `عيّن التكرار «${toValue}»`;
+    case "BOARDS_CHANGED":
+      return `غيّر لوحات المهمة من «${fromValue ?? "؟"}» إلى «${toValue ?? "؟"}»`;
     default:
       return "حدّث البطاقة";
   }

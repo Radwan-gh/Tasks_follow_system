@@ -105,6 +105,13 @@ export class NotificationsService {
       type: NotificationType;
       cardId?: string | null;
       boardId?: string | null;
+      /**
+       * Every board the card is on, home first (docs/18-multi-board-tasks.md).
+       * When there are several, the notification — and so the bell's and the
+       * push's deep link — points at the first one the recipient is a member
+       * of, so it never opens a board they cannot see.
+       */
+      boardIds?: string[];
       payload?: Record<string, unknown>;
     },
   ): Promise<void> {
@@ -115,12 +122,22 @@ export class NotificationsService {
     const prefs = parsePrefs(user.notificationPrefs);
     if (!prefs[PREF_GATE[input.type]]) return;
 
+    let boardId = input.boardId ?? null;
+    if (input.boardIds && input.boardIds.length > 1) {
+      const memberships = await tx.boardMember.findMany({
+        where: { userId: input.userId, boardId: { in: input.boardIds } },
+        select: { boardId: true },
+      });
+      const memberOf = new Set(memberships.map((m) => m.boardId));
+      boardId = input.boardIds.find((id) => memberOf.has(id)) ?? boardId;
+    }
+
     await tx.notification.create({
       data: {
         userId: input.userId,
         type: input.type,
         cardId: input.cardId ?? null,
-        boardId: input.boardId ?? null,
+        boardId,
         payload: (input.payload as Prisma.InputJsonValue) ?? undefined,
       },
     });

@@ -262,6 +262,16 @@ export const UpdateCardAccessRequestSchema = z.object({
 });
 export type UpdateCardAccessRequest = z.infer<typeof UpdateCardAccessRequestSchema>;
 
+/**
+ * Full replace of the boards a task is on (docs/18-multi-board-tasks.md). At
+ * least one; duplicates are collapsed. Dropping the home board makes the next
+ * remaining one home.
+ */
+export const SetCardBoardsRequestSchema = z.object({
+  boardIds: z.array(z.string()).min(1).max(20),
+});
+export type SetCardBoardsRequest = z.infer<typeof SetCardBoardsRequestSchema>;
+
 export const CreateSubtaskRequestSchema = z.object({
   title: z.string().min(1).max(300),
 });

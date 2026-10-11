@@ -28,8 +28,9 @@ List
  └── cards : cards (Card[])
 
 Card
- ├── list        : belongs to a list
+ ├── list        : belongs to a list (its home placement — its status)
  ├── board       : carries boardId directly (speeds up queries/authorization)
+ ├── boardLinks  : the other boards it also shows on (CardBoardLink[])
  ├── createdBy   : who created it (User)
  ├── assignees   : assigned to (CardAssignee[] — several people)
  ├── subtasks    : subtasks (Subtask[])
@@ -40,6 +41,7 @@ Subtask
  ├── card      : belongs to a card
  └── assignees : assigned to (SubtaskAssignee[])
 
+CardBoardLink ─ card, board, list
 Comment ─ card, author
 Attachment ─ card, uploader
 Notification ─ user
@@ -141,8 +143,9 @@ that board**.
 
 | Field | Business-logic notes |
 |---|---|
-| `listId` | Current list |
-| `boardId` | **Deliberately duplicated** from the list to speed up authorization checks and queries without an extra join |
+| `listId` | Current list — the task's **home** column, i.e. its status. Inside `GET /boards/:id` only, a card is serialized with `listId`/`position` of its placement on *that* board |
+| `boardId` | **Deliberately duplicated** from the list to speed up authorization checks and queries without an extra join. The task's **home** board when it is on several (see [`18-multi-board-tasks.md`](./18-multi-board-tasks.md)) |
+| `placements` (response only) | Every board the task is on and its column there, home first — built from `boardId`/`listId` plus `boardLinks` |
 | `title` | Title (1 to 300 characters) |
 | `description` | Optional description (up to 10,000 characters) |
 | `position` | Lexicographically-sortable string within the list |
@@ -155,6 +158,18 @@ that board**.
 | `priority` | `LOW` \| `NORMAL` (default) \| `URGENT`. Only "urgent" shows on the card face |
 | `costAmount` / `costNote` | Optional cost (decimal amount + free-text note), never shown on the card face — a details-screen-only chip, written via `POST .../cards`/`PATCH /cards/:id`. Changing it records a `COST_UPDATED` activity |
 | `recurrence` | Optional repeat rule (`RecurrenceRule` in `packages/types`: daily / weekly with weekdays / monthly with a day), actually written via `POST .../cards` and `PATCH /cards/:id`. Moving into "closed" spawns the next instance in "new" automatically — details in [`14-notifications-comments-attachments.md`](./14-notifications-comments-attachments.md#recurring-task-generation) |
+
+### CardBoardLink
+
+"This task also appears on this board" — a task can sit on several boards with **one shared
+status**. Details in [`18-multi-board-tasks.md`](./18-multi-board-tasks.md).
+
+| Field | Notes |
+|---|---|
+| `cardId` + `boardId` | **Unique** pair; the card's home board is never also a link. Cascade-deleted with the card or the board |
+| `listId` | The task's column on that board — the list with the same `statusCategory` as its home list, kept in step inside every move's transaction. Cascade-deleted with the list |
+| `position` | Fractional-index key (`COLLATE "C"`) ordering it within that column **together with** the column's own cards |
+| `createdAt` | Link order: `placements` lists links oldest first, and the oldest becomes home if the home board is deleted |
 
 ### Comment — Attachment — Notification — Template — AppSettings
 
@@ -202,6 +217,9 @@ represent **responsibility for the work**, not visibility.
 - **Indexes:** indexes exist on `(boardId, position)` for lists and
   `(listId, position)` for cards to speed up ordered fetches, and on
   `(boardId, isArchived)` for cards.
-- **A card's `boardId`** must stay in sync with `list.boardId`; moving a card
-  into a list on a different board is therefore blocked (see
-  [`05-boards-lists-cards.md`](./05-boards-lists-cards.md)).
+- **A card's `boardId`** must stay in sync with `list.boardId` (its home placement), and
+  each `CardBoardLink.listId` must be a list on that link's board. A move may target a list on
+  any of the task's boards, never on a board it is not on; changing its boards goes through
+  `PUT /cards/:id/boards` (see [`18-multi-board-tasks.md`](./18-multi-board-tasks.md)).
+- **Deleting a task's home board** does not delete a task that is also on other boards: it is
+  re-homed onto its oldest link first (`BoardsService.remove`).

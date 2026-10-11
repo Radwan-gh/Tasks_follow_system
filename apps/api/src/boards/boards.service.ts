@@ -13,6 +13,7 @@ import { PrismaService } from "../prisma/prisma.service";
 import { BoardCategoriesService } from "../board-categories/board-categories.service";
 import { AttachmentStorageService } from "../common/storage/attachment-storage.service";
 import { COMPLETED_CATEGORIES } from "../common/util/completed.util";
+import { BOARD_LINKS_INCLUDE, mergeByPosition, placementsOf } from "../cards/card-placement.util";
 import { TASK_WORKFLOW_TEMPLATE } from "./board-templates";
 
 interface BoardAggregate {
@@ -41,6 +42,59 @@ export interface BoardAccess {
 // every *write* call site keeps the default `"MEMBER"` (or `"OWNER"` where
 // already required) so `ROLE_RANK[VIEWER] < ROLE_RANK[MEMBER]` blocks it.
 const ROLE_RANK: Record<BoardRole, number> = { VIEWER: 0, MEMBER: 1, OWNER: 2 };
+
+/** What `assertCardAccess` loads with the card — everything the card services check and serialize. */
+const CARD_ACCESS_INCLUDE = {
+  members: { select: { userId: true } },
+  assignees: { select: { userId: true } },
+  boardLinks: BOARD_LINKS_INCLUDE,
+} as const satisfies Prisma.CardInclude;
+export type AccessibleCard = Prisma.CardGetPayload<{ include: typeof CARD_ACCESS_INCLUDE }>;
+
+/** A card as the board face shows it: the counts on top of the card itself. */
+const BOARD_CARD_INCLUDE = {
+  members: { select: { userId: true } },
+  assignees: { select: { userId: true } },
+  // The board face's paperclip count and subtask fraction.
+  subtasks: { select: { isDone: true } },
+  _count: { select: { attachments: true } },
+} as const satisfies Prisma.CardInclude;
+
+/**
+ * What `assertCardAccess` granted on a task, across every board it is on
+ * (docs/18-multi-board-tasks.md): the caller's best role on any of them, and
+ * the owners of all of them — each one counts as "the board owner" for the
+ * task (`canAccessCard`, `canManageCard`, closing it).
+ */
+export interface CardAccess extends BoardAccess {
+  card: AccessibleCard;
+  /** Every board the card is on, home first. */
+  boardIds: string[];
+  ownerIds: string[];
+}
+
+/**
+ * The caller's role on a task from their memberships on its boards — the
+ * highest one counts. `"none"` means no membership on any of them (the
+ * oversight fallback may still apply); `"archived"` that every board that
+ * would allow a write is archived.
+ */
+export function resolveCardRole(
+  memberships: { boardId: string; role: BoardRole }[],
+  boards: { id: string; isArchived: boolean }[],
+  minRole: BoardRole,
+  mutable: boolean,
+): BoardRole | "none" | "forbidden" | "archived" {
+  if (memberships.length === 0) return "none";
+  let qualifying = memberships.filter((m) => ROLE_RANK[m.role] >= ROLE_RANK[minRole]);
+  if (qualifying.length === 0) return "forbidden";
+  if (mutable) {
+    const archived = new Set(boards.filter((b) => b.isArchived).map((b) => b.id));
+    qualifying = qualifying.filter((m) => !archived.has(m.boardId));
+    if (qualifying.length === 0) return "archived";
+  }
+  return qualifying.reduce((best, m) => (ROLE_RANK[m.role] > ROLE_RANK[best] ? m.role : best), qualifying[0].role);
+}
 
 @Injectable()
 export class BoardsService {
@@ -140,16 +194,98 @@ export class BoardsService {
   }
 
   /**
-   * A task's details — its fields, assignees, checklist items, and the task
-   * itself (archive/delete) — are edited only by its owner: the board owner or
-   * the task's creator (`canManageCard`). Every other member who can open the
-   * task may still move it, tick its sub-tasks, comment and attach files.
-   * Called *after* `assertMembership`, which still decides board access.
+   * `assertMembership` for a task rather than a board — the single source of
+   * truth for every card-scoped read and write (cards, comments, attachments,
+   * subtasks). A task can sit on several boards (docs/18-multi-board-tasks.md),
+   * so membership on *any* of them admits the caller, with their highest role
+   * there; the oversight fallback and the "real membership wins" rule are the
+   * same as `assertMembership`'s. `mutable` (every write) additionally needs
+   * one of those qualifying boards to be live — an archived board stays
+   * read-only, but the same task on a live board can still be worked on.
+   *
+   * Unless `requireCardAccess` is false, a restricted card the caller may not
+   * see is a 404, exactly as before — a supervisor sees every card.
+   *
+   * Cost: one card read plus one board and one membership read (in
+   * parallel), whatever the number of boards.
    */
-  async assertCanManageCard(userId: string, card: { boardId: string; createdById: string }) {
-    const board = await this.prisma.board.findUnique({ where: { id: card.boardId }, select: { ownerId: true } });
-    if (!board) throw new NotFoundException("Board not found");
-    if (!canManageCard(userId, board.ownerId, card)) {
+  async assertCardAccess(
+    userId: string,
+    cardId: string,
+    minRole: BoardRole = "MEMBER",
+    { mutable = false, requireCardAccess = true }: { mutable?: boolean; requireCardAccess?: boolean } = {},
+  ): Promise<CardAccess> {
+    const card = await this.prisma.card.findUnique({ where: { id: cardId }, include: CARD_ACCESS_INCLUDE });
+    if (!card) throw new NotFoundException("Card not found");
+    const boardIds = placementsOf(card).map((p) => p.boardId);
+    const [boards, memberships] = await Promise.all([
+      this.prisma.board.findMany({
+        where: { id: { in: boardIds } },
+        select: { id: true, ownerId: true, isArchived: true },
+      }),
+      this.prisma.boardMember.findMany({
+        where: { userId, boardId: { in: boardIds } },
+        select: { boardId: true, role: true },
+      }),
+    ]);
+    const ownerIds = [...new Set(boards.map((b) => b.ownerId))];
+
+    let access: BoardAccess;
+    const role = resolveCardRole(memberships, boards, minRole, mutable);
+    if (role === "archived") throw new ForbiddenException("This board is archived and read-only");
+    if (role === "forbidden") throw new ForbiddenException("You do not have access to this board");
+    if (role === "none") {
+      if (minRole !== "VIEWER" || !(await this.isSupervisor(userId))) {
+        throw new ForbiddenException("You do not have access to this board");
+      }
+      access = { role: "VIEWER", supervised: true };
+    } else {
+      access = { role, supervised: false };
+    }
+
+    if (requireCardAccess && !access.supervised && !canAccessCard(userId, ownerIds, card)) {
+      throw new NotFoundException("Card not found");
+    }
+    return { ...access, card, boardIds, ownerIds };
+  }
+
+  /** A system ADMIN, read from the database like `isSupervisor` — may change any task's boards. */
+  async isActiveAdmin(userId: string): Promise<boolean> {
+    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { role: true, isActive: true } });
+    return !!user?.isActive && user.role === "ADMIN";
+  }
+
+  /**
+   * Everyone on any of a task's boards, once each with their highest role
+   * there — who may be assigned to it or given access to it, and what its
+   * pickers offer (`GET /cards/:id/people`). Home board members come first.
+   * `userIds` narrows the read to just those people, for validating a request.
+   */
+  async cardPeople(boardIds: string[], userIds?: string[]) {
+    const rows = await this.prisma.boardMember.findMany({
+      where: { boardId: { in: boardIds }, ...(userIds ? { userId: { in: userIds } } : {}) },
+      orderBy: { joinedAt: "asc" },
+      include: { user: { select: { id: true, username: true, displayName: true, isActive: true } } },
+    });
+    const boardOrder = new Map(boardIds.map((id, i) => [id, i]));
+    rows.sort((a, b) => boardOrder.get(a.boardId)! - boardOrder.get(b.boardId)!);
+    const byUser = new Map<string, (typeof rows)[number]>();
+    for (const row of rows) {
+      const current = byUser.get(row.userId);
+      if (!current || ROLE_RANK[row.role] > ROLE_RANK[current.role]) byUser.set(row.userId, row);
+    }
+    return [...byUser.values()].map((m) => ({ userId: m.userId, boardId: m.boardId, role: m.role, user: m.user }));
+  }
+
+  /**
+   * A task's details — its fields, assignees, checklist items, and the task
+   * itself (archive/delete) — are edited only by its owner: the owner of any
+   * board it is on, or the task's creator (`canManageCard`). Every other member
+   * who can open the task may still move it, tick its sub-tasks and comment.
+   * Takes what `assertCardAccess` resolved, which still decides board access.
+   */
+  assertCanManageCard(userId: string, access: Pick<CardAccess, "ownerIds" | "card">) {
+    if (!canManageCard(userId, access.ownerIds, access.card)) {
       throw new ForbiddenException("Only the board owner or the task creator can edit this task");
     }
   }
@@ -204,7 +340,7 @@ export class BoardsService {
   private async boardAggregates(boardIds: string[]): Promise<Map<string, BoardAggregate>> {
     if (boardIds.length === 0) return new Map();
 
-    const [memberCounts, cardCounts, doneCounts, members] = await Promise.all([
+    const [memberCounts, cardCounts, doneCounts, linkedCounts, linkedDoneCounts, members] = await Promise.all([
       this.prisma.boardMember.groupBy({ by: ["boardId"], where: { boardId: { in: boardIds } }, _count: { _all: true } }),
       this.prisma.card.groupBy({
         by: ["boardId"],
@@ -216,6 +352,23 @@ export class BoardsService {
         where: {
           boardId: { in: boardIds },
           isArchived: false,
+          list: { isArchived: false, statusCategory: { in: COMPLETED_CATEGORIES } },
+        },
+        _count: { _all: true },
+      }),
+      // Tasks shared onto these boards from another one count where they show
+      // (docs/18-multi-board-tasks.md). In parallel with the counts above, so
+      // no extra round trip whether or not anything is shared.
+      this.prisma.cardBoardLink.groupBy({
+        by: ["boardId"],
+        where: { boardId: { in: boardIds }, card: { isArchived: false }, list: { isArchived: false } },
+        _count: { _all: true },
+      }),
+      this.prisma.cardBoardLink.groupBy({
+        by: ["boardId"],
+        where: {
+          boardId: { in: boardIds },
+          card: { isArchived: false },
           list: { isArchived: false, statusCategory: { in: COMPLETED_CATEGORIES } },
         },
         _count: { _all: true },
@@ -235,6 +388,8 @@ export class BoardsService {
     for (const row of memberCounts) result.get(row.boardId)!.memberCount = row._count._all;
     for (const row of cardCounts) result.get(row.boardId)!.cardCount = row._count._all;
     for (const row of doneCounts) result.get(row.boardId)!.doneCount = row._count._all;
+    for (const row of linkedCounts) result.get(row.boardId)!.cardCount += row._count._all;
+    for (const row of linkedDoneCounts) result.get(row.boardId)!.doneCount += row._count._all;
     for (const row of members) {
       const previews = result.get(row.boardId)!.memberPreviews;
       if (previews.length < 4) previews.push(row.user);
@@ -258,57 +413,144 @@ export class BoardsService {
   async getDetail(userId: string, boardId: string, closedSince?: Date) {
     const access = await this.assertMembership(userId, boardId, "VIEWER");
 
-    const board = await this.prisma.board.findUnique({
-      where: { id: boardId },
-      include: {
-        ...CATEGORY_INCLUDE,
-        members: { include: { user: true } },
-        lists: {
-          where: { isArchived: false },
-          orderBy: { position: "asc" },
-          include: {
-            cards: {
-              where: { isArchived: false },
-              orderBy: { position: "asc" },
-              include: {
-                members: { select: { userId: true } },
-                assignees: { select: { userId: true } },
-                // The board face's paperclip count and subtask fraction.
-                subtasks: { select: { isDone: true } },
-                _count: { select: { attachments: true } },
-              },
+    // Opening a board is the hottest read in the app — the mobile board polls
+    // it — so tasks shared across boards (docs/18-multi-board-tasks.md) must
+    // cost a board with none of them nothing: the main query is unchanged, and
+    // one link read runs *alongside* it, not after it. On such a board it comes
+    // back empty and nothing else is read.
+    const [board, links] = await Promise.all([
+      this.prisma.board.findUnique({
+        where: { id: boardId },
+        include: {
+          ...CATEGORY_INCLUDE,
+          members: { include: { user: true } },
+          lists: {
+            where: { isArchived: false },
+            orderBy: { position: "asc" },
+            include: {
+              cards: { where: { isArchived: false }, orderBy: { position: "asc" }, include: BOARD_CARD_INCLUDE },
             },
           },
         },
-      },
-    });
+      }),
+      // Both ways round: tasks from other boards shown on this one, and the
+      // other boards this board's own tasks are also on.
+      this.prisma.cardBoardLink.findMany({
+        where: { OR: [{ boardId }, { card: { boardId } }], card: { isArchived: false } },
+        orderBy: { position: "asc" },
+        select: {
+          cardId: true,
+          boardId: true,
+          listId: true,
+          position: true,
+          createdAt: true,
+          board: { select: { ownerId: true } },
+        },
+      }),
+    ]);
     if (!board) throw new NotFoundException("Board not found");
+
+    // A task's home is never also one of its links, so a link to this board is
+    // a task shared onto it (already in column order), and any other link one of
+    // this board's own tasks shared elsewhere (oldest first, like `placements`).
+    const liveLists = new Set(board.lists.map((l) => l.id));
+    const linkedHere = links.filter((l) => l.boardId === boardId && liveLists.has(l.listId));
+    const homeLinks = links
+      .filter((l) => l.boardId !== boardId)
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+
+    const closedList = closedSince ? board.lists.find((l) => l.statusCategory === "CLOSED") : undefined;
+    const closedIds = closedList
+      ? [
+          ...closedList.cards.map((c) => c.id),
+          ...linkedHere.filter((l) => l.listId === closedList.id).map((l) => l.cardId),
+        ]
+      : [];
+    // Only a board with shared tasks reads their cards, overlapping the closed-list read.
+    const [linkedCards, closedAtByCardId] = await Promise.all([
+      linkedHere.length > 0
+        ? this.prisma.card.findMany({
+            where: { id: { in: linkedHere.map((l) => l.cardId) } },
+            include: {
+              ...BOARD_CARD_INCLUDE,
+              list: { select: { board: { select: { ownerId: true } } } },
+              boardLinks: {
+                orderBy: BOARD_LINKS_INCLUDE.orderBy,
+                select: { boardId: true, listId: true, board: { select: { ownerId: true } } },
+              },
+            },
+          })
+        : [],
+      closedList ? this.closedAtByCardId(closedIds, closedList.name) : null,
+    ]);
+
+    // One shape for both kinds of card in a column. "The board owner" of a
+    // shared task is the owner of any board it is on (`canAccessCard`).
+    type Row = (typeof board.lists)[number]["cards"][number];
+    type Entry = {
+      card: Row;
+      listId: string;
+      position: string;
+      ownerIds: string[];
+      boardLinks: { boardId: string; listId: string }[];
+    };
+    const linksOfHomeCard = new Map<string, (typeof homeLinks)[number][]>();
+    for (const link of homeLinks) {
+      const links = linksOfHomeCard.get(link.cardId);
+      if (links) links.push(link);
+      else linksOfHomeCard.set(link.cardId, [link]);
+    }
+    const linkedById = new Map(linkedCards.map((card) => [card.id, card]));
+    const linkedByList = new Map<string, Entry[]>();
+    for (const link of linkedHere) {
+      const card = linkedById.get(link.cardId);
+      if (!card) continue;
+      const entry: Entry = {
+        card,
+        listId: link.listId,
+        position: link.position,
+        ownerIds: [card.list.board.ownerId, ...card.boardLinks.map((l) => l.board.ownerId)],
+        boardLinks: card.boardLinks,
+      };
+      const entries = linkedByList.get(link.listId);
+      if (entries) entries.push(entry);
+      else linkedByList.set(link.listId, [entry]);
+    }
+    const columns = board.lists.map((list) => {
+      const own = list.cards.map((card): Entry => {
+        const links = linksOfHomeCard.get(card.id) ?? [];
+        return {
+          card,
+          listId: card.listId,
+          position: card.position,
+          ownerIds: links.length ? [board.ownerId, ...links.map((l) => l.board.ownerId)] : [board.ownerId],
+          boardLinks: links,
+        };
+      });
+      return { list, entries: mergeByPosition(own, linkedByList.get(list.id) ?? []) };
+    });
 
     // Already have every non-archived list/card/member loaded above — no
     // need for the separate `boardAggregates` queries `listForUser` uses.
-    const allCards = board.lists.flatMap((l) => l.cards);
     const aggregate: BoardAggregate = {
       memberCount: board.members.length,
-      cardCount: allCards.length,
-      doneCount: board.lists
-        .filter((l) => l.statusCategory && COMPLETED_CATEGORIES.includes(l.statusCategory))
-        .reduce((sum, l) => sum + l.cards.length, 0),
+      cardCount: columns.reduce((sum, c) => sum + c.entries.length, 0),
+      doneCount: columns
+        .filter((c) => c.list.statusCategory && COMPLETED_CATEGORIES.includes(c.list.statusCategory))
+        .reduce((sum, c) => sum + c.entries.length, 0),
       memberPreviews: board.members.slice(0, 4).map((m) => ({ id: m.user.id, displayName: m.user.displayName })),
     };
 
-    const closedList = closedSince ? board.lists.find((l) => l.statusCategory === "CLOSED") : undefined;
-    const closedAtByCardId = closedList ? await this.closedAtByCardId(closedList) : null;
-
     let hiddenClosedCount = 0;
-    const lists = board.lists.map((list) => {
+    const lists = columns.map(({ list, entries }) => {
       // Restricted cards the requesting user can't access are hidden entirely
       // — except from a supervisor, who oversees every card.
       const accessible = access.supervised
-        ? list.cards
-        : list.cards.filter((card) => canAccessCard(userId, board.ownerId, card));
+        ? entries
+        : entries.filter((e) => canAccessCard(userId, e.ownerIds, e.card));
       const visible =
         list.id === closedList?.id && closedAtByCardId
-          ? accessible.filter((card) => (closedAtByCardId.get(card.id) ?? card.updatedAt) >= closedSince!)
+          ? accessible.filter((e) => (closedAtByCardId.get(e.card.id) ?? e.card.updatedAt) >= closedSince!)
           : accessible;
       if (list.id === closedList?.id) hiddenClosedCount = accessible.length - visible.length;
       return {
@@ -319,8 +561,11 @@ export class BoardsService {
         isArchived: list.isArchived,
         statusCategory: list.statusCategory,
         createdAt: list.createdAt.toISOString(),
-        cards: visible.map((card) => ({
-          ...serializeCard(card),
+        cards: visible.map(({ card, listId, position, boardLinks }) => ({
+          ...serializeCard({ ...card, boardLinks }),
+          // A shared task's place on *this* board; `placements` still says where it sits everywhere.
+          listId,
+          position,
           subtaskTotal: card.subtasks.length,
           subtaskDone: card.subtasks.filter((s) => s.isDone).length,
           attachmentCount: card._count.attachments,
@@ -342,11 +587,11 @@ export class BoardsService {
     };
   }
 
-  /** card id → when it most recently entered `closedList`, per its `CardActivity` MOVED trail. */
-  private async closedAtByCardId(closedList: { id: string; name: string; cards: { id: string }[] }) {
-    if (closedList.cards.length === 0) return new Map<string, Date>();
+  /** card id → when it most recently entered the closed list, per its `CardActivity` MOVED trail. */
+  private async closedAtByCardId(cardIds: string[], closedListName: string) {
+    if (cardIds.length === 0) return new Map<string, Date>();
     const moves = await this.prisma.cardActivity.findMany({
-      where: { cardId: { in: closedList.cards.map((c) => c.id) }, type: "MOVED", toValue: closedList.name },
+      where: { cardId: { in: cardIds }, type: "MOVED", toValue: closedListName },
       orderBy: { createdAt: "desc" },
       select: { cardId: true, createdAt: true },
     });
@@ -391,11 +636,25 @@ export class BoardsService {
     if (!board) throw new NotFoundException("Board not found");
     if (!board.isArchived) throw new ConflictException("Archive the board before deleting it");
 
+    // A task that also sits on other boards outlives this one: it moves home to
+    // its oldest other board (docs/18-multi-board-tasks.md) instead of going
+    // down with this board's lists.
+    const shared = await this.prisma.card.findMany({
+      where: { boardId, boardLinks: { some: {} } },
+      select: { id: true, boardLinks: { ...BOARD_LINKS_INCLUDE, take: 1 } },
+    });
     const attachments = await this.prisma.attachment.findMany({
-      where: { card: { boardId } },
+      where: { card: { boardId, boardLinks: { none: {} } } },
       select: { filename: true },
     });
     await this.prisma.$transaction([
+      ...shared.flatMap(({ id, boardLinks: [link] }) => [
+        this.prisma.card.update({
+          where: { id },
+          data: { boardId: link.boardId, listId: link.listId, position: link.position },
+        }),
+        this.prisma.cardBoardLink.delete({ where: { id: link.id } }),
+      ]),
       this.prisma.notification.deleteMany({ where: { boardId } }),
       this.prisma.board.delete({ where: { id: boardId } }),
     ]);
@@ -510,8 +769,9 @@ export class BoardsService {
       if (users.some((u) => !u.isActive)) throw new BadRequestException("Cannot add a deactivated user to a board");
     }
 
+    const dropCardAccess = await this.cardAccessDropsOnLeave(boardId, toRemove);
     await this.prisma.$transaction([
-      this.prisma.cardMember.deleteMany({ where: { userId: { in: toRemove }, card: { boardId } } }),
+      ...dropCardAccess,
       this.prisma.boardMember.deleteMany({ where: { boardId, userId: { in: toRemove } } }),
       this.prisma.boardMember.createMany({ data: toAdd.map((id) => ({ boardId, userId: id, role: "MEMBER" as const })) }),
     ]);
@@ -571,11 +831,40 @@ export class BoardsService {
       );
     }
 
+    const dropCardAccess = await this.cardAccessDropsOnLeave(boardId, [targetUserId]);
     await this.prisma.$transaction([
-      // Drop any per-card access the user held on this board's cards.
-      this.prisma.cardMember.deleteMany({ where: { userId: targetUserId, card: { boardId } } }),
+      ...dropCardAccess,
       this.prisma.boardMember.delete({ where: { boardId_userId: { boardId, userId: targetUserId } } }),
     ]);
+  }
+
+  /**
+   * The per-card access rows that go when `userIds` leave `boardId`: theirs on
+   * every task shown on this board — its own or shared onto it — except a task
+   * that is also on another board they are still on, where the access still
+   * means something (docs/18-multi-board-tasks.md).
+   */
+  private async cardAccessDropsOnLeave(boardId: string, userIds: string[]) {
+    if (userIds.length === 0) return [];
+    const remaining = await this.prisma.boardMember.findMany({
+      where: { userId: { in: userIds }, boardId: { not: boardId } },
+      select: { userId: true, boardId: true },
+    });
+    return userIds.map((userId) => {
+      const stillOn = remaining.filter((m) => m.userId === userId).map((m) => m.boardId);
+      return this.prisma.cardMember.deleteMany({
+        where: {
+          userId,
+          card: {
+            OR: [{ boardId }, { boardLinks: { some: { boardId } } }],
+            // Prisma's `NOT: [...]`: none of these may hold.
+            NOT: stillOn.length
+              ? [{ boardId: { in: stillOn } }, { boardLinks: { some: { boardId: { in: stillOn } } } }]
+              : undefined,
+          },
+        },
+      });
+    });
   }
 
   /**
@@ -719,6 +1008,12 @@ interface CardWithMembers {
   updatedAt: Date;
   members?: { userId: string }[];
   assignees?: { userId: string }[];
+  /**
+   * The card's other boards, oldest first (`BOARD_LINKS_INCLUDE`). Required so
+   * no card is ever serialized as if it were on its home board alone — pass
+   * `[]` for a card that has just been created.
+   */
+  boardLinks: { boardId: string; listId: string }[];
 }
 
 function serializeCard(card: CardWithMembers) {
@@ -740,6 +1035,10 @@ function serializeCard(card: CardWithMembers) {
     costAmount: card.costAmount ? card.costAmount.toString() : null,
     costNote: card.costNote,
     recurrence: (card.recurrence as RecurrenceRule | null) ?? null,
+    placements: [
+      { boardId: card.boardId, listId: card.listId },
+      ...card.boardLinks.map((l) => ({ boardId: l.boardId, listId: l.listId })),
+    ],
     createdAt: card.createdAt.toISOString(),
     updatedAt: card.updatedAt.toISOString(),
   };
@@ -748,24 +1047,26 @@ function serializeCard(card: CardWithMembers) {
 /**
  * Whether `userId` may see/open/edit a card. Open cards are visible to every
  * board member; restricted cards only to their explicit members, plus the
- * board owner and the card creator (who can also manage access).
+ * board owner and the card creator (who can also manage access). A task on
+ * several boards has several board owners — `ownerIds` is all of them.
  */
 function canAccessCard(
   userId: string,
-  boardOwnerId: string,
+  ownerIds: readonly string[],
   card: { createdById: string; isRestricted: boolean; members?: { userId: string }[] },
 ): boolean {
   if (!card.isRestricted) return true;
-  if (boardOwnerId === userId || card.createdById === userId) return true;
+  if (ownerIds.includes(userId) || card.createdById === userId) return true;
   return (card.members ?? []).some((m) => m.userId === userId);
 }
 
 /**
- * Whether `userId` owns a card — board owner or creator — and so may edit its
- * details and access config (`BoardsService.assertCanManageCard`).
+ * Whether `userId` owns a card — the owner of any board it is on, or its
+ * creator — and so may edit its details and access config
+ * (`BoardsService.assertCanManageCard`).
  */
-function canManageCard(userId: string, boardOwnerId: string, card: { createdById: string }): boolean {
-  return boardOwnerId === userId || card.createdById === userId;
+function canManageCard(userId: string, ownerIds: readonly string[], card: { createdById: string }): boolean {
+  return ownerIds.includes(userId) || card.createdById === userId;
 }
 
 export { serializeCard, canAccessCard, canManageCard };

@@ -121,6 +121,7 @@ function makeTempCard(input: { id: string; listId: string; boardId: string; titl
     costAmount: null,
     costNote: null,
     recurrence: null,
+    placements: [{ boardId: input.boardId, listId: input.listId }],
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     subtaskTotal: 0,
@@ -249,7 +250,15 @@ export default function BoardScreen() {
       if (context?.previous) queryClient.setQueryData(boardQueryKey, context.previous);
       setToast({ id: Date.now(), message: "تعذّر نقل المهمة. تحقّق من الاتصال وأعد المحاولة." });
     },
-    onSettled: () => void queryClient.invalidateQueries({ queryKey: ["board", id] }),
+    // A task on several boards moved on all of them (docs/18-multi-board-tasks.md).
+    onSettled: (_data, _err, input) => {
+      const card = queryClient
+        .getQueryData<BoardDetail>(boardQueryKey)
+        ?.lists.flatMap((l) => l.cards)
+        .find((c) => c.id === input.cardId);
+      const boardIds = new Set([id, ...(card?.placements ?? []).map((p) => p.boardId)]);
+      for (const boardId of boardIds) void queryClient.invalidateQueries({ queryKey: ["board", boardId] });
+    },
   });
   moveRef.current = move.mutate;
 

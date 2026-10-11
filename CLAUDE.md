@@ -173,8 +173,8 @@ positions fresh *inside a Prisma transaction* via
 computes the new key server-side — a stale client-computed position can
 never corrupt ordering. When moving a card across lists, `targetListId` can
 differ from the card's current list; the service validates the target list
-belongs to the same board and that any neighbor IDs actually belong to the
-target list.
+is on one of the task's boards (see "Multi-board tasks") and that any neighbor
+IDs actually sit in the target list.
 
 ### Card ("task") history / activity log
 
@@ -182,7 +182,8 @@ Every card carries an append-only audit trail in the `CardActivity` table
 (`apps/api/prisma/schema.prisma`): who created it and its initial status, and
 who later changed its status (moved it between lists), renamed it, updated its
 description, changed the due date (or switched its time of day on/off), the
-priority, the repeat rule or the cost, assigned it, or archived/unarchived it —
+priority, the repeat rule or the cost, assigned it, changed which boards it is
+on (`BOARDS_CHANGED`), or archived/unarchived it —
 each with an actor and timestamp. A card's **status is the list it lives in**, so a status
 change is a `MOVED` activity whose `fromValue`/`toValue` snapshot the old/new
 *list names* at the time of the move. `CardsService`
@@ -205,16 +206,37 @@ checked. `ListsModule` and `CardsModule` both import `BoardsModule` and call
 through `BoardsService` rather than re-implementing membership checks —
 `ListsService`/`CardsService` first resolve a list/card's `boardId`, then
 delegate to this method. Any new board-scoped resource should follow the
-same pattern instead of duplicating role logic. Roles are `OWNER | MEMBER`
+same pattern instead of duplicating role logic. Anything card-scoped (cards,
+comments, attachments, subtasks) goes one level up through
+`BoardsService.assertCardAccess(userId, cardId, minRole, { mutable })`, which
+admits membership on *any* of the task's boards (see "Multi-board tasks"
+below) and returns the owners of all of them as `ownerIds`. Roles are `OWNER | MEMBER`
 (`BoardRole` in the Prisma schema and `packages/types`); archiving/deleting a
 board and managing membership require `OWNER`, everything else requires
 `MEMBER`. On top of that, a task's *details* — its fields, assignees, access,
 attachments, delete, and adding/renaming/reordering/assigning/deleting its
-subtasks — belong to its owner only: the board owner or the card's creator
-(`canManageCard` in `boards.service.ts`; `BoardsService.assertCanManageCard`
-wraps it for services that don't already hold the board's owner id). Every
-member can still change its status (move it), tick subtasks and comment;
-moving into the `CLOSED` list stays board owner or the card's assignees only.
+subtasks — belong to its owner only: the owner of any board it is on, or the
+card's creator (`canManageCard(userId, ownerIds, card)` in `boards.service.ts`;
+`BoardsService.assertCanManageCard` takes what `assertCardAccess` returned).
+Every member can still change its status (move it), tick subtasks and comment;
+moving into the `CLOSED` list stays a board owner or the card's assignees only.
+
+### Multi-board tasks (`CardBoardLink`)
+
+A task can sit on several boards with **one shared status** — see
+`docs/18-multi-board-tasks.md`. `Card.boardId`/`listId`/`position` stay its
+*home* placement (its status; what reports, recurrence and templates read);
+each extra board is a `CardBoardLink { boardId, listId, position }` in the list
+with the same `statusCategory`. A board's column therefore holds two kinds of
+rows: anything that reads or writes a position in a column must go through
+`apps/api/src/cards/card-placement.util.ts` (`positionInList`, `endOfList`,
+`cardIdsInList`…), never `card.findFirst({ listId })` alone. A move may target a
+list on any of the task's boards and drags the others along in the same
+transaction (`CardsService.update`); boards change via `PUT /cards/:id/boards`
+(task owner or any ADMIN). `Card.placements` lists every board; inside
+`GET /boards/:id` a card's `listId`/`position` are its placement on *that* board.
+`BoardsService.getDetail` is the hottest read (mobile polls it every 30 s):
+keep its main query unchanged and run link reads alongside it, not after.
 
 ### Auth
 

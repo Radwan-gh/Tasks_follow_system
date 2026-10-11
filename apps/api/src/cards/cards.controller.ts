@@ -1,13 +1,15 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Put, UseGuards } from "@nestjs/common";
 import { ApiBearerAuth, ApiBody, ApiOperation, ApiParam, ApiResponse, ApiTags } from "@nestjs/swagger";
 import {
   CreateCardRequestSchema,
   SaveCardAsTemplateRequestSchema,
+  SetCardBoardsRequestSchema,
   UpdateAssigneesRequestSchema,
   UpdateCardAccessRequestSchema,
   UpdateCardRequestSchema,
   type CreateCardRequest,
   type SaveCardAsTemplateRequest,
+  type SetCardBoardsRequest,
   type UpdateAssigneesRequest,
   type UpdateCardAccessRequest,
   type UpdateCardRequest,
@@ -97,6 +99,35 @@ export class CardsController {
     @Body(new ZodValidationPipe(UpdateAssigneesRequestSchema)) body: UpdateAssigneesRequest,
   ) {
     return this.cards.updateAssignees(user.id, id, body);
+  }
+
+  @Get("cards/:id/boards")
+  @ApiOperation({ summary: "The boards a task is on, and the ones the caller may add it to" })
+  @ApiParam({ name: "id", description: "Card ID" })
+  @ApiResponse({ status: 200, schema: zodRef("CardBoardsResponse") })
+  getBoards(@CurrentUser() user: AuthUser, @Param("id") id: string) {
+    return this.cards.getBoards(user.id, id);
+  }
+
+  @Put("cards/:id/boards")
+  @ApiOperation({ summary: "Replace the boards a task is on (task owner or admin)" })
+  @ApiParam({ name: "id", description: "Card ID" })
+  @ApiBody({ schema: zodRef("SetCardBoardsRequest") })
+  @ApiResponse({ status: 200, schema: zodRef("CardBoardsResponse") })
+  setBoards(
+    @CurrentUser() user: AuthUser,
+    @Param("id") id: string,
+    @Body(new ZodValidationPipe(SetCardBoardsRequestSchema)) body: SetCardBoardsRequest,
+  ) {
+    return this.cards.setBoards(user.id, id, body);
+  }
+
+  @Get("cards/:id/people")
+  @ApiOperation({ summary: "Everyone on any of the task's boards — its assignee and access candidates" })
+  @ApiParam({ name: "id", description: "Card ID" })
+  @ApiResponse({ status: 200, schema: zodArrayRef("BoardMember") })
+  people(@CurrentUser() user: AuthUser, @Param("id") id: string) {
+    return this.cards.people(user.id, id);
   }
 
   @Post("cards/:id/save-as-template")

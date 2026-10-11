@@ -9,7 +9,7 @@ import {
 import { Cron, CronExpression } from "@nestjs/schedule";
 import type { Attachment } from "@app/types";
 import { PrismaService } from "../prisma/prisma.service";
-import { BoardsService, canAccessCard, canManageCard } from "../boards/boards.service";
+import { BoardsService, canManageCard } from "../boards/boards.service";
 import { AttachmentStorageService } from "../common/storage/attachment-storage.service";
 import { buildStoredFilename, displayNameFromStored } from "../common/util/uploads.util";
 
@@ -64,27 +64,9 @@ export class AttachmentsService {
     private readonly storage: AttachmentStorageService,
   ) {}
 
-  private async loadCard(cardId: string) {
-    const card = await this.prisma.card.findUnique({
-      where: { id: cardId },
-      include: { members: { select: { userId: true } }, assignees: { select: { userId: true } } },
-    });
-    if (!card) throw new NotFoundException("Card not found");
-    return card;
-  }
-
-  private async boardOwnerId(boardId: string): Promise<string> {
-    const board = await this.prisma.board.findUnique({ where: { id: boardId }, select: { ownerId: true } });
-    if (!board) throw new NotFoundException("Board not found");
-    return board.ownerId;
-  }
-
   /** Whoever can open the card can see its attachments — a viewer, or a supervisor on any card. */
   private async assertCanRead(userId: string, cardId: string) {
-    const card = await this.loadCard(cardId);
-    const access = await this.boards.assertMembership(userId, card.boardId, "VIEWER");
-    const ownerId = await this.boardOwnerId(card.boardId);
-    if (!access.supervised && !canAccessCard(userId, ownerId, card)) throw new NotFoundException("Card not found");
+    await this.boards.assertCardAccess(userId, cardId, "VIEWER");
   }
 
   async list(userId: string, cardId: string): Promise<Attachment[]> {
@@ -123,19 +105,15 @@ export class AttachmentsService {
   }
 
   /**
-   * Who may add a file to a card: the task's owner (board owner or creator) —
-   * attachments are part of the task's details — on a live board, under the
-   * per-card cap.
+   * Who may add a file to a card: the task's owner (a board owner or its
+   * creator) — attachments are part of the task's details — on a live board,
+   * under the per-card cap.
    */
   private async assertCanAttach(userId: string, cardId: string) {
-    const card = await this.loadCard(cardId);
-    await this.boards.assertMembership(userId, card.boardId);
-    const ownerId = await this.boardOwnerId(card.boardId);
-    if (!canAccessCard(userId, ownerId, card)) throw new NotFoundException("Card not found");
-    if (!canManageCard(userId, ownerId, card)) {
+    const access = await this.boards.assertCardAccess(userId, cardId, "MEMBER", { mutable: true });
+    if (!canManageCard(userId, access.ownerIds, access.card)) {
       throw new ForbiddenException("Only the board owner or the task creator can attach files to this task");
     }
-    await this.boards.assertBoardMutable(card.boardId);
 
     const count = await this.prisma.attachment.count({ where: { cardId } });
     if (count >= MAX_ATTACHMENTS_PER_CARD) {
@@ -258,12 +236,12 @@ export class AttachmentsService {
     const attachment = await this.prisma.attachment.findUnique({ where: { id: attachmentId } });
     if (!attachment || attachment.cardId !== cardId) throw new NotFoundException("Attachment not found");
 
-    const card = await this.loadCard(cardId);
     // A former member's uploads are no longer theirs to delete; an archived board is read-only.
-    await this.boards.assertMembership(userId, card.boardId);
-    await this.boards.assertBoardMutable(card.boardId);
-    const ownerId = await this.boardOwnerId(card.boardId);
-    const canDelete = attachment.uploaderId === userId || canManageCard(userId, ownerId, card);
+    const access = await this.boards.assertCardAccess(userId, cardId, "MEMBER", {
+      mutable: true,
+      requireCardAccess: false,
+    });
+    const canDelete = attachment.uploaderId === userId || canManageCard(userId, access.ownerIds, access.card);
     if (!canDelete) throw new ForbiddenException("Only the uploader or the task's manager can delete this attachment");
 
     await this.prisma.attachment.delete({ where: { id: attachmentId } });

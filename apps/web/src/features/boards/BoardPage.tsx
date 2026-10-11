@@ -91,6 +91,10 @@ export function BoardPage() {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ["board", boardId] });
+  /** This board and the task's other boards, which share its status (docs/18-multi-board-tasks.md). */
+  const invalidateBoards = (boardIds: string[]) => {
+    for (const id of new Set([boardId, ...boardIds])) void queryClient.invalidateQueries({ queryKey: ["board", id] });
+  };
 
   const moveCardMutation = useMutation({
     mutationFn: (vars: { cardId: string; targetListId: string; beforeId: string | null; afterId: string | null }) =>
@@ -98,6 +102,12 @@ export function BoardPage() {
         targetListId: vars.targetListId,
         move: { beforeId: vars.beforeId, afterId: vars.afterId },
       }),
+    // Its other boards moved too; this one already shows the drop.
+    onSuccess: (card) => {
+      for (const { boardId: other } of card.placements) {
+        if (other !== boardId) void queryClient.invalidateQueries({ queryKey: ["board", other] });
+      }
+    },
     onError: invalidate,
   });
   const createCardMutation = useMutation({
@@ -340,16 +350,17 @@ export function BoardPage() {
           onClose={() => setOpenCardId(null)}
           onSave={async (updates) => {
             await api.cards.update(openCard.id, updates);
-            invalidate();
+            invalidateBoards(openCard.placements.map((p) => p.boardId));
           }}
           onSaveAccess={async (updates) => {
             await api.cards.updateAccess(openCard.id, updates);
-            invalidate();
+            invalidateBoards(openCard.placements.map((p) => p.boardId));
           }}
           onSaveAssignees={async (updates) => {
             await api.cards.updateAssignees(openCard.id, updates);
-            invalidate();
+            invalidateBoards(openCard.placements.map((p) => p.boardId));
           }}
+          onBoardsChanged={invalidateBoards}
         />
       )}
       {creatingCardOpen && (

@@ -19,6 +19,7 @@ function setup(card: { dueDate: Date; dueDateHasTime?: boolean; assignees?: stri
     id: "card-1",
     title: "تسليم التقرير",
     boardId: "board-1",
+    boardLinks: [],
     dueDate: card.dueDate,
     dueDateHasTime: card.dueDateHasTime ?? true,
     createdById: "u-creator",

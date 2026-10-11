@@ -41,7 +41,10 @@ export class OversightService {
     };
 
     const and: Prisma.CardWhereInput[] = [{ isArchived: false }, { list: { isArchived: false } }];
-    if (query.boardId) and.push({ boardId: query.boardId });
+    // A board's tasks include the ones shared onto it (docs/18-multi-board-tasks.md).
+    if (query.boardId) {
+      and.push({ OR: [{ boardId: query.boardId }, { boardLinks: { some: { boardId: query.boardId } } }] });
+    }
     else and.push({ list: { board: { isArchived: false } } });
     if (query.assigneeId) and.push({ assignees: { some: { userId: query.assigneeId } } });
     if (query.statusCategory) and.push({ list: { statusCategory: query.statusCategory } });

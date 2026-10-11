@@ -137,15 +137,16 @@ Nest يتخطّى تسجيل محلّله العام إن وجد وسيطًا ب
 | `list_board_categories` | `BoardCategoriesService.list` | كل تصنيفات اللوحات (مشتركة بين المستخدمين) — منها `categoryId` |
 | `list_archived_boards` | `BoardsService.listArchivedForUser` | لوحاته المؤرشفة، بنفس الشكل |
 | `get_board` | `BoardsService.getDetail` | الأعضاء (بمعرّفاتهم وأدوارهم) والقوائم بالترتيب وبطاقاتها، و`isArchived` و`myRole` — منها تُعرف معرّفات القوائم والبطاقات والأشخاص |
-| `get_card` | `CardsService.getDetail` + المهام الفرعية + التعليقات + المرفقات | كل حقول البطاقة، قائمتها (حالتها)، المُسنَدون، الوصول، المهام الفرعية، التعليقات، والمرفقات (المعرّف، الاسم، النوع، الحجم، الرافع، والرابط المطلق `/uploads/...` على `PUBLIC_API_URL`) |
+| `get_card` | `CardsService.getDetail` + المهام الفرعية + التعليقات + المرفقات | كل حقول البطاقة، قائمتها (حالتها)، لوحاتها (`boards`: المعرّف والاسم وعمودها فيها)، المُسنَدون، الوصول، المهام الفرعية، التعليقات، والمرفقات (المعرّف، الاسم، النوع، الحجم، الرافع، والرابط المطلق `/uploads/...` على `PUBLIC_API_URL`) |
 | `get_card_history` | `CardsService.getHistory` | سجلّ النشاط |
 | `my_tasks` | `MyTasksService.list` | مهامي المفتوحة عبر كل اللوحات |
 | `list_all_boards` | `OversightService.boardsList` | **للمتابع فقط** (`isSupervisor`): كل لوحات النظام مع مالكها — انظر [`16-oversight.md`](./16-oversight.md) |
 | `search_all_tasks` | `OversightService.tasks` | **للمتابع فقط**: البطاقات عبر كل اللوحات بمرشّحات `GET /oversight/tasks` و`nextCursor`. `get_board`/`get_card` تعمل للمتابع على أي لوحة للقراءة فقط (`supervised: true`)، وأدوات الكتابة تُرفض |
 | `create_card` | `CardsService.create` (+ `updateAssignees`) | كل حقول الإنشاء: العنوان، الوصف، الاستحقاق ووقته، الأولوية، التكلفة وملاحظتها، التكرار، والمُسنَدون |
 | `update_card` | `CardsService.update` | أي حقل قابل للتعديل بما فيه الأرشفة؛ `null` يمسح الحقل |
-| `move_card` | `CardsService.update` (`targetListId` + `move`) | تغيير الحالة = النقل إلى قائمة أخرى؛ الموضع `top`/`bottom`/بعد بطاقة معيّنة. الأداة تحسب **معرّفات الجيران فقط** والخادم يحسب المفتاح عبر `computeMovePosition` (انظر [`06-ordering.md`](./06-ordering.md)) |
-| `set_card_assignees` | `CardsService.updateAssignees` | |
+| `move_card` | `CardsService.update` (`targetListId` + `move`) | تغيير الحالة = النقل إلى قائمة أخرى في أيٍّ من لوحات المهمة، فتتبعها لوحاتها الأخرى؛ ترتيب العمود من `cardIdsInColumn` (بطاقاته والمرتبطة به)؛ الموضع `top`/`bottom`/بعد بطاقة معيّنة. الأداة تحسب **معرّفات الجيران فقط** والخادم يحسب المفتاح عبر `computeMovePosition` (انظر [`06-ordering.md`](./06-ordering.md)) |
+| `set_card_boards` | `CardsService.setBoards` | استبدال لوحات المهمة (حالة واحدة في كلها). لمالك المهمة أو ADMIN، وغير المدير لا يضيف ولا يزيل إلا لوحة هو عضو فيها — انظر [`18-multi-board-tasks.md`](./18-multi-board-tasks.md) |
+| `set_card_assignees` | `CardsService.updateAssignees` | أعضاء أيٍّ من لوحات المهمة |
 | `set_card_access` | `CardsService.updateAccess` | تقييد البطاقة بأعضاء محدّدين أو فتحها للوحة |
 | `add_subtask` / `update_subtask` / `set_subtask_assignees` | `SubtasksService` | إضافة، إعادة تسمية، إنجاز/إلغاء إنجاز، إعادة ترتيب، إسناد. `update_subtask` يقبل `position` (`top`/`bottom`/`{ afterSubtaskId }`) ويحوّله إلى `move` بمعرّفات الجيران كما في `move_card` (الدالة المشتركة `neighbours`) |
 | `delete_subtask` | `SubtasksService.remove` | حذف نهائي؛ `destructiveHint: true` |
