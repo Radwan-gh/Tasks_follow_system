@@ -5,7 +5,6 @@ import type {
   BoardMember,
   Card,
   CardActivity,
-  CardBoardsResponse,
   CardPriority,
   Comment,
   RecurrenceRule,
@@ -23,8 +22,8 @@ import {
 } from "../../../lib/attachment-url";
 import { useCurrencySymbol } from "../../../lib/use-app-settings";
 import { useAutoSavedIds } from "../../../lib/use-auto-saved-ids";
-import { boardRows, type BoardRow } from "../../../lib/card-boards";
 import { useDismissableLayer } from "../../../lib/use-dismissable-layer";
+import { CardBoardsSection } from "./CardBoardsSection";
 import { UserTypeahead } from "./MemberPicker";
 
 interface CardDetailPanelProps {
@@ -417,131 +416,6 @@ export function CardDetailPanel({
 
         <HistoryAndComments cardId={card.id} currentUserId={currentUserId} readOnly={readOnly} />
       </div>
-    </div>
-  );
-}
-
-const NO_IDS: string[] = [];
-/** Above this many boards, the checklist gets a search box. */
-const BOARD_SEARCH_THRESHOLD = 6;
-const BOARD_LOCK_REASON: Record<NonNullable<BoardRow["lock"]>, string> = {
-  notMember: "لست عضوًا فيها",
-  archived: "لوحة مؤرشفة",
-  lastOfMine: "تبقى المهمة في لوحة واحدة لك على الأقل",
-};
-
-/**
- * «اللوحات» (docs/18-multi-board-tasks.md): every board the task is on, and —
- * for its owner or an admin — «تغيير», a checklist of boards that saves on
- * every tick, like the people pickers. One task, one status: on a board it is
- * added to it shows in the column with the same status.
- */
-function CardBoardsSection({
-  cardId,
-  readOnly,
-  onSaved,
-}: {
-  cardId: string;
-  readOnly: boolean;
-  onSaved: (boardIds: string[]) => void;
-}) {
-  const queryClient = useQueryClient();
-  const boards = useQuery({ queryKey: ["cardBoards", cardId], queryFn: () => api.cards.boards(cardId) });
-  const [open, setOpen] = useState(false);
-  const [search, setSearch] = useState("");
-  const serverIds = useMemo(() => boards.data?.boards.map((b) => b.id) ?? NO_IDS, [boards.data]);
-  const selection = useAutoSavedIds(serverIds, async (boardIds) => {
-    const before = queryClient.getQueryData<CardBoardsResponse>(["cardBoards", cardId])?.boards.map((b) => b.id) ?? [];
-    const result = await api.cards.setBoards(cardId, { boardIds });
-    queryClient.setQueryData(["cardBoards", cardId], result);
-    onSaved([...new Set([...before, ...boardIds])]);
-  });
-
-  if (!boards.data) return null;
-  const canChange = boards.data.canChange && !readOnly;
-  const names = new Map([...boards.data.boards, ...boards.data.options].map((b) => [b.id, b.name]));
-  const rows = boardRows(boards.data, selection.ids);
-  const term = search.trim().toLowerCase();
-  // Ticked boards always stay in view, so a search never hides where the task is.
-  const visibleRows = term ? rows.filter((r) => r.checked || r.name.toLowerCase().includes(term)) : rows;
-
-  function toggle(row: BoardRow) {
-    if (row.lock) return;
-    selection.change(row.checked ? selection.ids.filter((id) => id !== row.id) : [...selection.ids, row.id]);
-  }
-
-  return (
-    <div className="space-y-1.5">
-      <div className="flex items-center justify-between">
-        <span className="text-xs font-medium text-muted">اللوحات</span>
-        {canChange && (
-          <button
-            type="button"
-            aria-expanded={open}
-            onClick={() => setOpen((o) => !o)}
-            className="rounded px-1.5 text-xs font-semibold text-accent hover:bg-accent-soft"
-          >
-            {open ? "تم" : "تغيير"}
-          </button>
-        )}
-      </div>
-      <div className="flex flex-wrap gap-1.5">
-        {selection.ids
-          .filter((id) => names.has(id))
-          .map((id) => (
-            <span key={id} className="rounded-full bg-canvas px-2.5 py-1 text-xs font-semibold text-ink">
-              {names.get(id)}
-            </span>
-          ))}
-      </div>
-      {open && (
-        <div className="space-y-1 rounded-field border border-line p-2">
-          <p className="px-1 pb-1 text-[11px] text-muted">
-            تظهر المهمة في كل لوحة تختارها بالحالة نفسها، ونقلها في إحداها ينقلها في الجميع.
-          </p>
-          {rows.length > BOARD_SEARCH_THRESHOLD && (
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="ابحث عن لوحة"
-              aria-label="ابحث عن لوحة"
-              className="w-full rounded-field border border-line px-2 py-1 text-sm"
-            />
-          )}
-          {visibleRows.map((row) => (
-            <label
-              key={row.id}
-              className={`flex items-start gap-2 rounded-field px-2 py-1.5 text-sm ${row.checked ? "bg-accent-soft" : ""} ${
-                row.lock ? "cursor-not-allowed" : "cursor-pointer hover:bg-canvas"
-              }`}
-            >
-              <input
-                type="checkbox"
-                className="mt-1"
-                checked={row.checked}
-                disabled={!!row.lock}
-                onChange={() => toggle(row)}
-              />
-              <span className="min-w-0">
-                <span className={`block truncate ${row.checked ? "font-semibold text-ink" : "text-ink/80"}`}>{row.name}</span>
-                {row.lock && row.checked && (
-                  <span className="block text-[11px] text-muted">{BOARD_LOCK_REASON[row.lock]}</span>
-                )}
-              </span>
-            </label>
-          ))}
-          {boards.data.options.length === 0 && (
-            <p className="px-1 text-[11px] text-muted">لا توجد لوحات أخرى يمكنك إضافة المهمة إليها.</p>
-          )}
-        </div>
-      )}
-      {selection.saving ? (
-        <p className="text-[11px] text-muted">جارٍ الحفظ…</p>
-      ) : selection.failed ? (
-        <p role="alert" className="text-[11px] text-alert">
-          تعذّر الحفظ، فأُعيدت اللوحات إلى آخر حالة محفوظة.
-        </p>
-      ) : null}
     </div>
   );
 }

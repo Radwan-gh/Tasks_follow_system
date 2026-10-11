@@ -19,6 +19,7 @@ import type {
   BoardCategory,
   Card,
   CardActivity,
+  CardBoardRef,
   CardBoardsResponse,
   CompletedTasksReport,
   CreateBoardRequest,
@@ -311,6 +312,8 @@ export function createApiClient({ baseUrl, storage, onUnauthorized }: ApiClientO
         request<Card>(`/cards/${id}/assignees`, { method: "PATCH", body: JSON.stringify(body) }),
       /** The «اللوحات» field: the boards the task is on, and the ones the caller may add. */
       boards: (id: string) => request<CardBoardsResponse>(`/cards/${id}/boards`),
+      /** Boards the task could be added to, the caller's most recently used first — for the add-board popup. */
+      boardOptions: (id: string) => request<CardBoardRef[]>(`/cards/${id}/board-options`),
       setBoards: (id: string, body: SetCardBoardsRequest) =>
         request<CardBoardsResponse>(`/cards/${id}/boards`, { method: "PUT", body: JSON.stringify(body) }),
       /** Everyone on any of the task's boards — who its assignee and access pickers offer. */

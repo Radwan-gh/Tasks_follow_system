@@ -50,11 +50,11 @@ function sorted<T extends Row>(rows: T[], orderBy?: Record<string, "asc" | "desc
 
 function setup() {
   const boards = [
-    { id: "A", name: "لوحة أ", ownerId: OWNER_A, isArchived: false },
-    { id: "B", name: "لوحة ب", ownerId: OWNER_B, isArchived: false },
-    { id: "C", name: "لوحة ج", ownerId: "u-owner-c", isArchived: false },
+    { id: "A", name: "لوحة أ", ownerId: OWNER_A, isArchived: false, updatedAt: new Date(2026, 0, 1) },
+    { id: "B", name: "لوحة ب", ownerId: OWNER_B, isArchived: false, updatedAt: new Date(2026, 0, 1) },
+    { id: "C", name: "لوحة ج", ownerId: "u-owner-c", isArchived: false, updatedAt: new Date(2026, 0, 3) },
     // From before the five-status template: no «انتهى».
-    { id: "D", name: "لوحة د", ownerId: "u-owner-d", isArchived: false },
+    { id: "D", name: "لوحة د", ownerId: "u-owner-d", isArchived: false, updatedAt: new Date(2026, 0, 2) },
   ];
   const lists: Row[] = [];
   for (const board of ["A", "B", "C", "D"]) {
@@ -159,13 +159,27 @@ function setup() {
       findMany: async ({ where }: { where: Row }) =>
         memberships
           .filter((m) => matches(m, where))
-          .map((m) => ({ ...m, user: { id: m.userId, username: m.userId, displayName: m.userId, isActive: true } })),
+          .map((m) => ({
+            ...m,
+            board: boards.find((b) => b.id === m.boardId),
+            user: { id: m.userId, username: m.userId, displayName: m.userId, isActive: true },
+          })),
     },
     user: { findUnique: async ({ where }: { where: Row }) => users.find((u) => matches(u, where)) ?? null },
     cardActivity: {
       create: async ({ data }: { data: Row }) => {
         activities.push(data);
         return data;
+      },
+      // The caller's latest activity per board — all `boardOptions` asks of it.
+      groupBy: async ({ where }: { where: Row }) => {
+        const latest = new Map<string, Date>();
+        for (const a of activities.filter((row) => matches(row, where))) {
+          const at = a.createdAt as Date;
+          const seen = latest.get(a.boardId as string);
+          if (!seen || at > seen) latest.set(a.boardId as string, at);
+        }
+        return [...latest].map(([boardId, createdAt]) => ({ boardId, _max: { createdAt } }));
       },
     },
   };
@@ -174,7 +188,7 @@ function setup() {
   const notifications = { notify: async () => undefined } as unknown as NotificationsService;
   const service = new CardsService(prisma, boardsService, notifications);
   // The field's read-back after a change is `getBoards`' own business.
-  vi.spyOn(service, "getBoards").mockResolvedValue({ boards: [], options: [], canChange: true });
+  vi.spyOn(service, "getBoards").mockResolvedValue({ boards: [], canChange: true });
 
   const card = () => cards[0];
   const linkOn = (boardId: string) => links.find((l) => l.cardId === "card-1" && l.boardId === boardId);
@@ -324,5 +338,22 @@ describe("changing a task's boards", () => {
     const owner = setup();
     owner.links.splice(0); // only on A now
     await expect(owner.service.setBoards(OWNER_A, "card-1", { boardIds: ["C"] })).resolves.toBeDefined();
+  });
+});
+
+describe("the add-board popup's boards", () => {
+  it("puts the boards the caller used most recently first, then the rest by last update", async () => {
+    const { service, activities } = setup();
+    // An admin may add the task to any live board it is not on yet: C and D.
+    expect((await service.boardOptions(ADMIN, "card-1")).map((b) => b.id)).toEqual(["C", "D"]);
+    activities.push({ actorId: ADMIN, boardId: "D", createdAt: new Date(2026, 5, 1) });
+    activities.push({ actorId: OWNER_A, boardId: "C", createdAt: new Date(2026, 6, 1) }); // someone else's
+    expect((await service.boardOptions(ADMIN, "card-1")).map((b) => b.id)).toEqual(["D", "C"]);
+  });
+
+  it("offers a non-admin only their own boards, and nobody but the task's owner or an admin", async () => {
+    const { service } = setup();
+    expect((await service.boardOptions(OWNER_A, "card-1")).map((b) => b.id)).toEqual(["C"]);
+    await expect(service.boardOptions(B_ONLY, "card-1")).rejects.toBeInstanceOf(ForbiddenException);
   });
 });

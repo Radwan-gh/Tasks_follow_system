@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { CardBoardsResponse } from "@app/types";
-import { boardRows, contextBoardId, listOnBoard, withMove } from "./card-boards";
+import { boardChips, boardInitial, contextBoardId, listOnBoard, pickBoards, withMove } from "./card-boards";
 
 const placements = [
   { boardId: "home", listId: "home-new" },
@@ -34,27 +34,50 @@ describe("listOnBoard and withMove", () => {
   });
 });
 
-describe("boardRows", () => {
+describe("boardChips", () => {
   const data: CardBoardsResponse = {
     boards: [
       { id: "mine", name: "لوحتي", isArchived: false, canRemove: true },
       { id: "theirs", name: "لوحة غيري", isArchived: false, canRemove: false },
     ],
-    options: [{ id: "extra", name: "لوحة أخرى", isArchived: false }],
     canChange: true,
   };
-  it("lists the task's boards first, then the ones it could join", () => {
-    expect(boardRows(data, ["mine", "theirs"]).map((r) => [r.id, r.checked])).toEqual([
-      ["mine", true],
-      ["theirs", true],
-      ["extra", false],
+  const names = new Map([["extra", "لوحة أخرى"]]);
+  it("shows the task's boards and any just added, in order", () => {
+    expect(boardChips(data, ["mine", "theirs", "extra"], names).map((c) => c.name)).toEqual([
+      "لوحتي",
+      "لوحة غيري",
+      "لوحة أخرى",
     ]);
   });
-  it("locks a board the user is not on, and the last of their own", () => {
-    const rows = boardRows(data, ["mine", "theirs"]);
-    expect(rows.map((r) => r.lock)).toEqual(["lastOfMine", "notMember", null]);
+  it("offers ✕ only where the server would allow it", () => {
+    // Not on a board the user is not a member of, nor on the last of their own.
+    expect(boardChips(data, ["mine", "theirs"], names).map((c) => c.removable)).toEqual([false, false]);
+    expect(boardChips(data, ["mine", "theirs", "extra"], names).map((c) => c.removable)).toEqual([true, false, true]);
   });
-  it("frees their own board once another of theirs is ticked", () => {
-    expect(boardRows(data, ["mine", "theirs", "extra"]).map((r) => r.lock)).toEqual([null, "notMember", null]);
+  it("offers nothing to someone who cannot change the boards", () => {
+    expect(boardChips({ ...data, canChange: false }, ["mine", "extra"], names).some((c) => c.removable)).toBe(false);
+  });
+});
+
+describe("pickBoards", () => {
+  const options = ["الجامع", "الكهرباء", "الماء", "النظافة", "الحديقة"].map((name, i) => ({ id: `b${i}`, name }));
+  it("offers the three latest-used boards before anything is typed", () => {
+    expect(pickBoards(options, [], "").map((b) => b.name)).toEqual(["الجامع", "الكهرباء", "الماء"]);
+  });
+  it("searches every board by name, leaving out the ones the task is on", () => {
+    expect(pickBoards(options, ["b0"], "ال").map((b) => b.id)).toEqual(["b1", "b2", "b3", "b4"]);
+    expect(pickBoards(options, [], "  نظافة ").map((b) => b.name)).toEqual(["النظافة"]);
+    expect(pickBoards(options, ["b1"], "")).toHaveLength(3);
+  });
+});
+
+describe("boardInitial", () => {
+  it("skips the article so boards don't all read «ا»", () => {
+    expect(boardInitial("الكهرباء")).toBe("ك");
+    expect(boardInitial("الجامع الكبير")).toBe("ج");
+    expect(boardInitial("مشروع المدرسة")).toBe("م");
+    expect(boardInitial("الف")).toBe("ا");
+    expect(boardInitial("maintenance")).toBe("M");
   });
 });
