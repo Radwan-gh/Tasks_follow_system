@@ -237,7 +237,7 @@ function CommentBubble({
         }}
       >
         <AppText size="caption" weight="bold" color={palette.fg} style={{ fontSize: 10 }}>
-          {initials(comment.author.displayName)}
+          {initials(comment.author)}
         </AppText>
       </View>
       <View

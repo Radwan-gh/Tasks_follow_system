@@ -9,7 +9,8 @@ import { MIN_TOUCH_TARGET, colors, fonts, fontSizes, radii, spacing } from "@/th
  * Admin edit sheet for a user's descriptive fields — `PATCH /admin/users/:id`.
  * Role, status, permissions and passwords keep their own row actions, and
  * `username` is the login credential and never editable, so this sheet only
- * carries the display name and the (optional) contact email. Only changed
+ * carries the first/last name (the server recomposes `displayName` from them)
+ * and the (optional) contact email. Only changed
  * fields are sent, and an emptied email is sent as `""` to clear it.
  */
 export function EditUserSheet({
@@ -25,22 +26,30 @@ export function EditUserSheet({
   onClose: () => void;
   onSave: (body: UpdateUserRequest) => void;
 }) {
-  const [displayName, setDisplayName] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
 
   // Re-seed whenever a different row opens the sheet.
   useEffect(() => {
     if (user) {
-      setDisplayName(user.displayName);
+      setFirstName(user.firstName);
+      setLastName(user.lastName);
       setEmail(user.email ?? "");
     }
   }, [user]);
 
-  const trimmedName = displayName.trim();
+  const trimmedFirst = firstName.trim();
+  const trimmedLast = lastName.trim();
   const trimmedEmail = email.trim();
-  const nameChanged = !!user && trimmedName !== user.displayName;
+  const firstChanged = !!user && trimmedFirst !== user.firstName;
+  const lastChanged = !!user && trimmedLast !== user.lastName;
   const emailChanged = !!user && trimmedEmail !== (user.email ?? "");
-  const canSubmit = trimmedName.length > 0 && (nameChanged || emailChanged) && !saving;
+  const canSubmit =
+    trimmedFirst.length > 0 &&
+    trimmedLast.length > 0 &&
+    (firstChanged || lastChanged || emailChanged) &&
+    !saving;
 
   return (
     <BottomSheet visible={!!user} onClose={onClose}>
@@ -57,14 +66,24 @@ export function EditUserSheet({
           </View>
         ) : null}
 
-        <TextInput
-          value={displayName}
-          onChangeText={setDisplayName}
-          maxLength={100}
-          placeholder="الاسم"
-          placeholderTextColor={colors.muted}
-          style={fieldStyle}
-        />
+        <View style={{ flexDirection: "row", gap: spacing.sm }}>
+          <TextInput
+            value={firstName}
+            onChangeText={setFirstName}
+            maxLength={50}
+            placeholder="الاسم الأول"
+            placeholderTextColor={colors.muted}
+            style={{ ...fieldStyle, flex: 1 }}
+          />
+          <TextInput
+            value={lastName}
+            onChangeText={setLastName}
+            maxLength={50}
+            placeholder="اسم العائلة"
+            placeholderTextColor={colors.muted}
+            style={{ ...fieldStyle, flex: 1 }}
+          />
+        </View>
         <TextInput
           value={email}
           onChangeText={setEmail}
@@ -84,7 +103,8 @@ export function EditUserSheet({
           disabled={!canSubmit}
           onPress={() =>
             onSave({
-              ...(nameChanged ? { displayName: trimmedName } : {}),
+              ...(firstChanged ? { firstName: trimmedFirst } : {}),
+              ...(lastChanged ? { lastName: trimmedLast } : {}),
               ...(emailChanged ? { email: trimmedEmail } : {}),
             })
           }

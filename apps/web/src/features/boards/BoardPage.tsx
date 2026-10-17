@@ -230,7 +230,7 @@ export function BoardPage() {
               {previewMembers.map((m, i) => (
                 <span key={m.userId} className={i > 0 ? "-ms-2" : ""}>
                   <span className="block rounded-full ring-2 ring-surface">
-                    <UserAvatar displayName={m.user.displayName} dimmed={!m.user.isActive} />
+                    <UserAvatar person={m.user} dimmed={!m.user.isActive} />
                   </span>
                 </span>
               ))}

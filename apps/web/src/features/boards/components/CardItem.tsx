@@ -97,7 +97,7 @@ export function CardItem({ card, boardMembers, isListCompleted, readOnly, onOpen
             {assignees.slice(0, MAX_FACE_AVATARS).map((m, i) => (
               <span key={m.userId} className={i > 0 ? "-ms-1.5" : ""}>
                 <span className="block rounded-full ring-2 ring-surface">
-                  <UserAvatar displayName={m.user.displayName} dimmed={!m.user.isActive} />
+                  <UserAvatar person={m.user} dimmed={!m.user.isActive} />
                 </span>
               </span>
             ))}

@@ -63,7 +63,9 @@ OAuthAuthorizationCode ─ client, user
 | `username` | unique string | **The login credential.** Stored lowercase; sign-in lowercases the input, so casing doesn't matter. Also the secondary identity line under `displayName` in member lists and pickers. Not editable after creation |
 | `email` | optional unique string | Contact information only — **not** a credential, and not how a member is added to a board. May be `null`. Editable by an admin via `PATCH /admin/users/:id` (and clearable) — sessions are unaffected, see [`07-admin.md`](./07-admin.md) |
 | `passwordHash` | string | bcrypt hash — **the raw password is never stored** |
-| `displayName` | string | Display name. Edited by the user themselves via `PATCH /auth/me`, or by an admin via `PATCH /admin/users/:id` |
+| `firstName` | string (≤ 50) | First name — required when an admin creates the account, editable by the user themselves via `PATCH /auth/me` or by an admin via `PATCH /admin/users/:id` |
+| `lastName` | string (≤ 50) | Last (family) name — same rules as `firstName`. Both default to `""` only for accounts created before the split; migration `20261016120000_user_first_last_name` backfilled them from `displayName` (first word → `firstName`, the rest → `lastName`, which stays empty for a one-word name until someone edits it) |
+| `displayName` | string | **Derived, never typed in:** the server stores `"<firstName> <lastName>"` (`composeDisplayName` in `packages/types`) every time either half changes, so every screen, search and report keeps reading this one field |
 | `role` | `USER` \| `ADMIN` | Role at the **whole-system** level (default `USER`) |
 | `isActive` | boolean | If `false`, login is blocked and sessions are revoked (default `true`) |
 | `notificationPrefs` | optional JSON | Three notification-preference toggles (assignment/comments · due-dates/overdue · my cards moved), all `true` by default — see `NotificationPrefsSchema` |

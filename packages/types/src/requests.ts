@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { PersonNamePartSchema } from "./person-name";
 import {
   CardPriority,
   DevicePlatform,
@@ -123,7 +124,8 @@ export const CreateUserRequestSchema = z.object({
   /** Optional contact address. Omitted or empty means the account simply has none. */
   email: z.string().email().nullable().optional(),
   password: z.string().min(8).max(200),
-  displayName: z.string().min(1).max(100),
+  firstName: PersonNamePartSchema,
+  lastName: PersonNamePartSchema,
   role: UserRole.optional(),
 });
 export type CreateUserRequest = z.infer<typeof CreateUserRequestSchema>;
@@ -161,27 +163,31 @@ export const UpdateUserStatusRequestSchema = z.object({
 export type UpdateUserStatusRequest = z.infer<typeof UpdateUserStatusRequestSchema>;
 
 /**
- * Admin-only edit of a user's descriptive fields — display name and contact
- * email. Credentials (`username`, password), role, status and permissions keep
- * their own endpoints, so this one never carries a password. Both fields are
- * optional: an empty patch is a no-op. An empty-string `email` clears the
+ * Admin-only edit of a user's descriptive fields — first/last name and contact
+ * email (`displayName` is recomposed from the names server-side). Credentials
+ * (`username`, password), role, status and permissions keep their own
+ * endpoints, so this one never carries a password. Every field is optional: an
+ * empty patch is a no-op. An empty-string `email` clears the
  * address, since it is optional contact information rather than a credential.
  * See `PATCH /admin/users/:id`.
  */
 export const UpdateUserRequestSchema = z.object({
   email: z.union([z.string().trim().email(), z.literal("")]).optional(),
-  displayName: z.string().trim().min(1).max(100).optional(),
+  firstName: PersonNamePartSchema.optional(),
+  lastName: PersonNamePartSchema.optional(),
 });
 export type UpdateUserRequest = z.infer<typeof UpdateUserRequestSchema>;
 
 /**
  * Self-service profile edit for the logged-in user (`PATCH /auth/me`). Only
- * the display name: `username` is the account's login credential and the email
+ * the first and last name (the server recomposes `displayName` from them):
+ * `username` is the account's login credential and the email
  * is contact information on an admin-provisioned account, so only an admin
  * changes either (`PATCH /admin/users/:id`).
  */
 export const UpdateProfileRequestSchema = z.object({
-  displayName: z.string().trim().min(1).max(100),
+  firstName: PersonNamePartSchema,
+  lastName: PersonNamePartSchema,
 });
 export type UpdateProfileRequest = z.infer<typeof UpdateProfileRequestSchema>;
 

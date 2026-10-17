@@ -8,6 +8,7 @@ import type {
   UpdateUserRequest,
   UserRole,
 } from "@app/types";
+import { composeDisplayName } from "@app/types";
 import type { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { generateTemporaryPassword, hashPassword } from "../common/util/password.util";
@@ -35,6 +36,8 @@ function serialize(user: UserWithCounts): AdminUser {
     username: user.username,
     email: user.email,
     displayName: user.displayName,
+    firstName: user.firstName,
+    lastName: user.lastName,
     role: user.role,
     isActive: user.isActive,
     mustChangePassword: user.mustChangePassword,
@@ -91,7 +94,8 @@ export class UsersService {
 
   /**
    * Provision a new account. Public self-registration was removed — an admin
-   * sets the initial username, display name, password, and (optionally) role.
+   * sets the initial username, first/last name (from which `displayName` is
+   * composed), password, and (optionally) role.
    * `email` is optional and purely contact information.
    */
   async create(input: CreateUserRequest): Promise<AdminUser> {
@@ -113,7 +117,9 @@ export class UsersService {
         username,
         email,
         passwordHash,
-        displayName: input.displayName,
+        firstName: input.firstName,
+        lastName: input.lastName,
+        displayName: composeDisplayName(input.firstName, input.lastName),
         role: input.role ?? "USER",
       },
       include: COUNT_INCLUDE,
@@ -122,7 +128,8 @@ export class UsersService {
   }
 
   /**
-   * Admin edit of a user's descriptive fields (display name / contact email).
+   * Admin edit of a user's descriptive fields (first/last name / contact
+   * email). A name change recomposes `displayName` from the two halves.
    * Credentials, role and status have their own endpoints — this one only
    * touches who the account *is*.
    *
@@ -138,7 +145,9 @@ export class UsersService {
 
       const email = input.email === undefined ? undefined : input.email.trim() || null;
       const emailChanged = email !== undefined && email !== target.email;
-      const nameChanged = input.displayName !== undefined && input.displayName !== target.displayName;
+      const firstName = input.firstName ?? target.firstName;
+      const lastName = input.lastName ?? target.lastName;
+      const nameChanged = firstName !== target.firstName || lastName !== target.lastName;
       if (!emailChanged && !nameChanged) return serialize(target);
 
       if (emailChanged && email) {
@@ -150,7 +159,7 @@ export class UsersService {
         where: { id: targetId },
         data: {
           ...(emailChanged ? { email } : {}),
-          ...(nameChanged ? { displayName: input.displayName } : {}),
+          ...(nameChanged ? { firstName, lastName, displayName: composeDisplayName(firstName, lastName) } : {}),
         },
         include: COUNT_INCLUDE,
       });

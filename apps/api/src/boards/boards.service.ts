@@ -20,7 +20,7 @@ interface BoardAggregate {
   memberCount: number;
   cardCount: number;
   doneCount: number;
-  memberPreviews: { id: string; displayName: string }[];
+  memberPreviews: { id: string; displayName: string; firstName: string; lastName: string }[];
 }
 const EMPTY_AGGREGATE: BoardAggregate = { memberCount: 0, cardCount: 0, doneCount: 0, memberPreviews: [] };
 
@@ -265,7 +265,7 @@ export class BoardsService {
     const rows = await this.prisma.boardMember.findMany({
       where: { boardId: { in: boardIds }, ...(userIds ? { userId: { in: userIds } } : {}) },
       orderBy: { joinedAt: "asc" },
-      include: { user: { select: { id: true, username: true, displayName: true, isActive: true } } },
+      include: { user: { select: { id: true, username: true, displayName: true, firstName: true, lastName: true, isActive: true } } },
     });
     const boardOrder = new Map(boardIds.map((id, i) => [id, i]));
     rows.sort((a, b) => boardOrder.get(a.boardId)! - boardOrder.get(b.boardId)!);
@@ -317,7 +317,7 @@ export class BoardsService {
             }
           : undefined,
       },
-      include: { owner: { select: { id: true, displayName: true } }, ...CATEGORY_INCLUDE },
+      include: { owner: { select: { id: true, displayName: true, firstName: true, lastName: true } }, ...CATEGORY_INCLUDE },
     });
     // A brand-new board always has exactly one member (the owner) and zero
     // cards — no need to round-trip through `boardAggregates` for this.
@@ -379,7 +379,7 @@ export class BoardsService {
       this.prisma.boardMember.findMany({
         where: { boardId: { in: boardIds } },
         orderBy: { joinedAt: "asc" },
-        select: { boardId: true, user: { select: { id: true, displayName: true } } },
+        select: { boardId: true, user: { select: { id: true, displayName: true, firstName: true, lastName: true } } },
       }),
     ]);
 
@@ -538,7 +538,12 @@ export class BoardsService {
       doneCount: columns
         .filter((c) => c.list.statusCategory && COMPLETED_CATEGORIES.includes(c.list.statusCategory))
         .reduce((sum, c) => sum + c.entries.length, 0),
-      memberPreviews: board.members.slice(0, 4).map((m) => ({ id: m.user.id, displayName: m.user.displayName })),
+      memberPreviews: board.members.slice(0, 4).map((m) => ({
+        id: m.user.id,
+        displayName: m.user.displayName,
+        firstName: m.user.firstName,
+        lastName: m.user.lastName,
+      })),
     };
 
     let hiddenClosedCount = 0;
@@ -581,7 +586,14 @@ export class BoardsService {
         userId: m.userId,
         boardId: m.boardId,
         role: m.role,
-        user: { id: m.user.id, username: m.user.username, displayName: m.user.displayName, isActive: m.user.isActive },
+        user: {
+          id: m.user.id,
+          username: m.user.username,
+          displayName: m.user.displayName,
+          firstName: m.user.firstName,
+          lastName: m.user.lastName,
+          isActive: m.user.isActive,
+        },
       })),
       lists,
     };
@@ -699,7 +711,7 @@ export class BoardsService {
     // `limit`" without a second COUNT query.
     const rows = await this.prisma.user.findMany({
       where,
-      select: { id: true, username: true, displayName: true, isActive: true },
+      select: { id: true, username: true, displayName: true, firstName: true, lastName: true, isActive: true },
       orderBy: { displayName: "asc" },
       take: limit + 1,
     });
@@ -734,6 +746,8 @@ export class BoardsService {
         id: member.user.id,
         username: member.user.username,
         displayName: member.user.displayName,
+        firstName: member.user.firstName,
+        lastName: member.user.lastName,
         isActive: member.user.isActive,
       },
     };
@@ -778,7 +792,7 @@ export class BoardsService {
 
     const members = await this.prisma.boardMember.findMany({
       where: { boardId },
-      include: { user: { select: { id: true, username: true, displayName: true, isActive: true } } },
+      include: { user: { select: { id: true, username: true, displayName: true, firstName: true, lastName: true, isActive: true } } },
     });
     return members.map((m) => ({ userId: m.userId, boardId: m.boardId, role: m.role, user: m.user }));
   }
@@ -806,6 +820,8 @@ export class BoardsService {
         id: member.user.id,
         username: member.user.username,
         displayName: member.user.displayName,
+        firstName: member.user.firstName,
+        lastName: member.user.lastName,
         isActive: member.user.isActive,
       },
     };

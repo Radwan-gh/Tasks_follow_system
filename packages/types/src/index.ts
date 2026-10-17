@@ -1,4 +1,5 @@
 export * from "./domain";
+export * from "./person-name";
 export * from "./requests";
 export * from "./realtime-events";
 export * from "./reports";

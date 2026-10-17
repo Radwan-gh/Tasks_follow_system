@@ -28,8 +28,8 @@ export default function AccountScreen() {
   // Self-service edit of the user's own display name (`PATCH /auth/me`); the
   // context is re-read afterwards so the header and avatar update at once.
   const updateProfile = useMutation({
-    mutationFn: async (displayName: string) => {
-      await api.auth.updateProfile({ displayName });
+    mutationFn: async (name: { firstName: string; lastName: string }) => {
+      await api.auth.updateProfile(name);
       await refreshUser();
     },
     onSuccess: () => {
@@ -86,7 +86,7 @@ export default function AccountScreen() {
             }}
           >
             <AppText weight="bold" color={colors.accent}>
-              {initials(user?.displayName ?? "")}
+              {initials(user ?? { displayName: "" })}
             </AppText>
           </View>
           <View style={{ flex: 1 }}>
@@ -246,7 +246,8 @@ export default function AccountScreen() {
 
       <EditProfileSheet
         visible={editingProfile}
-        displayName={user?.displayName ?? ""}
+        firstName={user?.firstName ?? ""}
+        lastName={user?.lastName ?? ""}
         username={user?.username ?? ""}
         email={user?.email ?? ""}
         saving={updateProfile.isPending}
@@ -255,7 +256,7 @@ export default function AccountScreen() {
           setEditingProfile(false);
           setProfileError(null);
         }}
-        onSave={(displayName) => updateProfile.mutate(displayName)}
+        onSave={(name) => updateProfile.mutate(name)}
       />
 
       <ChangePasswordSheet

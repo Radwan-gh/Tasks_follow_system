@@ -130,7 +130,7 @@ export function BoardCard({
                 }}
               >
                 <AppText size="caption" weight="bold" color={palette.fg} style={{ fontSize: 11 }}>
-                  {initials(member.displayName)}
+                  {initials(member)}
                 </AppText>
               </View>
             );

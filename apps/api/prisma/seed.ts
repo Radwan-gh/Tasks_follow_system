@@ -64,6 +64,10 @@ async function main() {
       email: SEED_ADMIN_EMAIL,
       passwordHash,
       displayName: SEED_ADMIN_NAME,
+      // First word is the first name, the rest the last — the same split the
+      // `user_first_last_name` migration applied to existing accounts.
+      firstName: SEED_ADMIN_NAME.split(" ")[0] ?? SEED_ADMIN_NAME,
+      lastName: SEED_ADMIN_NAME.split(" ").slice(1).join(" "),
       role: "ADMIN",
     },
   });

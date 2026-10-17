@@ -226,7 +226,7 @@ export function SubtasksSection({
                       }}
                     >
                       <AppText size="caption" weight="bold" color={avatarColorFor(assignees[0]!.userId).fg} style={{ fontSize: 10 }}>
-                        {initials(assignees[0]!.user.displayName)}
+                        {initials(assignees[0]!.user)}
                       </AppText>
                     </View>
                   ) : canEdit ? (

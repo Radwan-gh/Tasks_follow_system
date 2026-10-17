@@ -34,6 +34,19 @@ export default {
           DEFAULT: "#C05A17",
           bg: "#FCEEDF",
         },
+        // Per-person avatar swatches — the same five as mobile's `avatarPalette`.
+        avatar: {
+          blueBg: "#EAEFFB",
+          blueFg: "#4A6FD4",
+          violetBg: "#F3ECFB",
+          violetFg: "#8B5FC7",
+          amberBg: "#FBEFE6",
+          amberFg: "#B9743A",
+          greenBg: "#E6F4EE",
+          greenFg: "#1F7A5C",
+          slateBg: "#EDEFF3",
+          slateFg: "#5B6273",
+        },
       },
       borderRadius: {
         card: "20px",

@@ -3,6 +3,7 @@ import { Pressable, View } from "react-native";
 import type { Card, List } from "@app/types";
 import { AppText } from "@/components/text";
 import { sortByPriority } from "@/lib/reorder";
+import type { AvatarPerson } from "@/lib/initials";
 import { CardItem } from "./card-item";
 import { DraggableCard, DropPlaceholder } from "./board-drag";
 import { MIN_TOUCH_TARGET, colors, radii, spacing, statusColors } from "@/theme/tokens";
@@ -28,7 +29,7 @@ export function ListColumn({
 }: {
   list: List;
   width: number;
-  resolveAssignees: (ids: string[]) => { id: string; displayName: string }[];
+  resolveAssignees: (ids: string[]) => AvatarPerson[];
   hasNext: boolean;
   /** True when the next column is the `CLOSED` («انتهى») list — §3b-4. */
   nextListIsClosed: boolean;

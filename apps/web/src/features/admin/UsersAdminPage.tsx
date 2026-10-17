@@ -22,7 +22,8 @@ export function UsersAdminPage() {
   const [editError, setEditError] = useState<string | null>(null);
 
   // New-user form state.
-  const [newName, setNewName] = useState("");
+  const [newFirstName, setNewFirstName] = useState("");
+  const [newLastName, setNewLastName] = useState("");
   const [newUsername, setNewUsername] = useState("");
   // Email is contact info, not a credential — the server accepts it as null.
   const [newEmail, setNewEmail] = useState("");
@@ -57,13 +58,15 @@ export function UsersAdminPage() {
       username: string;
       email: string | null;
       password: string;
-      displayName: string;
+      firstName: string;
+      lastName: string;
       role: UserRole;
     }) => api.admin.createUser(vars),
     onSuccess: (created) => {
       onMutationSuccess();
       setNotice(`تم إنشاء الحساب ${created.username}.`);
-      setNewName("");
+      setNewFirstName("");
+      setNewLastName("");
       setNewUsername("");
       setNewEmail("");
       setNewPassword("");
@@ -100,7 +103,8 @@ export function UsersAdminPage() {
       username: newUsername.trim().toLowerCase(),
       email: newEmail.trim() || null,
       password: newPassword,
-      displayName: newName.trim(),
+      firstName: newFirstName.trim(),
+      lastName: newLastName.trim(),
       role: newIsAdmin ? "ADMIN" : "USER",
     });
   }
@@ -218,10 +222,19 @@ export function UsersAdminPage() {
           <div className="flex flex-wrap items-center gap-2">
             <input
               required
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              placeholder="الاسم"
-              className="w-40 rounded border border-slate-300 px-3 py-2 text-sm"
+              maxLength={50}
+              value={newFirstName}
+              onChange={(e) => setNewFirstName(e.target.value)}
+              placeholder="الاسم الأول"
+              className="w-36 rounded border border-slate-300 px-3 py-2 text-sm"
+            />
+            <input
+              required
+              maxLength={50}
+              value={newLastName}
+              onChange={(e) => setNewLastName(e.target.value)}
+              placeholder="اسم العائلة"
+              className="w-36 rounded border border-slate-300 px-3 py-2 text-sm"
             />
             <input
               required

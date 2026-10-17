@@ -3,7 +3,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import type { BoardCard } from "@app/types";
 import { AppText } from "@/components/text";
 import { avatarColorFor } from "@/lib/avatar";
-import { initials } from "@/lib/initials";
+import { initials, type AvatarPerson } from "@/lib/initials";
 import { formatDueDate, isOverdue } from "@/lib/date";
 import { MIN_TOUCH_TARGET, colors, radii, spacing, statusColors } from "@/theme/tokens";
 
@@ -27,7 +27,7 @@ export function CardItem({
   lifted = false,
 }: {
   card: BoardCard;
-  assignees: { id: string; displayName: string }[];
+  assignees: AvatarPerson[];
   hasNext: boolean;
   onMoveNext: () => void;
   /** Unset on a draggable card: there the long-press lifts it (`board-drag.tsx`). */
@@ -224,7 +224,8 @@ function Chip({ label, background, color }: { label: string; background: string;
   );
 }
 
-function Avatars({ assignees }: { assignees: { id: string; displayName: string }[] }) {
+/** First+last-name initials on each person's own swatch — sized so «أ.ع» reads at a glance. */
+function Avatars({ assignees }: { assignees: AvatarPerson[] }) {
   return (
     <View style={{ flexDirection: "row" }}>
       {assignees.slice(0, 3).map((person, index) => {
@@ -233,19 +234,19 @@ function Avatars({ assignees }: { assignees: { id: string; displayName: string }
           <View
             key={person.id}
             style={{
-              width: 26,
-              height: 26,
+              width: 30,
+              height: 30,
               borderRadius: 999,
               backgroundColor: palette.bg,
               borderWidth: 2,
               borderColor: colors.surface,
               alignItems: "center",
               justifyContent: "center",
-              marginInlineStart: index === 0 ? 0 : -10,
+              marginInlineStart: index === 0 ? 0 : -6,
             }}
           >
-            <AppText weight="bold" color={palette.fg} style={{ fontSize: 10, lineHeight: 12 }}>
-              {initials(person.displayName)}
+            <AppText weight="bold" color={palette.fg} style={{ fontSize: 12, lineHeight: 16 }}>
+              {initials(person)}
             </AppText>
           </View>
         );

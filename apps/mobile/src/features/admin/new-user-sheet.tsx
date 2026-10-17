@@ -31,7 +31,8 @@ export function NewUserSheet({
   visible: boolean;
   onClose: () => void;
   onCreate: (input: {
-    displayName: string;
+    firstName: string;
+    lastName: string;
     username: string;
     email: string | null;
     password: string;
@@ -42,7 +43,8 @@ export function NewUserSheet({
   initialUsername?: string;
   error?: string | null;
 }) {
-  const [displayName, setDisplayName] = useState(initialName);
+  const [firstName, setFirstName] = useState(() => splitName(initialName).firstName);
+  const [lastName, setLastName] = useState(() => splitName(initialName).lastName);
   const [username, setUsername] = useState(initialUsername);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -51,7 +53,9 @@ export function NewUserSheet({
   // Seed only as the sheet opens, so typing is never overwritten mid-edit.
   useEffect(() => {
     if (visible) {
-      setDisplayName(initialName);
+      const seeded = splitName(initialName);
+      setFirstName(seeded.firstName);
+      setLastName(seeded.lastName);
       setUsername(initialUsername);
       setEmail("");
       setPassword("");
@@ -61,7 +65,8 @@ export function NewUserSheet({
   }, [visible]);
 
   function close() {
-    setDisplayName("");
+    setFirstName("");
+    setLastName("");
     setUsername("");
     setEmail("");
     setPassword("");
@@ -69,7 +74,12 @@ export function NewUserSheet({
     onClose();
   }
 
-  const canSubmit = displayName.trim().length > 0 && username.trim().length > 0 && password.length >= 8 && !creating;
+  const canSubmit =
+    firstName.trim().length > 0 &&
+    lastName.trim().length > 0 &&
+    username.trim().length > 0 &&
+    password.length >= 8 &&
+    !creating;
 
   return (
     <BottomSheet visible={visible} onClose={close}>
@@ -86,13 +96,24 @@ export function NewUserSheet({
           </View>
         ) : null}
 
-        <TextInput
-          value={displayName}
-          onChangeText={setDisplayName}
-          placeholder="الاسم"
-          placeholderTextColor={colors.muted}
-          style={fieldStyle}
-        />
+        <View style={{ flexDirection: "row", gap: spacing.sm }}>
+          <TextInput
+            value={firstName}
+            onChangeText={setFirstName}
+            maxLength={50}
+            placeholder="الاسم الأول"
+            placeholderTextColor={colors.muted}
+            style={{ ...fieldStyle, flex: 1 }}
+          />
+          <TextInput
+            value={lastName}
+            onChangeText={setLastName}
+            maxLength={50}
+            placeholder="اسم العائلة"
+            placeholderTextColor={colors.muted}
+            style={{ ...fieldStyle, flex: 1 }}
+          />
+        </View>
         <TextInput
           value={username}
           onChangeText={setUsername}
@@ -156,7 +177,8 @@ export function NewUserSheet({
           disabled={!canSubmit}
           onPress={() =>
             onCreate({
-              displayName: displayName.trim(),
+              firstName: firstName.trim(),
+              lastName: lastName.trim(),
               username: username.trim(),
               email: email.trim() || null,
               password,
@@ -192,3 +214,9 @@ const fieldStyle = {
   textAlign: "right" as const,
   writingDirection: "rtl" as const,
 };
+
+/** A typed-in search seeds the name fields: first word → first name, the rest → last name. */
+function splitName(name: string): { firstName: string; lastName: string } {
+  const [first = "", ...rest] = name.trim().split(/\s+/);
+  return { firstName: first, lastName: rest.join(" ") };
+}
