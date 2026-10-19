@@ -33,9 +33,10 @@ export const CardPriority = z.enum(["LOW", "NORMAL", "URGENT"]);
 export type CardPriority = z.infer<typeof CardPriority>;
 
 /**
- * A card's repeat rule. On move into a `CLOSED` list, the server spawns the
- * next instance into the board's `NEW` list with `dueDate` advanced by one
- * interval — see `design-prompt-group-3.md` §3a-3/§9 ("لا تتراكم نسخ متعددة").
+ * A card's repeat rule. A repeating task is one card: on move into a `CLOSED`
+ * list the server records the finished cycle (`CardCycleSchema`) and reopens
+ * the same card in the board's `NEW` list with the next due date — see
+ * docs/14-notifications-comments-attachments.md.
  */
 export const RecurrenceRuleSchema = z
   .discriminatedUnion("freq", [
@@ -59,11 +60,12 @@ export const RecurrenceRuleSchema = z
   ])
   // Read by MCP clients as the field's documentation (docs/15-mcp-server.md).
   .describe(
-    "Repeat rule. The next instance is created only when this card is moved to the CLOSED list (انتهى) — not DONE (منجز) — " +
-      "and it lands in the NEW list. Its due date is the previous due date plus one period (the next listed weekday, " +
-      "the next day, or the same day next month), counted in local time from the old due date, not from today — so closing " +
-      "a card late can create an instance that is already overdue. Carries over title, description, priority, assignees, " +
-      "whether the due date has a time, the access restriction, this rule, and the subtasks (unticked); cost is not copied.",
+    "Repeat rule. A repeating task is a single card. Moving it to the CLOSED list (انتهى) — not DONE (منجز) — completes " +
+      "a cycle: the server records it (the cycle's due date, who closed it, when, and how late — see get_card_cycles) and " +
+      "reopens the same card in the NEW list right away, with its subtasks unticked and the next due date: the previous due " +
+      "date plus one period (the next listed weekday, the next day, or the same day next month) in local time, skipped " +
+      "ahead past dates already gone, so a late close never reopens it overdue. Title, description, priority, assignees, " +
+      "cost, comments and attachments all stay on the card.",
   );
 export type RecurrenceRule = z.infer<typeof RecurrenceRuleSchema>;
 
@@ -356,6 +358,11 @@ export const CardActivityType = z.enum([
   "RECURRENCE_CHANGED",
   // The boards the task is on: `fromValue`/`toValue` are the board names before/after, joined with «، ».
   "BOARDS_CHANGED",
+  // A recurring task finished a cycle and reopened: `fromValue` is the
+  // `formatLateness` label («في الموعد» / «بتأخير يومين»), null when the cycle
+  // had no due date; `toValue` is the next due date (as `DUE_DATE_CHANGED`
+  // records one), null when the card could not reopen (its board has no «جديد»).
+  "CYCLE_COMPLETED",
 ]);
 export type CardActivityType = z.infer<typeof CardActivityType>;
 
@@ -376,6 +383,42 @@ export const CardActivitySchema = z.object({
   actor: UserSchema.pick({ id: true, username: true, displayName: true }),
 });
 export type CardActivity = z.infer<typeof CardActivitySchema>;
+
+/**
+ * One finished cycle of a recurring task — written when the card is moved into
+ * «انتهى», just before it reopens for the next cycle. `lateMinutes` is past the
+ * cycle's deadline (its due time, or the end of a date-only due day): 0 when
+ * closed on time, null when the cycle had no due date. `subtaskDone`/`Total` is
+ * the checklist as it stood at close, before the reopen unticked it.
+ */
+export const CardCycleSchema = z.object({
+  id: z.string(),
+  number: z.number().int(),
+  dueDate: z.string().datetime().nullable(),
+  dueDateHasTime: z.boolean(),
+  closedAt: z.string().datetime(),
+  closedBy: UserSchema.pick({ id: true, username: true, displayName: true }),
+  lateMinutes: z.number().int().nullable(),
+  subtaskDone: z.number().int(),
+  subtaskTotal: z.number().int(),
+});
+export type CardCycle = z.infer<typeof CardCycleSchema>;
+
+/**
+ * `GET /cards/:id/cycles` — a recurring task's track record, newest cycle
+ * first. The summary counts only cycles that had a due date as on time / late;
+ * `averageLateMinutes` is over the late ones (null when none was late).
+ */
+export const CardCyclesSchema = z.object({
+  summary: z.object({
+    total: z.number().int(),
+    onTime: z.number().int(),
+    late: z.number().int(),
+    averageLateMinutes: z.number().int().nullable(),
+  }),
+  cycles: z.array(CardCycleSchema),
+});
+export type CardCycles = z.infer<typeof CardCyclesSchema>;
 
 export const ListSchema = z.object({
   id: z.string(),

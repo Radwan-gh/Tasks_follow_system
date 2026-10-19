@@ -33,6 +33,7 @@ enum CardActivityType {
   PRIORITY_CHANGED
   RECURRENCE_CHANGED
   BOARDS_CHANGED
+  CYCLE_COMPLETED
 }
 
 /// Semantic status of a list, set when a board is seeded from a built-in
@@ -104,6 +105,7 @@ model User {
   ownedBoards    Board[]        @relation("BoardOwner")
   createdBoardCategories BoardCategory[] @relation("BoardCategoryCreator")
   cardActivities CardActivity[] @relation("CardActivityActor")
+  closedCycles   CardCycle[]    @relation("CardCycleCloser")
   cardAssignments    CardAssignee[]
   createdSubtasks    Subtask[]         @relation("SubtaskCreator")
   subtaskAssignments SubtaskAssignee[]
@@ -273,8 +275,8 @@ model Card {
   costNote     String?
   /// Recurrence rule as `{ freq: "DAILY"|"WEEKLY"|"MONTHLY", weekdays?:
   /// number[], dayOfMonth?: number } | null`. On move into a `CLOSED` list,
-  /// `CardsService` reads this to spawn the next instance — see
-  /// `design-prompt-group-3.md` §3a-3/§9.
+  /// `CardsService` records a `CardCycle` and reopens this same card in
+  /// «جديد» with the next due date — see docs/14-notifications-comments-attachments.md.
   recurrence   Json?
   createdById String
   createdAt   DateTime  @default(now())
@@ -290,6 +292,8 @@ model Card {
   attachments Attachment[]
   /// The other boards this task also appears on — see `CardBoardLink`.
   boardLinks  CardBoardLink[]
+  /// Completed cycles of a recurring task, oldest first by `number`.
+  cycles      CardCycle[]
 
   @@index([listId, position])
   @@index([boardId, isArchived])
@@ -489,6 +493,36 @@ model CardActivity {
   /// "Your latest-used boards" in the add-board popup (`CardsService.boardOptions`):
   /// the caller's last activity per board, read without scanning everyone's history.
   @@index([actorId, boardId, createdAt])
+}
+
+/// One completed cycle of a recurring task. A recurring task is a single card:
+/// moving it into «انتهى» writes one of these rows — the cycle's due date, who
+/// closed it, when, and how late — and the same card reopens in «جديد» with the
+/// next due date and its checklist unticked (`CardsService.completeCycle`,
+/// docs/14-notifications-comments-attachments.md). Insert-only, like history.
+model CardCycle {
+  id             String    @id @default(cuid())
+  cardId         String
+  /// 1 for the first cycle the card completed, then 2, 3… Unique per card, so
+  /// two concurrent closes can never record the same cycle twice.
+  number         Int
+  /// The cycle's due date as it stood when it was closed (null if none was set).
+  dueDate        DateTime?
+  dueDateHasTime Boolean   @default(false)
+  closedAt       DateTime  @default(now())
+  closedById     String
+  /// Minutes past the deadline (`deadlineOf`: the due time, or the end of a
+  /// date-only due day in `APP_TIME_ZONE`) — 0 when closed on time, null when
+  /// the cycle had no due date. Frozen at close time.
+  lateMinutes    Int?
+  /// The checklist as it stood at close time, before the reopen unticked it.
+  subtaskDone    Int       @default(0)
+  subtaskTotal   Int       @default(0)
+
+  card     Card @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  closedBy User @relation("CardCycleCloser", fields: [closedById], references: [id])
+
+  @@unique([cardId, number])
 }
 
 model CardMember {

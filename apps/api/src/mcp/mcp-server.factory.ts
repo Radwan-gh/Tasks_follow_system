@@ -320,7 +320,7 @@ export class McpServerFactory {
       "get_card_history",
       {
         title: "Get card history",
-        description: "The card's audit trail: who created, moved (status changes), renamed, assigned or archived it, or changed its description, due date, priority, repeat rule or cost — and when. Due dates are YYYY-MM-DD when date-only, a full timestamp when timed; priorities are LOW/NORMAL/URGENT; repeat rules are Arabic summaries.",
+        description: "The card's audit trail: who created, moved (status changes), renamed, assigned or archived it, or changed its description, due date, priority, repeat rule or cost — and when. Due dates are YYYY-MM-DD when date-only, a full timestamp when timed; priorities are LOW/NORMAL/URGENT; repeat rules are Arabic summaries. CYCLE_COMPLETED marks a repeating task finishing a cycle: from is its punctuality in Arabic, to the next due date it reopened with (get_card_cycles has the full record).",
         inputSchema: { cardId: z.string() },
         annotations: readOnly,
       },
@@ -334,6 +334,33 @@ export class McpServerFactory {
             by: a.actor.displayName,
           })),
         ),
+    );
+
+    tool(
+      "get_card_cycles",
+      {
+        title: "Get repeating task cycles",
+        description:
+          "A repeating task's track record: every finished cycle (newest first) with its due date, when and by whom it was closed, minutes late (0 = on time, null = no due date) and how much of its checklist was ticked, plus totals — cycles, on time, late, average minutes late. Empty for a task that has never completed a cycle.",
+        inputSchema: { cardId: z.string() },
+        annotations: readOnly,
+      },
+      ({ cardId }) =>
+        run(async () => {
+          const { summary, cycles } = await this.cards.getCycles(userId, cardId);
+          return {
+            summary,
+            cycles: cycles.map((c) => ({
+              number: c.number,
+              dueDate: c.dueDate,
+              dueDateHasTime: c.dueDateHasTime,
+              closedAt: c.closedAt,
+              closedBy: c.closedBy.displayName,
+              lateMinutes: c.lateMinutes,
+              checklist: c.subtaskTotal > 0 ? `${c.subtaskDone}/${c.subtaskTotal}` : null,
+            })),
+          };
+        }),
     );
 
     tool(
@@ -456,7 +483,7 @@ export class McpServerFactory {
       {
         title: "Update card",
         description:
-          "Edit any card details: title, description, dueDate, dueDateHasTime, priority, costAmount, costNote, recurrence, or isArchived. Pass null to clear a field. To change status use move_card. A repeating card spawns its next instance only when moved to CLOSED (see the recurrence field).",
+          "Edit any card details: title, description, dueDate, dueDateHasTime, priority, costAmount, costNote, recurrence, or isArchived. Pass null to clear a field. To change status use move_card. Moving a repeating card to CLOSED completes a cycle and reopens the same card in NEW (see the recurrence field).",
         inputSchema: { cardId: z.string(), ...cardUpdateFields },
         annotations: write,
       },
@@ -468,7 +495,7 @@ export class McpServerFactory {
       {
         title: "Move card",
         description:
-          "Change a card's status by moving it to another list on any board it is on (or reorder within its list) — its other boards follow to the same status. position: 'top', 'bottom' (default), or the id of a card in the target list to place it after.",
+          "Change a card's status by moving it to another list on any board it is on (or reorder within its list) — its other boards follow to the same status. position: 'top', 'bottom' (default), or the id of a card in the target list to place it after. A repeating card moved to CLOSED records the finished cycle and comes back in NEW with its next due date — the returned card shows where it ended up.",
         inputSchema: {
           cardId: z.string(),
           targetListId: z.string(),

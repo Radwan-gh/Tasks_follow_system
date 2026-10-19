@@ -136,8 +136,9 @@ Full detail in `docs/14-notifications-comments-attachments.md`. Summary:
       groups, tap opens the card and marks read, "تحديد الكل كمقروء"
 - [x] Notification prefs section in "حسابي" (`features/account/notification-prefs-section.tsx`)
 - [x] Recurrence — `RecurrenceSheet` (shared by add-task and card detail),
-      ↻ icon on the card face; server spawns the next instance into «جديد»
-      when the current one moves to «انتهى» (`CardsService.spawnNextRecurrence`)
+      ↻ icon on the card face; moving it to «انتهى» records a cycle and the
+      server reopens the same card in «جديد» (`CardsService.completeCycle`),
+      shown in card detail's «الدورات» section (`features/cards/cycles-section.tsx`)
 - [x] Attachments — `AttachmentsSection` in card detail (grid, camera/library
       picker, full-screen viewer, delete with confirm)
 - [x] Comments — merged into card detail's "السجل والتعليقات" section

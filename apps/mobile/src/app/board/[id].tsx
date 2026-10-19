@@ -25,6 +25,7 @@ import { api } from "@/lib/api";
 import { LIVE_REFETCH_MS, boardDetailKey, recentClosedSince, useOpenCard } from "@/lib/board-cache";
 import { indexFromOffset, resolveColumnOffsets, snapOffsetsFor } from "@/lib/status-pager";
 import { planDrop } from "@/lib/reorder";
+import { completesCycle, reopenedNotice } from "@/lib/recurring";
 import { MIN_TOUCH_TARGET, colors, fonts, fontSizes, radii, spacing } from "@/theme/tokens";
 
 /**
@@ -219,13 +220,23 @@ export default function BoardScreen() {
       await queryClient.cancelQueries({ queryKey: boardQueryKey });
       const previous = queryClient.getQueryData<BoardDetail>(boardQueryKey);
       if (previous) {
-        queryClient.setQueryData(
-          boardQueryKey,
-          moveCardInBoard(previous, input.cardId, input.targetListId, input.place?.index),
-        );
         const from = findCardPlace(previous, input.cardId);
         const target = previous.lists.find((l) => l.id === input.targetListId);
-        if (input.kind !== "undo" && from && target) {
+        const card = previous.lists.flatMap((l) => l.cards).find((c) => c.id === input.cardId);
+        // A recurring task sent to «انتهى» comes straight back in «جديد» — the
+        // server records the cycle — so it lands there, and the notice waits for
+        // its next due date. No «تراجع»: the cycle is already on its record.
+        const reopensIn =
+          card && completesCycle(card, target) ? previous.lists.find((l) => l.statusCategory === "NEW") : undefined;
+        queryClient.setQueryData(
+          boardQueryKey,
+          reopensIn
+            ? moveCardInBoard(previous, input.cardId, reopensIn.id)
+            : moveCardInBoard(previous, input.cardId, input.targetListId, input.place?.index),
+        );
+        if (reopensIn) {
+          setToast(null);
+        } else if (input.kind !== "undo" && from && target) {
           const sameList = from.listId === target.id;
           setToast({
             id: Date.now(),
@@ -246,9 +257,20 @@ export default function BoardScreen() {
       }
       return { previous };
     },
-    onError: (_err, _input, context) => {
+    onSuccess: (moved, input, context) => {
+      const notice = reopenedNotice(moved, id, context?.previous?.lists ?? [], input.targetListId);
+      if (notice) setToast({ id: Date.now(), message: notice });
+    },
+    onError: (error, _input, context) => {
       if (context?.previous) queryClient.setQueryData(boardQueryKey, context.previous);
-      setToast({ id: Date.now(), message: "تعذّر نقل المهمة. تحقّق من الاتصال وأعد المحاولة." });
+      setToast({
+        id: Date.now(),
+        // 409: someone else moved it first (the server lets only one move through).
+        message:
+          error instanceof ApiError && error.status === 409
+            ? "نقلها شخص آخر قبلك للتو، وحُدّثت اللوحة."
+            : "تعذّر نقل المهمة. تحقّق من الاتصال وأعد المحاولة.",
+      });
     },
     // A task on several boards moved on all of them (docs/18-multi-board-tasks.md).
     onSettled: (_data, _err, input) => {

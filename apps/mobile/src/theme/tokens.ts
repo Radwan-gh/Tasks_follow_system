@@ -25,6 +25,11 @@ export const colors = {
   alert: "#C0503C",
   alertSoft: "#FBE9E7",
 
+  /** A recurring task's cycle closed by its due date — the counterpart of `alert`
+   *  for a late one. Darker than `status.DONE` so it reads as text on `onTimeSoft`. */
+  onTime: "#1F7A5C",
+  onTimeSoft: "#E6F4EE",
+
   /** Priority: عاجل. Deliberately distinct from both `status.inProgress`
    *  (amber) and `alert` (red) — see `v2-new-style.md` §7.3. */
   urgent: "#C05A17",

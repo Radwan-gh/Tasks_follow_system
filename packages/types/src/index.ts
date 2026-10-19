@@ -6,5 +6,6 @@ export * from "./my-tasks";
 export * from "./notifications";
 export * from "./notification-content";
 export * from "./card-activity-content";
+export * from "./arabic-count";
 export * from "./oversight";
 export * from "./board-categories";

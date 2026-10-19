@@ -6,7 +6,7 @@ import type {
   WorkloadReport,
 } from "@app/types";
 import { PrismaService } from "../prisma/prisma.service";
-import { COMPLETED_CATEGORIES } from "../common/util/completed.util";
+import { COMPLETED_CATEGORIES, completionKeyOf } from "../common/util/completed.util";
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -74,7 +74,8 @@ export class ReportsService {
    * is "completed" when it is moved into a list whose `statusCategory` is
    * `DONE`. We match MOVED activities in the window against the set of DONE list
    * names per board (activities snapshot list *names* in `toValue`), and dedupe
-   * by card keeping the most recent completion.
+   * by card keeping the most recent completion — per cycle for a recurring task
+   * (`completionKeyOf`), since that one card completes again every cycle.
    */
   async completed(since?: string): Promise<CompletedTasksReport> {
     const sinceDate = parseSince(since);
@@ -95,13 +96,17 @@ export class ReportsService {
       },
     });
 
+    const completions = activities.filter(
+      (activity) => activity.toValue && doneKeys.has(`${activity.boardId}::${activity.toValue}`),
+    );
+    // Once per card — per cycle for a recurring task, which completes again every cycle.
+    const keyOf = await completionKeyOf(this.prisma, completions);
     const seen = new Set<string>();
     const tasks: CompletedTasksReport["tasks"] = [];
-    for (const activity of activities) {
-      if (!activity.toValue) continue;
-      if (!doneKeys.has(`${activity.boardId}::${activity.toValue}`)) continue;
-      if (seen.has(activity.cardId)) continue;
-      seen.add(activity.cardId);
+    for (const activity of completions) {
+      const key = keyOf(activity);
+      if (!activity.toValue || seen.has(key)) continue;
+      seen.add(key);
       tasks.push({
         cardId: activity.cardId,
         cardTitle: activity.card.title,

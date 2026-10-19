@@ -18,6 +18,9 @@ import { PrioritySheet, priorityLabel } from "@/components/priority-control";
 import { RecurrenceSheet, summarizeRecurrence } from "@/components/recurrence-sheet";
 import { SubtasksSection } from "@/features/cards/subtasks-section";
 import { HistorySection } from "@/features/cards/history-section";
+import { CyclesSection } from "@/features/cards/cycles-section";
+import { Toast, type ToastMessage } from "@/components/toast";
+import { completesCycle, reopenedNotice } from "@/lib/recurring";
 import { useAuth } from "@/features/auth/auth-context";
 import { useAutoSavedIds } from "@/lib/use-auto-saved-ids";
 import { contextBoardId, listOnBoard, withMove } from "@/lib/card-boards";
@@ -143,6 +146,7 @@ export default function CardDetailScreen() {
   const [pickingCost, setPickingCost] = useState(false);
   const [pickingPriority, setPickingPriority] = useState(false);
   const [pickingStatus, setPickingStatus] = useState(false);
+  const [toast, setToast] = useState<ToastMessage | null>(null);
   const [titleFocused, setTitleFocused] = useState(false);
 
   // Unsaved = a «حفظ» field differs from what the server last sent. The access
@@ -198,6 +202,9 @@ export default function CardDetailScreen() {
   /** Refreshes the task and every board it shows on (plus `extraBoardIds`, e.g. ones it just left). */
   function invalidateCard(extraBoardIds: string[] = []) {
     void queryClient.invalidateQueries({ queryKey: ["card", id] });
+    // Its history and — for a recurring task closed just now — its cycles.
+    void queryClient.invalidateQueries({ queryKey: ["cardHistory", id] });
+    void queryClient.invalidateQueries({ queryKey: ["cardCycles", id] });
     const boardIds = new Set([...(card.data?.placements ?? []).map((p) => p.boardId), ...extraBoardIds]);
     for (const b of boardIds) void queryClient.invalidateQueries({ queryKey: ["board", b] });
   }
@@ -238,14 +245,26 @@ export default function CardDetailScreen() {
   // The status chip's move — the visible way to reach every status, which the
   // board otherwise only offers on long-press. The chip itself is the
   // confirmation: it changes to the new status as soon as it is picked.
+  // A recurring task sent to «انتهى» completes a cycle and comes straight back
+  // in «جديد», so that is where the chip lands, and a notice says why.
   const moveCard = useMutation({
     mutationFn: (targetListId: string) => api.cards.update(id, { targetListId }),
     onMutate: async (targetListId) => {
       setPickingStatus(false);
       await queryClient.cancelQueries({ queryKey: ["card", id] });
       const previous = queryClient.getQueryData<Card>(["card", id]);
-      if (previous && boardId) queryClient.setQueryData<Card>(["card", id], withMove(previous, boardId, targetListId));
+      const lists = board.data?.lists ?? [];
+      const reopensIn = previous && completesCycle(previous, lists.find((l) => l.id === targetListId))
+        ? lists.find((l) => l.statusCategory === "NEW")
+        : undefined;
+      if (previous && boardId) {
+        queryClient.setQueryData<Card>(["card", id], withMove(previous, boardId, reopensIn?.id ?? targetListId));
+      }
       return { previous };
+    },
+    onSuccess: (moved, targetListId) => {
+      const notice = reopenedNotice(moved, boardId, board.data?.lists ?? [], targetListId);
+      if (notice) setToast({ id: Date.now(), message: notice });
     },
     onError: (_err, _targetListId, context) => {
       if (context?.previous) queryClient.setQueryData(["card", id], context.previous);
@@ -643,10 +662,20 @@ export default function CardDetailScreen() {
           </View>
         ) : null}
 
+        <CyclesSection cardId={id} repeats={!!card.data.recurrence} />
+
         <View style={{ borderTopWidth: 1, borderTopColor: colors.line, paddingTop: spacing.lg }}>
           <HistorySection cardId={id} readOnly={isViewer} />
         </View>
       </RevealScrollView>
+
+      {/* Over the bottom of the scroll view, like the board's move notice. */}
+      <View
+        pointerEvents="box-none"
+        style={{ position: "absolute", bottom: 0, start: spacing.xl, end: spacing.xl, paddingBottom: spacing.lg }}
+      >
+        <Toast toast={toast} onDismiss={() => setToast(null)} />
+      </View>
 
       <DueDateSheet visible={pickingDueDate} onClose={() => setPickingDueDate(false)} onChange={setDueDate} value={dueDate} />
 

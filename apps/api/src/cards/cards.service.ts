@@ -1,8 +1,11 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
 import {
   RecurrenceRuleSchema,
   describeRecurrence,
+  formatLateness,
   type CardActivityType,
+  type CardCycles,
+  type RecurrenceRule,
   type CardBoardRef,
   type CardBoardsResponse,
   type CreateCardRequest,
@@ -13,7 +16,7 @@ import {
 } from "@app/types";
 import { Prisma, type CardPriority } from "@prisma/client";
 import { computeMovePosition } from "../common/util/position.util";
-import { nextRecurrenceDate } from "../common/util/recurrence.util";
+import { cycleLateMinutes, nextCycleDueDate } from "../common/util/recurrence.util";
 import { calendarDate } from "../common/util/time-zone.util";
 import { PrismaService } from "../prisma/prisma.service";
 import { BoardsService, canManageCard, serializeCard, type AccessibleCard } from "../boards/boards.service";
@@ -69,127 +72,78 @@ export class CardsService {
   }
 
   /**
-   * `design-prompt-group-3.md` §3 "توليد المهمة المتكررة": spawns the next
-   * instance of a repeating card into the board's «جديد» list when the
-   * current instance is moved into «انتهى». Carries forward title,
-   * description, priority, assignees, and the same recurrence rule (so the
-   * chain continues one-in-one-out — never more than one open instance).
-   * Also carried: whether the due date has a time of day (the time itself is
-   * kept by `nextRecurrenceDate`), the checklist — same titles, order and
-   * assignees, all unticked, since a weekly task's checklist is usually the
-   * task itself — the access restriction, so a private task never comes
-   * back visible to the whole board, and the other boards it is on, where the
-   * next instance starts in each board's «جديد» too.
-   * The spawned instance is a *new* task, so assignees deactivated since the
-   * previous one was assigned are dropped rather than carried over.
-   * Cost is deliberately not carried: each instance's spend is its own
-   * (docs/05-boards-lists-cards.md).
-   * The carried-over assignees are notified (`ASSIGNED` / `SUBTASK_ASSIGNED`)
-   * as if newly assigned — it is a new task on their plate — except whoever
-   * closed the previous instance (`actorId`), via `notify`'s own guard.
+   * A recurring task is one card (docs/14-notifications-comments-attachments.md):
+   * moving it into «انتهى» finishes a cycle. Records the cycle — its due date,
+   * who closed it, when, how late, and the checklist as it stood — then reopens
+   * the same card for the next one: on every board it is on it goes back to
+   * «جديد» (at the end), its checklist is unticked, and its due date moves to
+   * `nextCycleDueDate`. Everything else — title, assignees, access, cost,
+   * comments, attachments — simply stays on the card. A linked board with no
+   * «جديد» leaves its placement where it is; with none on the home board the
+   * card is not reopened at all, though the cycle is still recorded.
+   * `card` is the card *after* the PATCH that closed it, so a due date or rule
+   * changed in that same request is the one that counts. The caller holds the
+   * card's row lock, which is what keeps cycle `number`s from colliding, and
+   * passes the instant its closing move was stamped with as `closedAt`.
    */
-  private async spawnNextRecurrence(tx: Tx, card: AccessibleCard, actorId: string): Promise<void> {
-    const rule = RecurrenceRuleSchema.safeParse(card.recurrence);
-    if (!rule.success) return;
-
-    const newList = await listForStatus(tx, card.boardId, "NEW");
-    if (!newList) return;
-
-    const nextDueDate = nextRecurrenceDate(rule.data, card.dueDate ?? new Date());
-
-    const created = await tx.card.create({
+  private async completeCycle(
+    tx: Tx,
+    card: AccessibleCard,
+    rule: RecurrenceRule,
+    boardId: string,
+    actorId: string,
+    closedAt: Date,
+  ) {
+    const [subtasks, last] = await Promise.all([
+      tx.subtask.findMany({ where: { cardId: card.id }, select: { isDone: true } }),
+      tx.cardCycle.findFirst({ where: { cardId: card.id }, orderBy: { number: "desc" }, select: { number: true } }),
+    ]);
+    const lateMinutes = cycleLateMinutes(card.dueDate, card.dueDateHasTime, closedAt);
+    await tx.cardCycle.create({
       data: {
-        listId: newList.id,
-        boardId: card.boardId,
-        title: card.title,
-        description: card.description,
-        dueDate: nextDueDate,
-        // Without a previous due date the next one is "now + period", whose time is arbitrary.
-        dueDateHasTime: card.dueDate ? card.dueDateHasTime : false,
-        priority: card.priority,
-        recurrence: card.recurrence as Prisma.InputJsonValue,
-        isRestricted: card.isRestricted,
-        createdById: card.createdById,
-        position: await endOfList(tx, newList.id),
+        cardId: card.id,
+        number: (last?.number ?? 0) + 1,
+        dueDate: card.dueDate,
+        dueDateHasTime: card.dueDateHasTime,
+        closedAt,
+        closedById: actorId,
+        lateMinutes,
+        subtaskDone: subtasks.filter((s) => s.isDone).length,
+        subtaskTotal: subtasks.length,
       },
     });
 
-    const boardIds = [card.boardId];
-    for (const link of card.boardLinks) {
-      const column = await listForStatus(tx, link.boardId, "NEW");
-      if (!column) continue;
-      await tx.cardBoardLink.create({
-        data: { cardId: created.id, boardId: link.boardId, listId: column.id, position: await endOfList(tx, column.id) },
+    let nextDue: string | null = null;
+    const home = await listForStatus(tx, card.boardId, "NEW");
+    if (home) {
+      // Without a previous due date the next one is "now + period", whose time is arbitrary.
+      const hasTime = card.dueDate ? card.dueDateHasTime : false;
+      const dueDate = nextCycleDueDate(rule, card.dueDate, hasTime, closedAt);
+      for (const link of card.boardLinks) {
+        const column = await listForStatus(tx, link.boardId, "NEW");
+        if (!column || column.id === link.listId) continue;
+        await tx.cardBoardLink.update({
+          where: { id: link.id },
+          data: { listId: column.id, position: await endOfList(tx, column.id) },
+        });
+      }
+      await tx.card.update({
+        where: { id: card.id },
+        data: { listId: home.id, position: await endOfList(tx, home.id), dueDate, dueDateHasTime: hasTime },
       });
-      boardIds.push(link.boardId);
+      await tx.subtask.updateMany({ where: { cardId: card.id, isDone: true }, data: { isDone: false } });
+      nextDue = dueDateValue(dueDate, hasTime);
     }
 
-    const subtasks = await tx.subtask.findMany({
-      where: { cardId: card.id },
-      orderBy: { position: "asc" },
-      include: { assignees: { select: { userId: true } } },
-    });
-    const assigneeIds = [...card.assignees, ...subtasks.flatMap((st) => st.assignees)].map((a) => a.userId);
-    const active = new Set(
-      assigneeIds.length > 0
-        ? (
-            await tx.user.findMany({
-              where: { id: { in: [...new Set(assigneeIds)] }, isActive: true },
-              select: { id: true },
-            })
-          ).map((u) => u.id)
-        : [],
+    // A millisecond after the closing move, so history (ordered by time) lists the move first.
+    await this.recordActivity(
+      tx,
+      card.id,
+      boardId,
+      actorId,
+      { type: "CYCLE_COMPLETED", fromValue: formatLateness(lateMinutes, card.dueDateHasTime), toValue: nextDue },
+      new Date(closedAt.getTime() + 1),
     );
-
-    const cardAssignees = card.assignees.filter((a) => active.has(a.userId));
-    if (cardAssignees.length > 0) {
-      await tx.cardAssignee.createMany({
-        data: cardAssignees.map((a) => ({ cardId: created.id, userId: a.userId })),
-      });
-      for (const a of cardAssignees) {
-        await this.notifications.notify(tx, {
-          userId: a.userId,
-          actorId,
-          type: "ASSIGNED",
-          cardId: created.id,
-          boardId: card.boardId,
-          boardIds,
-          payload: { cardTitle: created.title },
-        });
-      }
-    }
-    if (card.isRestricted && card.members.length > 0) {
-      await tx.cardMember.createMany({
-        data: card.members.map((m) => ({ cardId: created.id, userId: m.userId })),
-      });
-    }
-    for (const subtask of subtasks) {
-      // Positions are only ever compared within one card, so the old keys keep their order as-is.
-      const copy = await tx.subtask.create({
-        data: { cardId: created.id, title: subtask.title, position: subtask.position, createdById: subtask.createdById },
-      });
-      const subtaskAssignees = subtask.assignees.filter((a) => active.has(a.userId));
-      if (subtaskAssignees.length > 0) {
-        await tx.subtaskAssignee.createMany({
-          data: subtaskAssignees.map((a) => ({ subtaskId: copy.id, userId: a.userId })),
-        });
-        for (const a of subtaskAssignees) {
-          await this.notifications.notify(tx, {
-            userId: a.userId,
-            actorId,
-            type: "SUBTASK_ASSIGNED",
-            cardId: created.id,
-            boardId: card.boardId,
-            boardIds,
-            payload: { cardTitle: created.title, subtaskTitle: copy.title },
-          });
-        }
-      }
-    }
-    await this.recordActivity(tx, created.id, card.boardId, card.createdById, {
-      type: "CREATED",
-      toValue: newList.name,
-    });
   }
 
   async create(userId: string, listId: string, input: CreateCardRequest) {
@@ -284,6 +238,21 @@ export class CardsService {
     }
 
     const updated = await this.prisma.$transaction(async (tx) => {
+      if (changesStatus) {
+        // Two requests moving the same task at once (a double tap, two people
+        // closing it) must not both apply — closing a recurring task twice
+        // would record two cycles. Lock the card row, then check the task is
+        // still where this request found it; the loser waits for the winner to
+        // commit and is turned away.
+        await tx.$queryRaw`SELECT 1 FROM "Card" WHERE "id" = ${cardId} FOR UPDATE`;
+        const current = moved.linkId
+          ? await tx.cardBoardLink.findUnique({ where: { id: moved.linkId }, select: { listId: true } })
+          : await tx.card.findUnique({ where: { id: cardId }, select: { listId: true } });
+        if (current?.listId !== moved.listId) {
+          throw new ConflictException("This task was just moved by someone else — refresh and try again");
+        }
+      }
+
       // Where the task goes on the board it was moved on…
       const placed = new Map<Placement, { listId: string; position: string }>();
       if (input.move) {
@@ -327,14 +296,19 @@ export class CardsService {
         include: CARD_RESPONSE_INCLUDE,
       });
 
+      // One instant for this whole change: the move that closes a recurring task
+      // and the cycle it completes share it, which is how completion counts tell
+      // which cycle a move belongs to (`completionKeyOf`).
+      const at = new Date();
       const move = changesStatus ? { fromListId: moved.listId, toListId: targetListId } : null;
       for (const activity of await this.diffActivities(tx, card, input, move)) {
-        await this.recordActivity(tx, cardId, moved.boardId, userId, activity);
+        await this.recordActivity(tx, cardId, moved.boardId, userId, activity, at);
       }
 
       // Moving into «انتهى»: notify the creator (design-prompt-group-3.md's
-      // "نقل بطاقة أنشأتها إلى انتهى") and, if this card repeats, spawn the
-      // next instance in the board's «جديد» list — see §3 "توليد المهمة المتكررة".
+      // "نقل بطاقة أنشأتها إلى انتهى") and, if this card repeats, finish the
+      // cycle and reopen it for the next one. Read off `result`, so a rule
+      // cleared or a due date changed in this same request is honoured.
       if (closesIt) {
         await this.notifications.notify(tx, {
           userId: card.createdById,
@@ -346,8 +320,10 @@ export class CardsService {
           payload: { cardTitle: result.title },
         });
 
-        if (card.recurrence) {
-          await this.spawnNextRecurrence(tx, card, userId);
+        const rule = RecurrenceRuleSchema.safeParse(result.recurrence);
+        if (rule.success) {
+          await this.completeCycle(tx, result, rule.data, moved.boardId, userId, at);
+          return tx.card.findUniqueOrThrow({ where: { id: cardId }, include: CARD_RESPONSE_INCLUDE });
         }
       }
 
@@ -747,12 +723,14 @@ export class CardsService {
     return activities;
   }
 
+  /** `at` stamps the row explicitly where it must line up with a `CardCycle.closedAt` (see `update`). */
   private recordActivity(
     tx: Tx,
     cardId: string,
     boardId: string,
     actorId: string,
     activity: ActivityInput,
+    at?: Date,
   ) {
     return tx.cardActivity.create({
       data: {
@@ -762,6 +740,7 @@ export class CardsService {
         type: activity.type,
         fromValue: activity.fromValue ?? null,
         toValue: activity.toValue ?? null,
+        createdAt: at,
       },
     });
   }
@@ -775,6 +754,41 @@ export class CardsService {
       include: { actor: { select: { id: true, username: true, displayName: true } } },
     });
     return activities.map(serializeCardActivity);
+  }
+
+  /**
+   * A recurring task's finished cycles, newest first, with its on-time record
+   * (`CardCyclesSchema`). Cycles without a due date count toward `total` only.
+   */
+  async getCycles(userId: string, cardId: string): Promise<CardCycles> {
+    await this.boards.assertCardAccess(userId, cardId, "VIEWER");
+
+    const cycles = await this.prisma.cardCycle.findMany({
+      where: { cardId },
+      orderBy: { number: "desc" },
+      include: { closedBy: { select: { id: true, username: true, displayName: true } } },
+    });
+    const lateBy = cycles.flatMap((c) => (c.lateMinutes !== null && c.lateMinutes > 0 ? [c.lateMinutes] : []));
+    const dated = cycles.filter((c) => c.lateMinutes !== null).length;
+    return {
+      summary: {
+        total: cycles.length,
+        onTime: dated - lateBy.length,
+        late: lateBy.length,
+        averageLateMinutes: lateBy.length > 0 ? Math.round(lateBy.reduce((sum, m) => sum + m, 0) / lateBy.length) : null,
+      },
+      cycles: cycles.map((cycle) => ({
+        id: cycle.id,
+        number: cycle.number,
+        dueDate: cycle.dueDate ? cycle.dueDate.toISOString() : null,
+        dueDateHasTime: cycle.dueDateHasTime,
+        closedAt: cycle.closedAt.toISOString(),
+        closedBy: cycle.closedBy,
+        lateMinutes: cycle.lateMinutes,
+        subtaskDone: cycle.subtaskDone,
+        subtaskTotal: cycle.subtaskTotal,
+      })),
+    };
   }
 
   async remove(userId: string, cardId: string) {

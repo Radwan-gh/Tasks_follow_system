@@ -1,3 +1,4 @@
+import { countLabel, type ArabicNoun } from "./arabic-count";
 import type { CardActivity, CardPriority, RecurrenceRule } from "./domain";
 
 /*
@@ -39,6 +40,31 @@ function formatDueValue(value: string): string {
 
 const priorityLabel = (value: string | null) => CARD_PRIORITY_LABELS[value as CardPriority] ?? value ?? "؟";
 
+// Read after «بتأخير», so the dual is the genitive «يومين», not «يومان».
+const DAYS: ArabicNoun = { zero: "", one: "يوم واحد", two: "يومين", few: "أيام", many: "يومًا" };
+const HOURS: ArabicNoun = { zero: "", one: "ساعة واحدة", two: "ساعتين", few: "ساعات", many: "ساعة" };
+const MINUTES: ArabicNoun = { zero: "", one: "دقيقة واحدة", two: "دقيقتين", few: "دقائق", many: "دقيقة" };
+
+/**
+ * A finished cycle's punctuality: «في الموعد», «بتأخير يومين», «بتأخير 3 ساعات»;
+ * null when the cycle had no due date. A date-only due date is late by whole
+ * calendar days (its deadline is the end of that day), so even an hour past it
+ * reads «يوم واحد»; a timed one counts minutes, then hours, then days.
+ */
+export function formatLateness(lateMinutes: number | null, dueDateHasTime: boolean): string | null {
+  if (lateMinutes === null) return null;
+  if (lateMinutes <= 0) return "في الموعد";
+  return `بتأخير ${formatLateBy(lateMinutes, dueDateHasTime)}`;
+}
+
+/** Just the amount — «يومين», «3 ساعات» — for a positive `lateMinutes`; see `formatLateness`. */
+export function formatLateBy(lateMinutes: number, dueDateHasTime: boolean): string {
+  if (!dueDateHasTime) return countLabel(Math.max(1, Math.ceil(lateMinutes / 1440)), DAYS);
+  if (lateMinutes < 60) return countLabel(Math.max(1, lateMinutes), MINUTES);
+  if (lateMinutes < 1440) return countLabel(Math.floor(lateMinutes / 60), HOURS);
+  return countLabel(Math.floor(lateMinutes / 1440), DAYS);
+}
+
 /** One history event as an Arabic sentence, read after the actor's name. */
 export function describeCardActivity(activity: Pick<CardActivity, "type" | "fromValue" | "toValue">): string {
   const { fromValue, toValue } = activity;
@@ -70,6 +96,10 @@ export function describeCardActivity(activity: Pick<CardActivity, "type" | "from
       return fromValue ? `غيّر التكرار من «${fromValue}» إلى «${toValue}»` : `عيّن التكرار «${toValue}»`;
     case "BOARDS_CHANGED":
       return `غيّر لوحات المهمة من «${fromValue ?? "؟"}» إلى «${toValue ?? "؟"}»`;
+    case "CYCLE_COMPLETED": {
+      const done = fromValue ? `أنهى دورة المهمة ${fromValue}` : "أنهى دورة المهمة";
+      return toValue ? `${done}، وأُعيد فتحها للدورة التالية بموعد ${formatDueValue(toValue)}` : done;
+    }
     default:
       return "حدّث البطاقة";
   }

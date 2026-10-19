@@ -30,6 +30,12 @@ export default {
           DEFAULT: "#C0503C",
           bg: "#FBE9E7",
         },
+        // A recurring task's cycle closed by its due date — `alert`'s counterpart
+        // for a late one (same values as the mobile `onTime` token).
+        onTime: {
+          DEFAULT: "#1F7A5C",
+          bg: "#E6F4EE",
+        },
         urgent: {
           DEFAULT: "#C05A17",
           bg: "#FCEEDF",

@@ -12,7 +12,7 @@ import { generateKeyBetween, generateNKeysBetween } from "@app/ordering";
 import { PrismaService } from "../prisma/prisma.service";
 import { BoardCategoriesService } from "../board-categories/board-categories.service";
 import { AttachmentStorageService } from "../common/storage/attachment-storage.service";
-import { COMPLETED_CATEGORIES } from "../common/util/completed.util";
+import { COMPLETED_CATEGORIES, completionKeyOf } from "../common/util/completed.util";
 import { BOARD_LINKS_INCLUDE, mergeByPosition, placementsOf } from "../cards/card-placement.util";
 import { TASK_WORKFLOW_TEMPLATE } from "./board-templates";
 
@@ -884,15 +884,14 @@ export class BoardsService {
     const moves = await this.prisma.cardActivity.findMany({
       where: { boardId, type: "MOVED", createdAt: { gte: weekAgo }, card: { isArchived: false } },
       orderBy: { createdAt: "desc" },
-      select: { cardId: true, toValue: true },
+      select: { cardId: true, toValue: true, createdAt: true },
     });
     // Dedupe by card: a card moved into/out of a done list more than once in
-    // the window must still count once (same as `ReportsService.completed`).
-    const completedCardIds = new Set<string>();
-    for (const move of moves) {
-      if (move.toValue && completedListNames.has(move.toValue)) completedCardIds.add(move.cardId);
-    }
-    const completedLast7Days = completedCardIds.size;
+    // the window must still count once — once per cycle for a recurring task
+    // (same as `ReportsService.completed`).
+    const completions = moves.filter((move) => move.toValue && completedListNames.has(move.toValue));
+    const keyOf = await completionKeyOf(this.prisma, completions);
+    const completedLast7Days = new Set(completions.map(keyOf)).size;
 
     const overdueCount = await this.prisma.card.count({
       where: {

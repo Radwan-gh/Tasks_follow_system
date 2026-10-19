@@ -85,6 +85,8 @@ function setup() {
       },
     },
     subtaskAssignee: { deleteMany: async () => undefined, createMany: async () => undefined },
+    // The row lock a move takes (`SELECT … FOR UPDATE`).
+    $queryRaw: async () => [],
   };
   const prisma = { ...db, $transaction: async <T>(fn: (tx: unknown) => Promise<T>) => fn(db) } as unknown as PrismaService;
   // A card on one board, which every caller here is a member of.

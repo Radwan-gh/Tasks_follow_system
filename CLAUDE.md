@@ -183,8 +183,12 @@ Every card carries an append-only audit trail in the `CardActivity` table
 who later changed its status (moved it between lists), renamed it, updated its
 description, changed the due date (or switched its time of day on/off), the
 priority, the repeat rule or the cost, assigned it, changed which boards it is
-on (`BOARDS_CHANGED`), or archived/unarchived it —
-each with an actor and timestamp. A card's **status is the list it lives in**, so a status
+on (`BOARDS_CHANGED`), archived/unarchived it, or finished a cycle of a
+recurring task (`CYCLE_COMPLETED`) — each with an actor and timestamp. A
+recurring task is **one card**: closing it records a `CardCycle` row (due
+date, closer, minutes late) and `CardsService.completeCycle` reopens the same
+card in «جديد» with its next due date — see
+`docs/14-notifications-comments-attachments.md`. A card's **status is the list it lives in**, so a status
 change is a `MOVED` activity whose `fromValue`/`toValue` snapshot the old/new
 *list names* at the time of the move. `CardsService`
 (`apps/api/src/cards/cards.service.ts`) writes these rows *inside the same

@@ -19,6 +19,7 @@ import type {
   BoardCategory,
   Card,
   CardActivity,
+  CardCycles,
   CardBoardRef,
   CardBoardsResponse,
   CompletedTasksReport,
@@ -306,6 +307,8 @@ export function createApiClient({ baseUrl, storage, onUnauthorized }: ApiClientO
       update: (id: string, body: UpdateCardRequest) =>
         request<Card>(`/cards/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
       history: (id: string) => request<CardActivity[]>(`/cards/${id}/history`),
+      /** A recurring task's finished cycles and on-time record. */
+      cycles: (id: string) => request<CardCycles>(`/cards/${id}/cycles`),
       updateAccess: (id: string, body: UpdateCardAccessRequest) =>
         request<Card>(`/cards/${id}/access`, { method: "PATCH", body: JSON.stringify(body) }),
       updateAssignees: (id: string, body: UpdateAssigneesRequest) =>

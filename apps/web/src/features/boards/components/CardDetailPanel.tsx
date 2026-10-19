@@ -24,6 +24,7 @@ import { useCurrencySymbol } from "../../../lib/use-app-settings";
 import { useAutoSavedIds } from "../../../lib/use-auto-saved-ids";
 import { useDismissableLayer } from "../../../lib/use-dismissable-layer";
 import { CardBoardsSection } from "./CardBoardsSection";
+import { CardCyclesSection } from "./CardCyclesSection";
 import { UserTypeahead } from "./MemberPicker";
 
 interface CardDetailPanelProps {
@@ -413,6 +414,8 @@ export function CardDetailPanel({
             <div className="border-t border-line pt-3 text-xs text-muted">🔒 هذه المهمة خاصة بأشخاص محددين.</div>
           )
         )}
+
+        <CardCyclesSection cardId={card.id} repeats={!!card.recurrence} />
 
         <HistoryAndComments cardId={card.id} currentUserId={currentUserId} readOnly={readOnly} />
       </div>
@@ -862,6 +865,10 @@ function describeActivity(activity: CardActivity): string {
       return fromValue ? `غيّر التكرار من «${fromValue}» إلى «${toValue}»` : `عيّن التكرار «${toValue}»`;
     case "BOARDS_CHANGED":
       return `غيّر لوحات المهمة من «${fromValue ?? "؟"}» إلى «${toValue ?? "؟"}»`;
+    case "CYCLE_COMPLETED": {
+      const done = fromValue ? `أنهى دورة المهمة ${fromValue}` : "أنهى دورة المهمة";
+      return toValue ? `${done}، وأُعيد فتحها للدورة التالية بموعد ${formatDueValue(toValue)}` : done;
+    }
     default:
       return "حدّث البطاقة";
   }

@@ -35,13 +35,15 @@ Card
  ├── assignees   : assigned to (CardAssignee[] — several people)
  ├── subtasks    : subtasks (Subtask[])
  ├── comments    : comments (Comment[])
- └── attachments : attached images (Attachment[])
+ ├── attachments : attached images (Attachment[])
+ └── cycles      : finished cycles of a recurring task (CardCycle[])
 
 Subtask
  ├── card      : belongs to a card
  └── assignees : assigned to (SubtaskAssignee[])
 
 CardBoardLink ─ card, board, list
+CardCycle ─ card, closedBy (User)
 Comment ─ card, author
 Attachment ─ card, uploader
 Notification ─ user
@@ -157,7 +159,7 @@ that board**.
 | `assignees` | Assigned to, via `CardAssignee` (several people) — see [`10-subtasks-and-assignment.md`](./10-subtasks-and-assignment.md). A `VIEWER` board member can never be an assignee |
 | `priority` | `LOW` \| `NORMAL` (default) \| `URGENT`. Only "urgent" shows on the card face |
 | `costAmount` / `costNote` | Optional cost (decimal amount + free-text note), never shown on the card face — a details-screen-only chip, written via `POST .../cards`/`PATCH /cards/:id`. Changing it records a `COST_UPDATED` activity |
-| `recurrence` | Optional repeat rule (`RecurrenceRule` in `packages/types`: daily / weekly with weekdays / monthly with a day), actually written via `POST .../cards` and `PATCH /cards/:id`. Moving into "closed" spawns the next instance in "new" automatically — details in [`14-notifications-comments-attachments.md`](./14-notifications-comments-attachments.md#recurring-task-generation) |
+| `recurrence` | Optional repeat rule (`RecurrenceRule` in `packages/types`: daily / weekly with weekdays / monthly with a day), written via `POST .../cards` and `PATCH /cards/:id`. A recurring task stays **one card**: moving it into "closed" records a `CardCycle` and reopens the same card in "new" with its next due date — details in [`14-notifications-comments-attachments.md`](./14-notifications-comments-attachments.md#المهمة-المتكررة-ودوراتها-recurrence) |
 
 ### CardBoardLink
 
@@ -170,6 +172,21 @@ status**. Details in [`18-multi-board-tasks.md`](./18-multi-board-tasks.md).
 | `listId` | The task's column on that board — the list with the same `statusCategory` as its home list, kept in step inside every move's transaction. Cascade-deleted with the list |
 | `position` | Fractional-index key (`COLLATE "C"`) ordering it within that column **together with** the column's own cards |
 | `createdAt` | Link order: `placements` lists links oldest first, and the oldest becomes home if the home board is deleted |
+
+### CardCycle
+
+One finished cycle of a recurring task, written when the card is moved into "closed" just
+before it reopens in "new" (`CardsService.completeCycle`). Insert-only, cascade-deleted with
+the card; read over `GET /cards/:id/cycles`. Details in
+[`14-notifications-comments-attachments.md`](./14-notifications-comments-attachments.md#المهمة-المتكررة-ودوراتها-recurrence).
+
+| Field | Notes |
+|---|---|
+| `cardId` + `number` | **Unique** pair: 1 for the card's first finished cycle, then 2, 3… — so two concurrent closes can never record the same cycle |
+| `dueDate` / `dueDateHasTime` | The cycle's due date as it stood when it was closed (null if none) |
+| `closedAt` / `closedById` | When and by whom it was closed. `closedAt` equals the `createdAt` of the `MOVED` activity that closed it, which is how completion counts tell cycles apart |
+| `lateMinutes` | Minutes past `deadlineOf` (the due time, or the end of a date-only due day in `APP_TIME_ZONE`): `0` on time, null without a due date. Frozen at close |
+| `subtaskDone` / `subtaskTotal` | The checklist as it stood at close, before the reopen unticked it |
 
 ### Comment — Attachment — Notification — Template — AppSettings
 
@@ -210,7 +227,7 @@ represent **responsibility for the work**, not visibility.
   detaches their push devices (`SetNull`). (Defined via `onDelete` in the
   schema.)
 - **Restrict على المؤلِّف:** بالمقابل، `Board.owner` و`Card.createdBy` و
-  `CardActivity.actor` و`Comment.author` و`Attachment.uploader` و
+  `CardActivity.actor` و`CardCycle.closedBy` و`Comment.author` و`Attachment.uploader` و
   `Subtask.createdBy` بلا `onDelete`، أي **مقيِّدة**: لا يُحذف مستخدم أنتج أيًّا
   منها. هذا ما يجعل `DELETE /admin/users/:id` يرفض مثل هذا الحساب ويترك
   التعطيل بديلًا — انظر [`07-admin.md`](./07-admin.md).

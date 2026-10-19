@@ -43,7 +43,11 @@ GET /reports/export?report=<kind>&since=<iso>   تصدير أي من التقا�
 - تُجمَع أسماء قوائم `DONE` لكل لوحة كمجموعة مفاتيح `boardId::listName`.
 - تُقرأ أنشطة `MOVED` ضمن النافذة الزمنية (سجلّ البطاقة يحفظ **اسم** القائمة في
   `toValue`)، ويُطابَق `boardId::toValue` مع مجموعة `DONE`.
-- تُزال التكرارات حسب البطاقة (يُحتفَظ بأحدث نقلة إلى `DONE`).
+- تُزال التكرارات حسب البطاقة (يُحتفَظ بأحدث نقلة إلى `DONE`) — **لكل دورة** في المهمة
+  المتكررة: هي بطاقة واحدة تُنجَز من جديد كل دورة، فتُعدّ مرة لكل دورة لا مرة واحدة
+  (`completionKeyOf` في `common/util/completed.util.ts` ينسب النقلة إلى الدورة المفتوحة
+  وقتها). `completedLast7Days` في ملخّص اللوحة يتبع القاعدة نفسها. التفاصيل في
+  [`14-notifications-comments-attachments.md`](./14-notifications-comments-attachments.md#العدّ-في-التقارير).
 
 هذا يعتمد على أن اللوحة تملك قائمة بفئة `DONE` (تأتي من قالب الحالات — انظر
 [`09-list-status-templates.md`](./09-list-status-templates.md)). لوحة بلا قائمة

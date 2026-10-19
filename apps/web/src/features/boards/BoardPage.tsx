@@ -102,11 +102,17 @@ export function BoardPage() {
         targetListId: vars.targetListId,
         move: { beforeId: vars.beforeId, afterId: vars.afterId },
       }),
-    // Its other boards moved too; this one already shows the drop.
-    onSuccess: (card) => {
-      for (const { boardId: other } of card.placements) {
-        if (other !== boardId) void queryClient.invalidateQueries({ queryKey: ["board", other] });
+    // Its other boards moved too; this one already shows the drop — unless the
+    // task landed elsewhere: a recurring task dropped on «انتهى» completes a
+    // cycle and comes straight back in «جديد» (docs/14).
+    onSuccess: (card, vars) => {
+      for (const { boardId: other, listId } of card.placements) {
+        if (other !== boardId || listId !== vars.targetListId) {
+          void queryClient.invalidateQueries({ queryKey: ["board", other] });
+        }
       }
+      void queryClient.invalidateQueries({ queryKey: ["cardCycles", card.id] });
+      void queryClient.invalidateQueries({ queryKey: ["cardHistory", card.id] });
     },
     onError: invalidate,
   });

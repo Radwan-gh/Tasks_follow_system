@@ -62,6 +62,14 @@ export class CardsController {
     return this.cards.getHistory(user.id, id);
   }
 
+  @Get("cards/:id/cycles")
+  @ApiOperation({ summary: "Get a recurring task's finished cycles and on-time record" })
+  @ApiParam({ name: "id", description: "Card ID" })
+  @ApiResponse({ status: 200, schema: zodRef("CardCycles") })
+  getCycles(@CurrentUser() user: AuthUser, @Param("id") id: string) {
+    return this.cards.getCycles(user.id, id);
+  }
+
   @Patch("cards/:id")
   @ApiOperation({ summary: "Update a card's fields, move it between lists, or reorder it" })
   @ApiParam({ name: "id", description: "Card ID" })

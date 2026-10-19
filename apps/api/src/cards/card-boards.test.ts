@@ -1,6 +1,7 @@
-import { BadRequestException, ForbiddenException } from "@nestjs/common";
+import { BadRequestException, ConflictException, ForbiddenException } from "@nestjs/common";
 import { describe, expect, it, vi } from "vitest";
 import { BoardsService, resolveCardRole } from "../boards/boards.service";
+import { deadlineOf } from "../common/util/time-zone.util";
 import type { NotificationsService } from "../notifications/notifications.service";
 import type { PrismaService } from "../prisma/prisma.service";
 import { CardsService } from "./cards.service";
@@ -103,6 +104,11 @@ function setup() {
   // card-1 also shows on B.
   const links: Row[] = [{ id: "link-b", cardId: "card-1", boardId: "B", listId: "b-new", position: "a5", createdAt: 1 }];
   const activities: Row[] = [];
+  const subtasks: Row[] = [
+    { id: "st-1", cardId: "card-1", isDone: true },
+    { id: "st-2", cardId: "card-1", isDone: false },
+  ];
+  const cycles: Row[] = [];
   let nextId = 1;
 
   const withRelations = (card: Row) => ({
@@ -129,6 +135,7 @@ function setup() {
       },
     },
     cardBoardLink: {
+      findUnique: async ({ where }: { where: Row }) => links.find((l) => matches(l, where)) ?? null,
       findFirst: async ({ where, orderBy }: { where: Row; orderBy?: Record<string, "asc" | "desc"> }) =>
         sorted(links.filter((l) => matches(l, where)), orderBy)[0] ?? null,
       findMany: async ({ where }: { where: Row }) => links.filter((l) => matches(l, where)),
@@ -182,6 +189,22 @@ function setup() {
         return [...latest].map(([boardId, createdAt]) => ({ boardId, _max: { createdAt } }));
       },
     },
+    subtask: {
+      findMany: async ({ where }: { where: Row }) => subtasks.filter((s) => matches(s, where)),
+      updateMany: async ({ where, data }: { where: Row; data: Row }) => {
+        for (const subtask of subtasks.filter((s) => matches(s, where))) Object.assign(subtask, data);
+      },
+    },
+    cardCycle: {
+      findFirst: async ({ where, orderBy }: { where: Row; orderBy?: Record<string, "asc" | "desc"> }) =>
+        sorted(cycles.filter((c) => matches(c, where)), orderBy)[0] ?? null,
+      create: async ({ data }: { data: Row }) => {
+        cycles.push(data);
+        return data;
+      },
+    },
+    // The row lock a move takes (`SELECT … FOR UPDATE`).
+    $queryRaw: async () => [],
   };
   const prisma = { ...db, $transaction: async <T>(fn: (tx: unknown) => Promise<T>) => fn(db) } as unknown as PrismaService;
   const boardsService = new BoardsService(prisma, {} as never, {} as never);
@@ -192,7 +215,7 @@ function setup() {
 
   const card = () => cards[0];
   const linkOn = (boardId: string) => links.find((l) => l.cardId === "card-1" && l.boardId === boardId);
-  return { service, card, linkOn, links, activities };
+  return { service, card, linkOn, links, activities, subtasks, cycles, db };
 }
 
 describe("resolveCardRole", () => {
@@ -286,6 +309,84 @@ describe("one status across boards", () => {
     await service.update(OWNER_B, "card-1", { targetListId: "b-closed" });
     expect(card()).toMatchObject({ title: "عنوان جديد", listId: "a-closed" });
     await expect(service.update(B_ONLY, "card-1", { title: "x" })).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it("turns away a move that lost a race to another one", async () => {
+    const { service, card, db } = setup();
+    // Another request moved the task while this one waited for the row lock.
+    db.$queryRaw = async () => {
+      card().listId = "a-doing";
+      return [];
+    };
+    await expect(service.update(OWNER_A, "card-1", { targetListId: "a-closed" })).rejects.toBeInstanceOf(
+      ConflictException,
+    );
+  });
+});
+
+describe("a recurring task", () => {
+  const DAY = 24 * 60 * 60 * 1000;
+
+  it("closing it records the cycle and reopens the same card in «جديد» on every board", async () => {
+    const { service, card, linkOn, subtasks, cycles, activities } = setup();
+    const due = new Date(Date.now() + 3 * DAY);
+    Object.assign(card(), { recurrence: { freq: "DAILY" }, dueDate: due, dueDateHasTime: true });
+
+    const result = await service.update(OWNER_A, "card-1", { targetListId: "a-closed" });
+
+    expect(cycles).toEqual([
+      expect.objectContaining({
+        cardId: "card-1",
+        number: 1,
+        dueDate: due,
+        closedById: OWNER_A,
+        lateMinutes: 0,
+        subtaskDone: 1,
+        subtaskTotal: 2,
+      }),
+    ]);
+    expect(card()).toMatchObject({ listId: "a-new", dueDateHasTime: true });
+    expect((card().dueDate as Date).getTime()).toBe(due.getTime() + DAY);
+    expect(linkOn("B")!.listId).toBe("b-new");
+    expect(result.listId).toBe("a-new");
+    expect(subtasks.every((s) => !s.isDone)).toBe(true);
+    expect(activities.map((a) => [a.type, a.fromValue])).toEqual([
+      ["MOVED", "جديد"],
+      ["CYCLE_COMPLETED", "في الموعد"],
+    ]);
+    // The closing move and its cycle share one instant; the cycle row reads just after it in history.
+    expect(activities[0].createdAt).toEqual(cycles[0].closedAt);
+    expect((activities[1].createdAt as Date).getTime()).toBe((cycles[0].closedAt as Date).getTime() + 1);
+  });
+
+  it("records a late close's lateness and reopens with the next date not yet gone", async () => {
+    const { service, card, cycles } = setup();
+    const today = new Date();
+    const due = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate() - 3));
+    Object.assign(card(), { recurrence: { freq: "DAILY" }, dueDate: due, dueDateHasTime: false });
+
+    await service.update(OWNER_A, "card-1", { targetListId: "a-closed" });
+    expect(cycles[0].lateMinutes as number).toBeGreaterThan(2 * 24 * 60);
+    // Skipped to the first day whose deadline hasn't passed — today, users' calendar.
+    const next = card().dueDate as Date;
+    expect(deadlineOf(next, false).getTime()).toBeGreaterThanOrEqual(Date.now());
+    expect(deadlineOf(new Date(next.getTime() - DAY), false).getTime()).toBeLessThan(Date.now());
+
+    // Closing today's cycle straight away is on time and moves on by one day.
+    await service.update(OWNER_A, "card-1", { targetListId: "a-closed" });
+    expect(cycles.map((c) => [c.number, c.lateMinutes])).toEqual([
+      [1, cycles[0].lateMinutes],
+      [2, 0],
+    ]);
+    expect((card().dueDate as Date).getTime()).toBe(next.getTime() + DAY);
+  });
+
+  it("completes no cycle when the closing request also stops the repeat", async () => {
+    const { service, card, cycles } = setup();
+    Object.assign(card(), { recurrence: { freq: "DAILY" } });
+    await service.update(OWNER_A, "card-1", { targetListId: "a-closed", recurrence: null });
+    expect(cycles).toEqual([]);
+    expect(card().listId).toBe("a-closed");
   });
 });
 

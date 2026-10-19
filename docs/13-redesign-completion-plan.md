@@ -119,7 +119,9 @@
   `ServeStaticModule` على `/uploads`)، حتى 10 مرفقات · ~~صور فقط · 5MB~~ صار
   **أي نوع ملف · 30MB** (كان 20MB) — انظر [`14-notifications-comments-attachments.md`](./14-notifications-comments-attachments.md).
 - `Card.recurrence` تُكتب فعليًا الآن؛ النقل إلى «انتهى» يولّد النسخة التالية
-  في «جديد» عبر `CardsService.spawnNextRecurrence`.
+  في «جديد» عبر `CardsService.spawnNextRecurrence`. (استُبدل لاحقًا: المهمة المتكررة صارت
+  بطاقة واحدة تُسجَّل دوراتها في `CardCycle` وتعود هي نفسها إلى «جديد» — انظر
+  [`14-notifications-comments-attachments.md`](./14-notifications-comments-attachments.md#المهمة-المتكررة-ودوراتها-recurrence).)
 - `POST /admin/users/:id/reset-password` (كلمة مرور مؤقتة تُولَّد وتُعاد مرة
   واحدة، `User.mustChangePassword` جديد).
 
