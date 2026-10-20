@@ -183,7 +183,9 @@ Every card carries an append-only audit trail in the `CardActivity` table
 who later changed its status (moved it between lists), renamed it, updated its
 description, changed the due date (or switched its time of day on/off), the
 priority, the repeat rule or the cost, assigned it, changed which boards it is
-on (`BOARDS_CHANGED`), or archived/unarchived it —
+on (`BOARDS_CHANGED`), or archived/unarchived it, plus subtask changes
+(`SUBTASK_*`: added, renamed, completed/reopened, deleted, assigned — written by
+`SubtasksService` into the parent card's log) —
 each with an actor and timestamp. A card's **status is the list it lives in**, so a status
 change is a `MOVED` activity whose `fromValue`/`toValue` snapshot the old/new
 *list names* at the time of the move. `CardsService`

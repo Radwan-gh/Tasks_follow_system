@@ -253,6 +253,7 @@
 | `BOARDS_CHANGED` | أسماء لوحات المهمة قبل التغيير وبعده، مفصولة بـ «، » (`PUT /cards/:id/boards`، انظر [`18-multi-board-tasks.md`](./18-multi-board-tasks.md)) |
 | `ARCHIVED` / `UNARCHIVED` | — |
 | `ASSIGNED` / `UNASSIGNED` | أسماء المُسنَدين بعد التغيير (انظر [`10-subtasks-and-assignment.md`](./10-subtasks-and-assignment.md)) |
+| `SUBTASK_ADDED` / `SUBTASK_RENAMED` / `SUBTASK_COMPLETED` / `SUBTASK_REOPENED` / `SUBTASK_DELETED` / `SUBTASK_ASSIGNED` | عنوان المهمة الفرعية (وأسماء مُسنَديها لـ `SUBTASK_ASSIGNED`)؛ يكتبها `SubtasksService` — التفاصيل في [`10-subtasks-and-assignment.md`](./10-subtasks-and-assignment.md) |
 
 المقارنة **بما يراه المستخدم** لا بالقيمة الخام: موعد بلا وقت تغيّرت لحظته داخل اليوم نفسه
 (الويب يخزّن منتصف ليل UTC والجوال الظهر) لا يُسجَّل، وتشغيل الوقت أو إيقافه يُسجَّل
@@ -265,7 +266,7 @@
 في `CardDetailPanel.tsx` (لسبب حجم الحزمة نفسه في `lib/describe-notification.ts`) — حدّثهما
 معًا عند إضافة نوع. هجرة `20261005180000_card_activity_priority_recurrence` حوّلت قيم
 `DUE_DATE_CHANGED` القديمة إلى `YYYY-MM-DD`، لأنها لم تسجّل وجود الوقت وكانت تُعرض تاريخًا
-فقط. لا يُسجَّل بعد: `costNote` وحده، وإسناد المهام الفرعية.
+فقط. لا يُسجَّل بعد: `costNote` وحده، وإعادة ترتيب المهام الفرعية.
 
 ### الحذف
 - يتطلّب عضوية في لوحة البطاقة، ووصولًا للبطاقة، وأن يكون الطالب **مالك المهمة** (مالك

@@ -70,6 +70,20 @@ export function describeCardActivity(activity: Pick<CardActivity, "type" | "from
       return fromValue ? `غيّر التكرار من «${fromValue}» إلى «${toValue}»` : `عيّن التكرار «${toValue}»`;
     case "BOARDS_CHANGED":
       return `غيّر لوحات المهمة من «${fromValue ?? "؟"}» إلى «${toValue ?? "؟"}»`;
+    case "SUBTASK_ADDED":
+      return `أضاف المهمة الفرعية «${toValue ?? ""}»`;
+    case "SUBTASK_RENAMED":
+      return `غيّر عنوان المهمة الفرعية من «${fromValue ?? ""}» إلى «${toValue ?? ""}»`;
+    case "SUBTASK_COMPLETED":
+      return `أنجز المهمة الفرعية «${toValue ?? ""}»`;
+    case "SUBTASK_REOPENED":
+      return `أعاد فتح المهمة الفرعية «${toValue ?? ""}»`;
+    case "SUBTASK_DELETED":
+      return `حذف المهمة الفرعية «${fromValue ?? ""}»`;
+    case "SUBTASK_ASSIGNED":
+      return toValue
+        ? `أسند المهمة الفرعية «${fromValue ?? ""}» إلى ${toValue}`
+        : `أزال إسناد المهمة الفرعية «${fromValue ?? ""}»`;
     default:
       return "حدّث البطاقة";
   }
