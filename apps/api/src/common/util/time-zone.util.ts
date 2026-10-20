@@ -42,3 +42,14 @@ export function fromWallClock(wall: Date, timeZone = appTimeZone()): Date {
 export function calendarDate(at: Date, timeZone = appTimeZone()): string {
   return toWallClock(at, timeZone).toISOString().slice(0, 10);
 }
+
+/**
+ * When a card actually becomes late. A date-only due date is stored at an
+ * arbitrary hour of its day (midnight UTC from the web, noon local from mobile —
+ * both on the intended UTC date), so it runs to the end of that day in the
+ * users' time zone.
+ */
+export function deadlineOf(dueDate: Date, hasTime: boolean, timeZone = appTimeZone()): Date {
+  if (hasTime) return dueDate;
+  return fromWallClock(new Date(`${dueDate.toISOString().slice(0, 10)}T23:59:59.999Z`), timeZone);
+}

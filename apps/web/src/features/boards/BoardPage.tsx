@@ -342,6 +342,8 @@ export function BoardPage() {
       )}
       {openCard && (
         <CardDetailPanel
+          // Its form state is seeded from the card once — remount when switching cards.
+          key={openCard.id}
           card={openCard}
           boardMembers={board.members}
           boardOwnerId={board.ownerId}
@@ -364,6 +366,12 @@ export function BoardPage() {
             invalidateBoards(boardIds);
             // Each board's task count in the boards list just changed.
             void queryClient.invalidateQueries({ queryKey: ["boards"], exact: true });
+          }}
+          onOpenCard={(cardId, cardBoardId) => {
+            // Already on this board as loaded: switch the panel in place; otherwise
+            // go through the board's `?card=` deep link, as notifications do.
+            if (lists.some((l) => l.cards.some((c) => c.id === cardId))) setOpenCardId(cardId);
+            else navigate(`/boards/${cardBoardId}?card=${cardId}`);
           }}
         />
       )}

@@ -43,11 +43,22 @@ export interface BoardAccess {
 // already required) so `ROLE_RANK[VIEWER] < ROLE_RANK[MEMBER]` blocks it.
 const ROLE_RANK: Record<BoardRole, number> = { VIEWER: 0, MEMBER: 1, OWNER: 2 };
 
+/**
+ * A repeating task's neighbouring instances, as a single card's own responses
+ * link to them. Never part of a board's card list (`BOARD_CARD_INCLUDE`).
+ */
+const INSTANCE_REF_SELECT = { select: { id: true, boardId: true, title: true, dueDate: true } } as const;
+export const CARD_INSTANCES_INCLUDE = {
+  previousInstance: INSTANCE_REF_SELECT,
+  nextInstance: INSTANCE_REF_SELECT,
+} as const satisfies Prisma.CardInclude;
+
 /** What `assertCardAccess` loads with the card — everything the card services check and serialize. */
 const CARD_ACCESS_INCLUDE = {
   members: { select: { userId: true } },
   assignees: { select: { userId: true } },
   boardLinks: BOARD_LINKS_INCLUDE,
+  ...CARD_INSTANCES_INCLUDE,
 } as const satisfies Prisma.CardInclude;
 export type AccessibleCard = Prisma.CardGetPayload<{ include: typeof CARD_ACCESS_INCLUDE }>;
 
@@ -1004,6 +1015,17 @@ function serializeBoard(
   };
 }
 
+interface InstanceRefRow {
+  id: string;
+  boardId: string;
+  title: string;
+  dueDate: Date | null;
+}
+
+function serializeInstanceRef(ref: InstanceRefRow | null) {
+  return ref ? { id: ref.id, boardId: ref.boardId, title: ref.title, dueDate: ref.dueDate?.toISOString() ?? null } : null;
+}
+
 interface CardWithMembers {
   id: string;
   listId: string;
@@ -1020,8 +1042,14 @@ interface CardWithMembers {
   costAmount: Prisma.Decimal | null;
   costNote: string | null;
   recurrence: Prisma.JsonValue | null;
+  previousInstanceId?: string | null;
+  recurrenceSeriesId?: string | null;
+  recurrenceIndex?: number | null;
   createdAt: Date;
   updatedAt: Date;
+  /** Loaded only for a single card's own responses (`CARD_INSTANCES_INCLUDE`). */
+  previousInstance?: InstanceRefRow | null;
+  nextInstance?: InstanceRefRow | null;
   members?: { userId: string }[];
   assignees?: { userId: string }[];
   /**
@@ -1051,6 +1079,12 @@ function serializeCard(card: CardWithMembers) {
     costAmount: card.costAmount ? card.costAmount.toString() : null,
     costNote: card.costNote,
     recurrence: (card.recurrence as RecurrenceRule | null) ?? null,
+    previousInstanceId: card.previousInstanceId ?? null,
+    recurrenceSeriesId: card.recurrenceSeriesId ?? null,
+    recurrenceIndex: card.recurrenceIndex ?? null,
+    // Absent (not null) when not loaded, so a board's card list doesn't claim "no neighbours".
+    ...(card.previousInstance !== undefined && { previousInstance: serializeInstanceRef(card.previousInstance) }),
+    ...(card.nextInstance !== undefined && { nextInstance: serializeInstanceRef(card.nextInstance) }),
     placements: [
       { boardId: card.boardId, listId: card.listId },
       ...card.boardLinks.map((l) => ({ boardId: l.boardId, listId: l.listId })),

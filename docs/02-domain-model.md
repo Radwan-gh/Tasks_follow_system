@@ -159,7 +159,9 @@ that board**.
 | `assignees` | Assigned to, via `CardAssignee` (several people) — see [`10-subtasks-and-assignment.md`](./10-subtasks-and-assignment.md). A `VIEWER` board member can never be an assignee |
 | `priority` | `LOW` \| `NORMAL` (default) \| `URGENT`. Only "urgent" shows on the card face |
 | `costAmount` / `costNote` | Optional cost (decimal amount + free-text note), never shown on the card face — a details-screen-only chip, written via `POST .../cards`/`PATCH /cards/:id`. Changing it records a `COST_UPDATED` activity |
-| `recurrence` | Optional repeat rule (`RecurrenceRule` in `packages/types`: daily / weekly with weekdays / monthly with a day), actually written via `POST .../cards` and `PATCH /cards/:id`. Moving into "closed" spawns the next instance in "new" automatically — details in [`14-notifications-comments-attachments.md`](./14-notifications-comments-attachments.md#recurring-task-generation) |
+| `recurrence` | Optional repeat rule (`RecurrenceRule` in `packages/types`: daily / weekly with weekdays / monthly with a day), actually written via `POST .../cards` and `PATCH /cards/:id`. The next instance is spawned in "new" automatically, once, at the first of: a move into "done" or "closed", or the due date passing — details in [`14-notifications-comments-attachments.md`](./14-notifications-comments-attachments.md#recurring-task-generation) |
+| `previousInstanceId` | The instance of the same repeating task this one was spawned from (self-relation `RecurrenceChain`, `SetNull` on delete; back-relation `nextInstance`). **Unique** — one next instance per card, which is what keeps the three spawn triggers from ever spawning twice |
+| `recurrenceSeriesId` / `recurrenceIndex` | The series' first card id, shared by every instance of one repeating task (indexed — what reports group a repeating task's cycles by), and this instance's cycle number (1, 2, 3…). Set on create/when a rule is first set, and carried by every spawn; kept if the rule is later removed |
 
 ### CardBoardLink
 

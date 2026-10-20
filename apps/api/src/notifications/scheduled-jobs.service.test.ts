@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { PrismaService } from "../prisma/prisma.service";
 import type { NotificationsService } from "./notifications.service";
-import { deadlineOf, ScheduledJobsService } from "./scheduled-jobs.service";
+import { deadlineOf } from "../common/util/time-zone.util";
+import { ScheduledJobsService } from "./scheduled-jobs.service";
 
 const NOW = new Date("2026-10-09T09:00:00Z");
 const HOUR = 60 * 60 * 1000;

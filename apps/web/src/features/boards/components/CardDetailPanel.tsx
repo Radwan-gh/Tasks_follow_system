@@ -39,6 +39,8 @@ interface CardDetailPanelProps {
   onSaveAssignees: (updates: UpdateAssigneesRequest) => Promise<void>;
   /** After the task's boards change — every board it was or is now on, to refresh. */
   onBoardsChanged: (boardIds: string[]) => void;
+  /** Open another card — a repeating task's previous or next instance, possibly on another board. */
+  onOpenCard: (cardId: string, boardId: string) => void;
 }
 
 const PRIORITY_LABEL: Record<CardPriority, string> = { LOW: "منخفضة", NORMAL: "عادية", URGENT: "عاجل" };
@@ -68,6 +70,7 @@ export function CardDetailPanel({
   onSaveAccess,
   onSaveAssignees,
   onBoardsChanged,
+  onOpenCard,
 }: CardDetailPanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const currencySymbol = useCurrencySymbol();
@@ -334,6 +337,7 @@ export function CardDetailPanel({
               من كل شهر
             </label>
           )}
+          {(card.recurrence || card.previousInstanceId) && <RecurrenceLinks card={card} onOpenCard={onOpenCard} />}
         </div>
 
         <div className="flex justify-end gap-2 border-t border-line pt-3">
@@ -416,6 +420,45 @@ export function CardDetailPanel({
 
         <HistoryAndComments cardId={card.id} currentUserId={currentUserId} readOnly={readOnly} />
       </div>
+    </div>
+  );
+}
+
+/**
+ * Which cycle of its repeating task this card is, and links to the instances
+ * before and after it (docs/14 «ربط النسخ»). The board's card list doesn't
+ * carry the neighbours, so they come from the card's own `GET /cards/:id`,
+ * re-read whenever the card changes — a move into «تم التنفيذ» spawns the next one.
+ */
+function RecurrenceLinks({ card, onOpenCard }: { card: Card; onOpenCard: (cardId: string, boardId: string) => void }) {
+  const { data } = useQuery({
+    queryKey: ["cardInstances", card.id, card.updatedAt],
+    queryFn: () => api.cards.get(card.id),
+  });
+  const rows = [
+    { label: "المهمة السابقة", instance: data?.previousInstance ?? null },
+    { label: "المهمة التالية", instance: data?.nextInstance ?? null },
+  ].filter((row) => row.instance);
+
+  return (
+    <div className="space-y-1 pt-1">
+      {card.recurrenceIndex && <p className="text-xs text-muted">الدورة {card.recurrenceIndex} من هذه المهمة</p>}
+      {rows.map(({ label, instance }) => (
+        <button
+          key={label}
+          type="button"
+          onClick={() => onOpenCard(instance!.id, instance!.boardId)}
+          className="flex w-full items-baseline gap-2 rounded-field px-2 py-1 text-start text-sm hover:bg-canvas focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+        >
+          <span className="shrink-0 text-xs text-muted">{label}</span>
+          <span className="min-w-0 flex-1 truncate font-medium text-accent">{instance!.title}</span>
+          {instance!.dueDate && (
+            <span className="shrink-0 text-xs text-muted">
+              {new Date(instance!.dueDate).toLocaleDateString("ar", { dateStyle: "medium" })}
+            </span>
+          )}
+        </button>
+      ))}
     </div>
   );
 }

@@ -13,10 +13,17 @@ import {
 } from "@app/types";
 import { Prisma, type CardPriority } from "@prisma/client";
 import { computeMovePosition } from "../common/util/position.util";
-import { nextRecurrenceDate } from "../common/util/recurrence.util";
+import { isCompleted } from "../common/util/completed.util";
+import { nextUpcomingRecurrenceDate } from "../common/util/recurrence.util";
 import { calendarDate } from "../common/util/time-zone.util";
 import { PrismaService } from "../prisma/prisma.service";
-import { BoardsService, canManageCard, serializeCard, type AccessibleCard } from "../boards/boards.service";
+import {
+  BoardsService,
+  CARD_INSTANCES_INCLUDE,
+  canManageCard,
+  serializeCard,
+  type AccessibleCard,
+} from "../boards/boards.service";
 import { NotificationsService } from "../notifications/notifications.service";
 import {
   BOARD_LINKS_INCLUDE,
@@ -37,6 +44,7 @@ const CARD_RESPONSE_INCLUDE = {
   members: { select: { userId: true } },
   assignees: { select: { userId: true } },
   boardLinks: BOARD_LINKS_INCLUDE,
+  ...CARD_INSTANCES_INCLUDE,
 } as const satisfies Prisma.CardInclude;
 
 /**
@@ -70,32 +78,59 @@ export class CardsService {
 
   /**
    * `design-prompt-group-3.md` §3 "توليد المهمة المتكررة": spawns the next
-   * instance of a repeating card into the board's «جديد» list when the
-   * current instance is moved into «انتهى». Carries forward title,
-   * description, priority, assignees, and the same recurrence rule (so the
-   * chain continues one-in-one-out — never more than one open instance).
-   * Also carried: whether the due date has a time of day (the time itself is
-   * kept by `nextRecurrenceDate`), the checklist — same titles, order and
-   * assignees, all unticked, since a weekly task's checklist is usually the
-   * task itself — the access restriction, so a private task never comes
-   * back visible to the whole board, and the other boards it is on, where the
-   * next instance starts in each board's «جديد» too.
+   * instance of a repeating card into the board's «جديد» list. Runs at the
+   * first of three triggers — the current instance moved into «تم التنفيذ»
+   * (DONE) or «انتهى» (CLOSED) (`update`), or its due date passing
+   * (`RecurrenceJobsService`) — and only once per instance: the new one points
+   * back at it through the unique `previousInstanceId`, so a later trigger
+   * finds it already linked and does nothing (and a racing one fails on the
+   * unique index, rolling its transaction back). Every instance carries its
+   * series' first card id (`recurrenceSeriesId`) and its cycle number
+   * (`recurrenceIndex`), which reports group and order a repeating task by.
+   *
+   * The due date is the next cycle that is still ahead
+   * (`nextUpcomingRecurrenceDate`): cycles missed while the previous instance
+   * sat overdue are skipped, not spawned as a backlog.
+   *
+   * Carries forward title, description, priority, assignees, and the same
+   * recurrence rule. Also carried: whether the due date has a time of day (the
+   * time itself is kept by `nextRecurrenceDate`), the checklist — same titles,
+   * order and assignees, all unticked, since a weekly task's checklist is
+   * usually the task itself — the access restriction, so a private task never
+   * comes back visible to the whole board, and the other boards it is on, where
+   * the next instance starts in each board's «جديد» too.
    * The spawned instance is a *new* task, so assignees deactivated since the
    * previous one was assigned are dropped rather than carried over.
    * Cost is deliberately not carried: each instance's spend is its own
    * (docs/05-boards-lists-cards.md).
    * The carried-over assignees are notified (`ASSIGNED` / `SUBTASK_ASSIGNED`)
    * as if newly assigned — it is a new task on their plate — except whoever
-   * closed the previous instance (`actorId`), via `notify`'s own guard.
+   * finished the previous instance (`actorId`), via `notify`'s own guard; the
+   * due-date job passes the system actor `""`, so nobody is skipped there.
+   *
+   * Returns the new instance, or null when none was spawned (no valid rule, no
+   * «جديد» list on the home board, or already spawned).
    */
-  private async spawnNextRecurrence(tx: Tx, card: AccessibleCard, actorId: string): Promise<void> {
+  async spawnNextRecurrence(tx: Tx, card: AccessibleCard, actorId: string, now = new Date()) {
     const rule = RecurrenceRuleSchema.safeParse(card.recurrence);
-    if (!rule.success) return;
+    if (!rule.success) return null;
+
+    // Re-read inside the transaction rather than trusting `card.nextInstance`,
+    // which may have been loaded before another trigger spawned it.
+    const existing = await tx.card.findUnique({ where: { previousInstanceId: card.id }, select: { id: true } });
+    if (existing) return null;
 
     const newList = await listForStatus(tx, card.boardId, "NEW");
-    if (!newList) return;
+    if (!newList) return null;
 
-    const nextDueDate = nextRecurrenceDate(rule.data, card.dueDate ?? new Date());
+    const nextDueDate = nextUpcomingRecurrenceDate(rule.data, card.dueDate ?? now, card.dueDateHasTime, now);
+
+    // A card that started repeating before series existed becomes its series' first card.
+    const seriesId = card.recurrenceSeriesId ?? card.id;
+    const index = card.recurrenceIndex ?? 1;
+    if (!card.recurrenceSeriesId) {
+      await tx.card.update({ where: { id: card.id }, data: { recurrenceSeriesId: seriesId, recurrenceIndex: index } });
+    }
 
     const created = await tx.card.create({
       data: {
@@ -111,6 +146,9 @@ export class CardsService {
         isRestricted: card.isRestricted,
         createdById: card.createdById,
         position: await endOfList(tx, newList.id),
+        previousInstanceId: card.id,
+        recurrenceSeriesId: seriesId,
+        recurrenceIndex: index + 1,
       },
     });
 
@@ -190,6 +228,7 @@ export class CardsService {
       type: "CREATED",
       toValue: newList.name,
     });
+    return created;
   }
 
   async create(userId: string, listId: string, input: CreateCardRequest) {
@@ -221,9 +260,16 @@ export class CardsService {
         type: "CREATED",
         toValue: list.name,
       });
+      // A repeating task starts its own series, as its first cycle.
+      if (input.recurrence) {
+        return tx.card.update({
+          where: { id: created.id },
+          data: { recurrenceSeriesId: created.id, recurrenceIndex: 1 },
+        });
+      }
       return created;
     });
-    return serializeCard({ ...card, boardLinks: [] });
+    return serializeCard({ ...card, boardLinks: [], previousInstance: null, nextInstance: null });
   }
 
   async getDetail(userId: string, cardId: string) {
@@ -258,6 +304,8 @@ export class CardsService {
     const changesStatus = targetListId !== moved.listId;
     const isAssignee = card.assignees.some((a) => a.userId === userId);
     const closesIt = changesStatus && targetList?.statusCategory === "CLOSED";
+    // Into «تم التنفيذ» or «انتهى» — finishing this instance of a repeating task.
+    const finishesIt = changesStatus && isCompleted(targetList?.statusCategory ?? null);
 
     // Moving the card — changing its status — is open to every member who can
     // open it; any other field is one of the task's details, which only its
@@ -321,6 +369,9 @@ export class CardsService {
           costAmount: input.costAmount === undefined ? undefined : input.costAmount,
           costNote: input.costNote,
           recurrence: input.recurrence === undefined ? undefined : (input.recurrence ?? Prisma.JsonNull),
+          // Starting to repeat makes this card its series' first cycle. Removing
+          // the rule later keeps the series fields, as the record of what it was.
+          ...(input.recurrence && !card.recurrenceSeriesId && { recurrenceSeriesId: cardId, recurrenceIndex: 1 }),
           listId: home?.listId,
           position: home?.position,
         },
@@ -333,8 +384,7 @@ export class CardsService {
       }
 
       // Moving into «انتهى»: notify the creator (design-prompt-group-3.md's
-      // "نقل بطاقة أنشأتها إلى انتهى") and, if this card repeats, spawn the
-      // next instance in the board's «جديد» list — see §3 "توليد المهمة المتكررة".
+      // "نقل بطاقة أنشأتها إلى انتهى").
       if (closesIt) {
         await this.notifications.notify(tx, {
           userId: card.createdById,
@@ -345,10 +395,15 @@ export class CardsService {
           boardIds: access.boardIds,
           payload: { cardTitle: result.title },
         });
+      }
 
-        if (card.recurrence) {
-          await this.spawnNextRecurrence(tx, card, userId);
-        }
+      // Finishing a repeating task — into «تم التنفيذ» or «انتهى» — spawns its
+      // next instance in the board's «جديد» list, unless an earlier trigger
+      // already did (§3 "توليد المهمة المتكررة"). From the card as just saved,
+      // and read back so the response links the new instance.
+      if (finishesIt && result.recurrence) {
+        const spawned = await this.spawnNextRecurrence(tx, result, userId);
+        if (spawned) return tx.card.findUniqueOrThrow({ where: { id: cardId }, include: CARD_RESPONSE_INCLUDE });
       }
 
       return result;

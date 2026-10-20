@@ -273,7 +273,7 @@ export class McpServerFactory {
       "get_card",
       {
         title: "Get card",
-        description: "Everything about one card: all fields, its list (status), the boards it is on, assignees, access, subtasks, comments and attachments (with ids and links — open one with read_attachment).",
+        description: "Everything about one card: all fields, its list (status), the boards it is on, assignees, access, subtasks, comments and attachments (with ids and links — open one with read_attachment). For a repeating task, also previousInstance/nextInstance (the neighbouring instances, open them with get_card) and recurrenceSeriesId/recurrenceIndex (the series every instance shares, and this one's cycle number).",
         inputSchema: { cardId: z.string() },
         annotations: readOnly,
       },
@@ -456,7 +456,7 @@ export class McpServerFactory {
       {
         title: "Update card",
         description:
-          "Edit any card details: title, description, dueDate, dueDateHasTime, priority, costAmount, costNote, recurrence, or isArchived. Pass null to clear a field. To change status use move_card. A repeating card spawns its next instance only when moved to CLOSED (see the recurrence field).",
+          "Edit any card details: title, description, dueDate, dueDateHasTime, priority, costAmount, costNote, recurrence, or isArchived. Pass null to clear a field. To change status use move_card. A repeating card spawns its next instance once, when it is moved to DONE or CLOSED or its due date passes, whichever comes first (see the recurrence field).",
         inputSchema: { cardId: z.string(), ...cardUpdateFields },
         annotations: write,
       },

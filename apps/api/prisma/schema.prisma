@@ -280,10 +280,21 @@ model Card {
   costAmount   Decimal?     @db.Decimal(12, 2)
   costNote     String?
   /// Recurrence rule as `{ freq: "DAILY"|"WEEKLY"|"MONTHLY", weekdays?:
-  /// number[], dayOfMonth?: number } | null`. On move into a `CLOSED` list,
-  /// `CardsService` reads this to spawn the next instance — see
-  /// `design-prompt-group-3.md` §3a-3/§9.
+  /// number[], dayOfMonth?: number } | null`. `CardsService` reads this to
+  /// spawn the next instance at the first of: a move into a `DONE` or
+  /// `CLOSED` list, or the due date passing (`RecurrenceJobsService`) — see
+  /// `design-prompt-group-3.md` §3a-3/§9 and docs/14.
   recurrence   Json?
+  /// The instance of the same repeating task this one was spawned from.
+  /// Unique, so an instance has at most one next instance — that is what
+  /// stops the three spawn triggers from ever creating two.
+  previousInstanceId String? @unique
+  /// The id of the series' first card, shared by every instance of one
+  /// repeating task — what reports group a repeating task's cycles by. A
+  /// plain column, not a relation, so deleting the first card keeps the group.
+  recurrenceSeriesId String?
+  /// The cycle's number in its series: 1 for the first card, then 2, 3…
+  recurrenceIndex    Int?
   createdById String
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
@@ -298,9 +309,12 @@ model Card {
   attachments Attachment[]
   /// The other boards this task also appears on — see `CardBoardLink`.
   boardLinks  CardBoardLink[]
+  previousInstance Card? @relation("RecurrenceChain", fields: [previousInstanceId], references: [id], onDelete: SetNull)
+  nextInstance     Card? @relation("RecurrenceChain")
 
   @@index([listId, position])
   @@index([boardId, isArchived])
+  @@index([recurrenceSeriesId])
 }
 
 /// "This task also appears on this board" (docs/18-multi-board-tasks.md). The

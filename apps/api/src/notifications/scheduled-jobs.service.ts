@@ -1,7 +1,7 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { Cron } from "@nestjs/schedule";
 import { COMPLETED_CATEGORIES } from "../common/util/completed.util";
-import { appTimeZone, fromWallClock } from "../common/util/time-zone.util";
+import { appTimeZone, deadlineOf } from "../common/util/time-zone.util";
 import { PrismaService } from "../prisma/prisma.service";
 import { NotificationsService } from "./notifications.service";
 
@@ -98,16 +98,6 @@ export class ScheduledJobsService {
   }
 }
 
-/**
- * When a card actually becomes late. A date-only due date is stored at an
- * arbitrary hour of its day (midnight UTC from the web, noon local from mobile —
- * both on the intended UTC date), so it runs to the end of that day in the
- * users' time zone.
- */
-export function deadlineOf(dueDate: Date, hasTime: boolean): Date {
-  if (hasTime) return dueDate;
-  return fromWallClock(new Date(`${dueDate.toISOString().slice(0, 10)}T23:59:59.999Z`));
-}
 
 function payloadDueDate(payload: unknown): string | null {
   const value = (payload as Record<string, unknown> | null)?.dueDate;

@@ -8,12 +8,13 @@ import { CardsController } from "./cards.controller";
 import { CardsService } from "./cards.service";
 import { CommentsController } from "./comments.controller";
 import { CommentsService } from "./comments.service";
+import { RecurrenceJobsService } from "./recurrence-jobs.service";
 import { UploadsController } from "./uploads.controller";
 
 @Module({
   imports: [BoardsModule, NotificationsModule, TemplatesModule],
   controllers: [CardsController, CommentsController, AttachmentsController, UploadsController],
-  providers: [CardsService, CommentsService, AttachmentsService],
+  providers: [CardsService, CommentsService, AttachmentsService, RecurrenceJobsService],
   // For the MCP tools (mcp/mcp-server.factory.ts), which call these directly.
   exports: [CardsService, CommentsService, AttachmentsService],
 })

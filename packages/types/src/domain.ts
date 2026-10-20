@@ -33,9 +33,11 @@ export const CardPriority = z.enum(["LOW", "NORMAL", "URGENT"]);
 export type CardPriority = z.infer<typeof CardPriority>;
 
 /**
- * A card's repeat rule. On move into a `CLOSED` list, the server spawns the
- * next instance into the board's `NEW` list with `dueDate` advanced by one
- * interval — see `design-prompt-group-3.md` §3a-3/§9 ("لا تتراكم نسخ متعددة").
+ * A card's repeat rule. The server spawns the next instance into the board's
+ * `NEW` list at the first of: a move into a `DONE` or `CLOSED` list, or the due
+ * date passing — once per instance, linked to it (`previousInstanceId`,
+ * `recurrenceSeriesId`). See docs/14-notifications-comments-attachments.md
+ * «توليد المهمة المتكررة».
  */
 export const RecurrenceRuleSchema = z
   .discriminatedUnion("freq", [
@@ -59,11 +61,14 @@ export const RecurrenceRuleSchema = z
   ])
   // Read by MCP clients as the field's documentation (docs/15-mcp-server.md).
   .describe(
-    "Repeat rule. The next instance is created only when this card is moved to the CLOSED list (انتهى) — not DONE (منجز) — " +
-      "and it lands in the NEW list. Its due date is the previous due date plus one period (the next listed weekday, " +
-      "the next day, or the same day next month), counted in local time from the old due date, not from today — so closing " +
-      "a card late can create an instance that is already overdue. Carries over title, description, priority, assignees, " +
-      "whether the due date has a time, the access restriction, this rule, and the subtasks (unticked); cost is not copied.",
+    "Repeat rule. The next instance is created once, at the first of: this card is moved to DONE (منجز) or CLOSED " +
+      "(انتهى), or its due date passes (a date-only due date at the end of that day, local time) — and it lands in the " +
+      "NEW list. Its due date is the previous due date plus one period (the next listed weekday, the next day, or the " +
+      "same day next month), counted in local time; periods that already passed are skipped, so the new instance is " +
+      "never already overdue. Carries over title, description, priority, assignees, whether the due date has a time, " +
+      "the access restriction, this rule, and the subtasks (unticked); cost is not copied. Every instance of one " +
+      "repeating task shares recurrenceSeriesId and is numbered by recurrenceIndex; previousInstanceId links it to the " +
+      "instance it was created from.",
   );
 export type RecurrenceRule = z.infer<typeof RecurrenceRuleSchema>;
 
@@ -251,6 +256,18 @@ export const CardPlacementSchema = z.object({
 });
 export type CardPlacement = z.infer<typeof CardPlacementSchema>;
 
+/**
+ * Another instance of the same repeating task, as a card's detail links to it
+ * (`Card.previousInstance` / `Card.nextInstance`).
+ */
+export const CardInstanceRefSchema = z.object({
+  id: z.string(),
+  boardId: z.string(),
+  title: z.string(),
+  dueDate: z.string().datetime().nullable(),
+});
+export type CardInstanceRef = z.infer<typeof CardInstanceRefSchema>;
+
 export const CardSchema = z.object({
   id: z.string(),
   // The task's *home* placement: the board it belongs to and the list that is
@@ -282,6 +299,18 @@ export const CardSchema = z.object({
   costAmount: z.string().nullable(),
   costNote: z.string().max(500).nullable(),
   recurrence: RecurrenceRuleSchema.nullable(),
+  // A repeating task's instances, linked (docs/14 «توليد المهمة المتكررة»):
+  // the instance this one was spawned from, the series' first card id shared
+  // by every instance — what reports group a repeating task's cycles by — and
+  // this instance's cycle number in it (1, 2, 3…). All null for a card that
+  // never repeated.
+  previousInstanceId: z.string().nullable(),
+  recurrenceSeriesId: z.string().nullable(),
+  recurrenceIndex: z.number().int().nullable(),
+  // The neighbouring instances themselves. Only a single card's own responses
+  // (`GET /cards/:id`, its PATCHes) carry them; a board's card list leaves them out.
+  previousInstance: CardInstanceRefSchema.nullable().optional(),
+  nextInstance: CardInstanceRefSchema.nullable().optional(),
   // Every board the task is on, home board first, each with its column there.
   // One status shared by all of them — moving the task on any board moves it
   // on every other. Changed with `PUT /cards/:id/boards`.

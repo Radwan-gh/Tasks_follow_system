@@ -18,6 +18,7 @@ import { PrioritySheet, priorityLabel } from "@/components/priority-control";
 import { RecurrenceSheet, summarizeRecurrence } from "@/components/recurrence-sheet";
 import { SubtasksSection } from "@/features/cards/subtasks-section";
 import { HistorySection } from "@/features/cards/history-section";
+import { RecurrenceLinks } from "@/features/cards/recurrence-links";
 import { useAuth } from "@/features/auth/auth-context";
 import { useAutoSavedIds } from "@/lib/use-auto-saved-ids";
 import { contextBoardId, listOnBoard, withMove } from "@/lib/card-boards";
@@ -505,6 +506,7 @@ export default function CardDetailScreen() {
               الموافق {formatHijri(new Date(dueDate))}
             </AppText>
           ) : null}
+          {card.data ? <RecurrenceLinks card={card.data} /> : null}
         </View>
 
         <CardBoardsField
