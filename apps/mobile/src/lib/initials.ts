@@ -1,11 +1,18 @@
+import { personInitials } from "@app/types";
+
+/** Who an avatar stands for — `firstName`/`lastName` when the row carries them. */
+export interface AvatarPerson {
+  id: string;
+  displayName: string;
+  firstName?: string;
+  lastName?: string;
+}
+
 /**
- * The design's avatar label: the first letter of each of the first two words,
- * dot-separated — «أحمد سالم» → «أ.س». Falls back to the first character for
- * single-word names, and to «؟» for an empty one.
+ * The design's avatar label: first-name letter and last-name letter,
+ * dot-separated — «أحمد العتيبي» → «أ.ع». The rule itself is shared with the
+ * web app (`personInitials` in `packages/types`).
  */
-export function initials(displayName: string): string {
-  const words = displayName.trim().split(/\s+/).filter(Boolean);
-  if (words.length === 0) return "؟";
-  if (words.length === 1) return words[0]!.slice(0, 1);
-  return `${words[0]!.slice(0, 1)}.${words[1]!.slice(0, 1)}`;
+export function initials(person: { displayName: string; firstName?: string; lastName?: string }): string {
+  return personInitials(person);
 }

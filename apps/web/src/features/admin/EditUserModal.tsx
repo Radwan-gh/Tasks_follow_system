@@ -13,25 +13,34 @@ interface EditUserModalProps {
  * Admin edit of a user's descriptive fields — `PATCH /admin/users/:id`. Role,
  * status, permissions and passwords keep their own row actions, and `username`
  * is the login credential and never editable, so this form only carries the
- * display name and the (optional) contact email. Only changed fields are sent,
- * so a rename alone is not also seen as an email edit server-side; an emptied
- * field is sent as `""`, which clears the address.
+ * first/last name (the server recomposes `displayName` from them) and the
+ * (optional) contact email. Only changed fields are sent, so a rename alone is
+ * not also seen as an email edit server-side; an emptied email is sent as `""`,
+ * which clears the address.
  */
 export function EditUserModal({ user, saving, error, onClose, onSave }: EditUserModalProps) {
-  const [displayName, setDisplayName] = useState(user.displayName);
+  const [firstName, setFirstName] = useState(user.firstName);
+  const [lastName, setLastName] = useState(user.lastName);
   const [email, setEmail] = useState(user.email ?? "");
 
-  const trimmedName = displayName.trim();
+  const trimmedFirst = firstName.trim();
+  const trimmedLast = lastName.trim();
   const trimmedEmail = email.trim();
-  const nameChanged = trimmedName !== user.displayName;
+  const firstChanged = trimmedFirst !== user.firstName;
+  const lastChanged = trimmedLast !== user.lastName;
   const emailChanged = trimmedEmail !== (user.email ?? "");
-  const canSave = trimmedName.length > 0 && (nameChanged || emailChanged) && !saving;
+  const canSave =
+    trimmedFirst.length > 0 &&
+    trimmedLast.length > 0 &&
+    (firstChanged || lastChanged || emailChanged) &&
+    !saving;
 
   function onSubmit(e: FormEvent) {
     e.preventDefault();
     if (!canSave) return;
     onSave({
-      ...(nameChanged ? { displayName: trimmedName } : {}),
+      ...(firstChanged ? { firstName: trimmedFirst } : {}),
+      ...(lastChanged ? { lastName: trimmedLast } : {}),
       ...(emailChanged ? { email: trimmedEmail } : {}),
     });
   }
@@ -52,16 +61,28 @@ export function EditUserModal({ user, saving, error, onClose, onSave }: EditUser
 
         {error && <div className="rounded bg-red-50 px-3 py-2 text-sm text-red-600">{error}</div>}
 
-        <label className="block space-y-1">
-          <span className="text-sm text-slate-600">الاسم المعروض</span>
-          <input
-            required
-            maxLength={100}
-            value={displayName}
-            onChange={(e) => setDisplayName(e.target.value)}
-            className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
-          />
-        </label>
+        <div className="grid grid-cols-2 gap-3">
+          <label className="block space-y-1">
+            <span className="text-sm text-slate-600">الاسم الأول</span>
+            <input
+              required
+              maxLength={50}
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+              className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+            />
+          </label>
+          <label className="block space-y-1">
+            <span className="text-sm text-slate-600">اسم العائلة</span>
+            <input
+              required
+              maxLength={50}
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
+              className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+            />
+          </label>
+        </div>
 
         <label className="block space-y-1">
           <span className="text-sm text-slate-600">اسم المستخدم</span>

@@ -1,5 +1,6 @@
 import { useId, useMemo, useState, type KeyboardEvent, type ReactNode } from "react";
 import type { BoardMember } from "@app/types";
+import { avatarClassFor, personInitials } from "../../../lib/avatar";
 
 /**
  * The one place the web app renders "pick people" UI — card assignees,
@@ -14,17 +15,6 @@ import type { BoardMember } from "@app/types";
 
 /** How many suggestions the type-ahead shows — enough to disambiguate, few enough to read at a glance. */
 const SUGGESTION_LIMIT = 3;
-
-/** First letter of each of the first two words — same rule as the mobile app's `initials()`. */
-export function initialsOf(displayName: string): string {
-  return displayName
-    .trim()
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((part) => part[0] ?? "")
-    .join("")
-    .toUpperCase();
-}
 
 /** Case-insensitive match on display name *or* username — the same rule the server uses for its search. */
 export function matchesUser(user: { displayName: string; username: string }, term: string): boolean {
@@ -65,15 +55,28 @@ export function topMatches(
     .map(({ m }) => m);
 }
 
-export function UserAvatar({ displayName, dimmed = false }: { displayName: string; dimmed?: boolean }) {
+/** Who an avatar stands for — `firstName`/`lastName` when the row carries them. */
+export interface AvatarPerson {
+  id: string;
+  displayName: string;
+  firstName?: string;
+  lastName?: string;
+}
+
+/**
+ * First-name + last-name initials («أ.ع») on the person's own swatch, so
+ * overlapping faces on a card stay tellable apart; hovering shows the full name.
+ */
+export function UserAvatar({ person, dimmed = false }: { person: AvatarPerson; dimmed?: boolean }) {
   return (
     <span
-      aria-hidden
-      className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-200 text-[10px] font-semibold text-slate-600 ${
-        dimmed ? "opacity-50" : ""
-      }`}
+      title={person.displayName}
+      className={`flex h-7 w-7 shrink-0 select-none items-center justify-center rounded-full text-[11px] font-bold leading-none ${avatarClassFor(
+        person.id,
+      )} ${dimmed ? "opacity-50" : ""}`}
     >
-      {initialsOf(displayName)}
+      <span aria-hidden>{personInitials(person)}</span>
+      <span className="sr-only">{person.displayName}</span>
     </span>
   );
 }
@@ -238,7 +241,7 @@ export function UserTypeahead({
                     index === active ? "bg-canvas" : ""
                   }`}
                 >
-                  <ChipAvatar displayName={m.user.displayName} large />
+                  <ChipAvatar person={m.user} large />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm text-ink">
                       <MatchedText text={m.user.displayName} term={term} />
@@ -268,7 +271,7 @@ export function UserTypeahead({
                 m.user.isActive ? "" : "opacity-60"
               }`}
             >
-              <ChipAvatar displayName={m.user.displayName} />
+              <ChipAvatar person={m.user} />
               <span className="max-w-[10rem] truncate">{m.user.displayName}</span>
               {!m.user.isActive && <span className="text-[10px] font-medium text-alert">معطَّل</span>}
               {chipExtra?.(m)}
@@ -298,7 +301,7 @@ export function UserTypeahead({
   );
 }
 
-function ChipAvatar({ displayName, large = false }: { displayName: string; large?: boolean }) {
+function ChipAvatar({ person, large = false }: { person: AvatarPerson; large?: boolean }) {
   return (
     <span
       aria-hidden
@@ -306,7 +309,7 @@ function ChipAvatar({ displayName, large = false }: { displayName: string; large
         large ? "h-7 w-7 border border-line text-[10px]" : "h-5 w-5 text-[9px]"
       }`}
     >
-      {initialsOf(displayName)}
+      {personInitials(person)}
     </span>
   );
 }

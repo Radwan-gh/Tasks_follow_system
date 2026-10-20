@@ -95,7 +95,11 @@ export const UserSchema = z.object({
   username: UsernameSchema,
   /** Contact address only — never a credential, and absent on accounts created without one. */
   email: z.string().email().nullable(),
+  /** Always `"<firstName> <lastName>"` — derived server-side, never typed in (see `composeDisplayName`). */
   displayName: z.string().min(1).max(100),
+  /** Empty only on accounts created before names were split, until someone edits them. */
+  firstName: z.string().max(50),
+  lastName: z.string().max(50),
   role: UserRole,
   isActive: z.boolean(),
   // Set by an admin's `POST /admin/users/:id/reset-password`; the client uses
@@ -159,7 +163,14 @@ export const BoardMemberSchema = z.object({
   // `isActive` lets the mobile client fade a disabled member's avatar and
   // badge them "معطَّل" wherever they're shown as an assignee — see
   // `design-prompt-group-3.md` §3b-6.
-  user: UserSchema.pick({ id: true, username: true, displayName: true, isActive: true }),
+  user: UserSchema.pick({
+    id: true,
+    username: true,
+    displayName: true,
+    firstName: true,
+    lastName: true,
+    isActive: true,
+  }),
 });
 export type BoardMember = z.infer<typeof BoardMemberSchema>;
 
@@ -174,6 +185,8 @@ export const BoardMemberCandidateSchema = UserSchema.pick({
   id: true,
   username: true,
   displayName: true,
+  firstName: true,
+  lastName: true,
   isActive: true,
 });
 export type BoardMemberCandidate = z.infer<typeof BoardMemberCandidateSchema>;
@@ -224,7 +237,7 @@ export const BoardSummarySchema = z.object({
   // First few members, for the boards-list card's overlapping avatars. Not
   // the full membership (that's `BoardDetail.members`) — just enough to draw
   // 2-3 avatar circles.
-  memberPreviews: z.array(UserSchema.pick({ id: true, displayName: true })),
+  memberPreviews: z.array(UserSchema.pick({ id: true, displayName: true, firstName: true, lastName: true })),
 });
 export type BoardSummary = z.infer<typeof BoardSummarySchema>;
 
@@ -433,7 +446,7 @@ export const CommentSchema = z.object({
   cardId: z.string(),
   body: z.string().min(1).max(2000),
   createdAt: z.string().datetime(),
-  author: UserSchema.pick({ id: true, username: true, displayName: true }),
+  author: UserSchema.pick({ id: true, username: true, displayName: true, firstName: true, lastName: true }),
 });
 export type Comment = z.infer<typeof CommentSchema>;
 

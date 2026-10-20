@@ -74,14 +74,16 @@ export default function AdminUsersScreen() {
 
   const createUser = useMutation({
     mutationFn: (input: {
-      displayName: string;
+      firstName: string;
+      lastName: string;
       username: string;
       email: string | null;
       password: string;
       isAdmin: boolean;
     }) =>
       api.admin.createUser({
-        displayName: input.displayName,
+        firstName: input.firstName,
+        lastName: input.lastName,
         username: input.username,
         email: input.email,
         password: input.password,
@@ -308,7 +310,7 @@ export default function AdminUsersScreen() {
                     }}
                   >
                     <AppText weight="bold" color={palette.fg}>
-                      {initials(u.displayName)}
+                      {initials(u)}
                     </AppText>
                   </View>
                   <View style={{ flex: 1 }}>

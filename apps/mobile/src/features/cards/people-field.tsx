@@ -281,7 +281,7 @@ function Avatar({ member, size }: { member: BoardMember; size: number }) {
       }}
     >
       <AppText weight="bold" color={palette.fg} style={{ fontSize: size > 30 ? 12 : 10 }}>
-        {initials(member.user.displayName)}
+        {initials(member.user)}
       </AppText>
     </View>
   );

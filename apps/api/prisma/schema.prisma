@@ -69,7 +69,15 @@ model User {
   /// provisioned by an admin who may not have an address for the person.
   email        String?  @unique
   passwordHash String
+  /// Always `"<firstName> <lastName>"` — recomposed by the server whenever
+  /// either half changes (`composeDisplayName` in `packages/types`), so every
+  /// read site keeps showing one field.
   displayName  String
+  /// What the admin/profile forms ask for. Empty only on accounts created
+  /// before the split whose old display name was a single word (lastName) —
+  /// migration `20261016120000_user_first_last_name` backfilled the rest.
+  firstName    String   @default("")
+  lastName     String   @default("")
   role         UserRole @default(USER)
   isActive     Boolean  @default(true)
   /// Set by `POST /admin/users/:id/reset-password`; cleared the next time this

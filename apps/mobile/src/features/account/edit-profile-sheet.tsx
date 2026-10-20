@@ -5,14 +5,16 @@ import { AppText } from "@/components/text";
 import { MIN_TOUCH_TARGET, colors, fonts, fontSizes, radii, spacing } from "@/theme/tokens";
 
 /**
- * Self-service profile edit sheet — `PATCH /auth/me`. Only the display name:
+ * Self-service profile edit sheet — `PATCH /auth/me`. Only the first and last
+ * name (the server recomposes `displayName` from them):
  * `username` is the login credential of an admin-provisioned account and the
  * email is contact information on it, so both are read-only here and an admin
  * changes them in «المستخدمون والصلاحيات».
  */
 export function EditProfileSheet({
   visible,
-  displayName,
+  firstName: initialFirst,
+  lastName: initialLast,
   username,
   email,
   saving,
@@ -21,23 +23,30 @@ export function EditProfileSheet({
   onSave,
 }: {
   visible: boolean;
-  displayName: string;
+  firstName: string;
+  lastName: string;
   username: string;
   email: string;
   saving: boolean;
   error: string | null;
   onClose: () => void;
-  onSave: (displayName: string) => void;
+  onSave: (name: { firstName: string; lastName: string }) => void;
 }) {
-  const [value, setValue] = useState(displayName);
+  const [firstName, setFirstName] = useState(initialFirst);
+  const [lastName, setLastName] = useState(initialLast);
 
   // Re-seed each time the sheet opens so a cancelled edit doesn't linger.
   useEffect(() => {
-    if (visible) setValue(displayName);
-  }, [visible, displayName]);
+    if (visible) {
+      setFirstName(initialFirst);
+      setLastName(initialLast);
+    }
+  }, [visible, initialFirst, initialLast]);
 
-  const trimmed = value.trim();
-  const canSubmit = trimmed.length > 0 && trimmed !== displayName && !saving;
+  const first = firstName.trim();
+  const last = lastName.trim();
+  const canSubmit =
+    first.length > 0 && last.length > 0 && (first !== initialFirst || last !== initialLast) && !saving;
 
   return (
     <BottomSheet visible={visible} onClose={onClose}>
@@ -55,16 +64,26 @@ export function EditProfileSheet({
         ) : null}
 
         <AppText size="small" color={colors.muted}>
-          الاسم المعروض
+          الاسم
         </AppText>
-        <TextInput
-          value={value}
-          onChangeText={setValue}
-          maxLength={100}
-          placeholder="الاسم"
-          placeholderTextColor={colors.muted}
-          style={fieldStyle}
-        />
+        <View style={{ flexDirection: "row", gap: spacing.sm }}>
+          <TextInput
+            value={firstName}
+            onChangeText={setFirstName}
+            maxLength={50}
+            placeholder="الاسم الأول"
+            placeholderTextColor={colors.muted}
+            style={{ ...fieldStyle, flex: 1 }}
+          />
+          <TextInput
+            value={lastName}
+            onChangeText={setLastName}
+            maxLength={50}
+            placeholder="اسم العائلة"
+            placeholderTextColor={colors.muted}
+            style={{ ...fieldStyle, flex: 1 }}
+          />
+        </View>
 
         <AppText size="small" color={colors.muted}>
           اسم المستخدم
@@ -90,7 +109,7 @@ export function EditProfileSheet({
         <Pressable
           accessibilityRole="button"
           disabled={!canSubmit}
-          onPress={() => onSave(trimmed)}
+          onPress={() => onSave({ firstName: first, lastName: last })}
           style={{
             minHeight: MIN_TOUCH_TARGET,
             borderRadius: radii.field,

@@ -51,7 +51,7 @@ export function BoardCard({ board, isOwner, ownerName }: { board: BoardSummary; 
             {previews.map((member, i) => (
               <span key={member.id} className={i > 0 ? "-ms-2" : ""} style={{ zIndex: previews.length - i }}>
                 <span className="block rounded-full ring-2 ring-surface">
-                  <UserAvatar displayName={member.displayName} />
+                  <UserAvatar person={member} />
                 </span>
               </span>
             ))}

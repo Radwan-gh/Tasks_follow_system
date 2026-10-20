@@ -9,7 +9,7 @@ function serialize(row: {
   cardId: string;
   body: string;
   createdAt: Date;
-  author: { id: string; username: string; displayName: string };
+  author: { id: string; username: string; displayName: string; firstName: string; lastName: string };
 }): Comment {
   return {
     id: row.id,
@@ -41,7 +41,7 @@ export class CommentsService {
     const rows = await this.prisma.comment.findMany({
       where: { cardId },
       orderBy: { createdAt: "asc" },
-      include: { author: { select: { id: true, username: true, displayName: true } } },
+      include: { author: { select: { id: true, username: true, displayName: true, firstName: true, lastName: true } } },
     });
     return rows.map(serialize);
   }
@@ -52,7 +52,7 @@ export class CommentsService {
     const comment = await this.prisma.$transaction(async (tx) => {
       const created = await tx.comment.create({
         data: { cardId, authorId: userId, body: input.body },
-        include: { author: { select: { id: true, username: true, displayName: true } } },
+        include: { author: { select: { id: true, username: true, displayName: true, firstName: true, lastName: true } } },
       });
 
       // "تعليق على بطاقة أنا معنيّ بها": the creator, assignees, and (when

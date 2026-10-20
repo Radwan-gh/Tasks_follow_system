@@ -89,26 +89,30 @@ function CurrencySettingSection() {
 }
 
 /**
- * Self-service profile edit — `PATCH /auth/me`. Only the display name is
- * editable here: `username` is the account's login credential and the email is
+ * Self-service profile edit — `PATCH /auth/me`. Only the first and last name
+ * are editable here (the server recomposes `displayName` from them): `username` is the account's login credential and the email is
  * contact information on it, and since accounts are admin-provisioned only an
  * admin changes either (`PATCH /admin/users/:id`).
  */
 function ProfileSection() {
   const { user, refreshUser } = useAuth();
-  const [displayName, setDisplayName] = useState(user?.displayName ?? "");
+  const [firstName, setFirstName] = useState(user?.firstName ?? "");
+  const [lastName, setLastName] = useState(user?.lastName ?? "");
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [saving, setSaving] = useState(false);
 
   // The context user arrives asynchronously on a hard reload, so seed the
-  // field once it does (and whenever a save swaps in the server's value).
+  // fields once it does (and whenever a save swaps in the server's value).
   useEffect(() => {
-    if (user) setDisplayName(user.displayName);
-  }, [user?.displayName]);
+    if (!user) return;
+    setFirstName(user.firstName);
+    setLastName(user.lastName);
+  }, [user?.firstName, user?.lastName]);
 
-  const trimmed = displayName.trim();
-  const dirty = trimmed.length > 0 && trimmed !== user?.displayName;
+  const first = firstName.trim();
+  const last = lastName.trim();
+  const dirty = first.length > 0 && last.length > 0 && (first !== user?.firstName || last !== user?.lastName);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -116,7 +120,7 @@ function ProfileSection() {
     setSuccess(false);
     setSaving(true);
     try {
-      await api.auth.updateProfile({ displayName: trimmed });
+      await api.auth.updateProfile({ firstName: first, lastName: last });
       await refreshUser();
       setSuccess(true);
     } catch (err) {
@@ -132,16 +136,28 @@ function ProfileSection() {
       {error && <p className="rounded bg-red-50 p-2 text-sm text-red-600">{error}</p>}
       {success && <p className="rounded bg-green-50 p-2 text-sm text-green-700">تم حفظ البيانات بنجاح.</p>}
 
-      <label className="block space-y-1">
-        <span className="text-sm text-slate-600">الاسم المعروض</span>
-        <input
-          required
-          maxLength={100}
-          value={displayName}
-          onChange={(e) => setDisplayName(e.target.value)}
-          className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
-        />
-      </label>
+      <div className="grid grid-cols-2 gap-3">
+        <label className="block space-y-1">
+          <span className="text-sm text-slate-600">الاسم الأول</span>
+          <input
+            required
+            maxLength={50}
+            value={firstName}
+            onChange={(e) => setFirstName(e.target.value)}
+            className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+          />
+        </label>
+        <label className="block space-y-1">
+          <span className="text-sm text-slate-600">اسم العائلة</span>
+          <input
+            required
+            maxLength={50}
+            value={lastName}
+            onChange={(e) => setLastName(e.target.value)}
+            className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+          />
+        </label>
+      </div>
 
       <label className="block space-y-1">
         <span className="text-sm text-slate-600">اسم المستخدم</span>

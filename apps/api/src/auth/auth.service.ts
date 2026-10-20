@@ -8,6 +8,7 @@ import {
 import { ConfigService } from "@nestjs/config";
 import { JwtService } from "@nestjs/jwt";
 import type { AuthResponse, CurrentUser, LoginRequest, UpdateProfileRequest } from "@app/types";
+import { composeDisplayName } from "@app/types";
 import * as bcrypt from "bcrypt";
 import { createHash, randomUUID } from "crypto";
 import { PrismaService } from "../prisma/prisma.service";
@@ -46,6 +47,8 @@ function serializeCurrentUser(user: {
   username: string;
   email: string | null;
   displayName: string;
+  firstName: string;
+  lastName: string;
   role: string;
   isActive: boolean;
   mustChangePassword: boolean;
@@ -58,6 +61,8 @@ function serializeCurrentUser(user: {
     username: user.username,
     email: user.email,
     displayName: user.displayName,
+    firstName: user.firstName,
+    lastName: user.lastName,
     role: user.role as CurrentUser["role"],
     isActive: user.isActive,
     mustChangePassword: user.mustChangePassword,
@@ -177,7 +182,8 @@ export class AuthService {
   }
 
   /**
-   * Self-service profile edit (`PATCH /auth/me`). Only the display name: the
+   * Self-service profile edit (`PATCH /auth/me`). Only the first/last name
+   * (`displayName` is recomposed from them): the
    * username is the login credential of an admin-provisioned account and the
    * email is a contact field on it, so changing either stays an admin action
    * (`PATCH /admin/users/:id`). Nothing here affects authentication, so no
@@ -186,11 +192,15 @@ export class AuthService {
   async updateProfile(userId: string, input: UpdateProfileRequest): Promise<CurrentUser> {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new NotFoundException("User not found");
-    if (user.displayName === input.displayName) return serializeCurrentUser(user);
+    if (user.firstName === input.firstName && user.lastName === input.lastName) return serializeCurrentUser(user);
 
     const updated = await this.prisma.user.update({
       where: { id: userId },
-      data: { displayName: input.displayName },
+      data: {
+        firstName: input.firstName,
+        lastName: input.lastName,
+        displayName: composeDisplayName(input.firstName, input.lastName),
+      },
     });
     return serializeCurrentUser(updated);
   }

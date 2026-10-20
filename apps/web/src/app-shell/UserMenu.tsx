@@ -45,7 +45,7 @@ export function UserMenu() {
         onClick={() => setOpen((v) => !v)}
         className="flex w-full items-center gap-2.5 rounded-field bg-canvas p-2.5 text-start hover:bg-line/40"
       >
-        <UserAvatar displayName={user.displayName} />
+        <UserAvatar person={user} />
         <span className="min-w-0 flex-1">
           <span className="block truncate text-sm font-semibold text-ink">{user.displayName}</span>
           <span className="block truncate text-xs text-muted">{ROLE_LABEL[user.role] ?? user.role}</span>
