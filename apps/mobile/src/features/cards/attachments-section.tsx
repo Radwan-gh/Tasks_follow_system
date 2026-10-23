@@ -43,17 +43,18 @@ function formatFileSize(bytes: number): string {
 export function AttachmentsSection({
   cardId,
   readOnly = false,
-  canAttach = !readOnly,
+  canManage = !readOnly,
 }: {
   cardId: string;
+  /** Viewers and archived boards: no adding or deleting. Every other member may attach. */
   readOnly?: boolean;
-  /** The task's owner (board owner or creator): adds files and deletes anyone's. */
-  canAttach?: boolean;
+  /** The task's owner (a board owner or its creator): also deletes other people's files. */
+  canManage?: boolean;
 }) {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   // Same rule as `AttachmentsService.remove`: the uploader, or the task's owner.
-  const canDelete = (attachment: Attachment) => !readOnly && (attachment.uploader.id === user?.id || canAttach);
+  const canDelete = (attachment: Attachment) => !readOnly && (attachment.uploader.id === user?.id || canManage);
   const attachments = useQuery({
     queryKey: ["cardAttachments", cardId],
     queryFn: () => api.attachments.list(cardId),
@@ -206,7 +207,7 @@ export function AttachmentsSection({
                 </Pressable>
               </View>
             ))}
-            {!atLimit && !readOnly && canAttach ? (
+            {!atLimit && !readOnly ? (
               <View style={{ width: thumbSize, padding: GAP / 2 }}>
                 <Pressable
                   accessibilityRole="button"
