@@ -214,11 +214,12 @@ below) and returns the owners of all of them as `ownerIds`. Roles are `OWNER | M
 (`BoardRole` in the Prisma schema and `packages/types`); archiving/deleting a
 board and managing membership require `OWNER`, everything else requires
 `MEMBER`. On top of that, a task's *details* — its fields, assignees, access,
-attachments, delete, and adding/renaming/reordering/assigning/deleting its
+deleting other people's attachments, delete, and adding/renaming/reordering/assigning/deleting its
 subtasks — belong to its owner only: the owner of any board it is on, or the
 card's creator (`canManageCard(userId, ownerIds, card)` in `boards.service.ts`;
 `BoardsService.assertCanManageCard` takes what `assertCardAccess` returned).
-Every member can still change its status (move it), tick subtasks and comment;
+Every member can still change its status (move it), tick subtasks, comment and
+attach files;
 moving into the `CLOSED` list stays a board owner or the card's assignees only.
 
 ### Multi-board tasks (`CardBoardLink`)

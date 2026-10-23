@@ -423,7 +423,7 @@ export default function CardDetailScreen() {
           }}
         >
           <AppText size="small" color={colors.muted}>
-            يعدّل تفاصيل المهمة مالكُها فقط — يمكنك نقلها بين الحالات وإنجاز المهام الفرعية والتعليق
+            يعدّل تفاصيل المهمة مالكُها فقط — يمكنك نقلها بين الحالات وإنجاز المهام الفرعية والتعليق وإرفاق الملفات
           </AppText>
         </View>
       ) : null}
@@ -577,7 +577,7 @@ export default function CardDetailScreen() {
 
         <SubtasksSection cardId={id} boardMembers={assignableMembers} readOnly={readOnly} canEdit={canEdit && !readOnly} />
 
-        <AttachmentsSection cardId={id} readOnly={isViewer} canAttach={canEdit && !readOnly} />
+        <AttachmentsSection cardId={id} readOnly={readOnly} canManage={canEdit} />
 
         {canEdit ? (
           <View style={{ gap: spacing.md, borderTopWidth: 1, borderTopColor: colors.line, paddingTop: spacing.lg }}>

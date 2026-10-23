@@ -105,15 +105,12 @@ export class AttachmentsService {
   }
 
   /**
-   * Who may add a file to a card: the task's owner (a board owner or its
-   * creator) — attachments are part of the task's details — on a live board,
-   * under the per-card cap.
+   * Who may add a file to a card: any editing member (not a VIEWER) who can
+   * open it, on a live board, under the per-card cap. Unlike the task's other
+   * details this is not owner-only — whoever works on a task can attach to it.
    */
   private async assertCanAttach(userId: string, cardId: string) {
-    const access = await this.boards.assertCardAccess(userId, cardId, "MEMBER", { mutable: true });
-    if (!canManageCard(userId, access.ownerIds, access.card)) {
-      throw new ForbiddenException("Only the board owner or the task creator can attach files to this task");
-    }
+    await this.boards.assertCardAccess(userId, cardId, "MEMBER", { mutable: true });
 
     const count = await this.prisma.attachment.count({ where: { cardId } });
     if (count >= MAX_ATTACHMENTS_PER_CARD) {
