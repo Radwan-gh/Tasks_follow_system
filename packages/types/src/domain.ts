@@ -369,6 +369,16 @@ export const CardActivityType = z.enum([
   "RECURRENCE_CHANGED",
   // The boards the task is on: `fromValue`/`toValue` are the board names before/after, joined with «، ».
   "BOARDS_CHANGED",
+  // Subtask changes. The subtask's title rides along as a snapshot: `toValue`
+  // for added/completed/reopened, `fromValue` for deleted, both for renamed.
+  // `SUBTASK_ASSIGNED` carries the title in `fromValue` and the assignees'
+  // names in `toValue` (null when cleared).
+  "SUBTASK_ADDED",
+  "SUBTASK_RENAMED",
+  "SUBTASK_COMPLETED",
+  "SUBTASK_REOPENED",
+  "SUBTASK_DELETED",
+  "SUBTASK_ASSIGNED",
 ]);
 export type CardActivityType = z.infer<typeof CardActivityType>;
 
