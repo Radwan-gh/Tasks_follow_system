@@ -219,6 +219,28 @@ and `runtimeVersion` follows `expo.version` (`policy: "appVersion"`).
 To roll back, remap the channel to the previous branch in the xprem dashboard —
 two clicks, no redeploy, no rebuild.
 
+### Test builds: the `preview` channel
+
+Every real install listens on channel `production`, so any OTA published there
+reaches every user. To try a branch on a phone first, use the preview app:
+
+1. **Once per runtime version:** build it with
+   `build-apk.ps1 -Preview` (`APP_VARIANT=preview`, read by `app.config.ts`).
+   It is «غِراس تجريبي», package `com.tasksfollow.app.preview`, so it installs
+   *beside* the real app, with the same API, runtime version and signing
+   certificate, on channel `preview`. Push is off: Firebase only knows the
+   production package (set `PREVIEW_GOOGLE_SERVICES` to a `google-services.json`
+   that also lists the preview package to turn it on).
+2. **Once on the server:** in the dashboard, create branch `preview` and channel
+   `preview` mapped to it (`POST /api/apps/{APP_ID}/branches` and `.../channels`
+   with `branchName`, as in the `source/OTA` README).
+3. **Every test update:** `publish-ota.ps1 -Channel preview` publishes to branch
+   `preview`. Only the preview app gets it. Without `-Channel` the script
+   publishes to `production` exactly as before.
+
+`app.config.ts` changes nothing unless `APP_VARIANT=preview` is set, so
+production builds and publishes resolve the same config as `app.json` alone.
+
 ## 6. Push notifications (Firebase / FCM)
 
 Push goes straight to FCM — no Expo account, no EAS project. One-time setup:

@@ -46,6 +46,43 @@ export const colors = {
   /** An overdue row's border, and the «متأخّرة» count beside its heading. */
   alertLine: "#E4CFCB",
   alertMuted: "#B57366",
+
+  // The task screen (6a–6d). Names, not hexes, so its rows stay one family.
+  /** Secondary copy on the task screen: the ✕/›/⋯ glyphs, filter chips, notes. */
+  subtle: "#6E6E78",
+  /** A name inside a timeline line; the 6c toolbar glyphs. */
+  inkSoft: "#3A3A44",
+  /** A link inside a description or comment, and its underline. */
+  link: "#3557B0",
+  linkUnderline: "#9FB4EA",
+  /** The divider between rows inside one rounded group. */
+  hairline: "#F1F0EC",
+  /** An empty optional field's dashed chip, and the dashed «+» add circle. */
+  dashed: "#D6D4CE",
+  dashedStrong: "#C9C8CF",
+  /** A ticked subtask and the subtasks progress bar. */
+  done: "#4FA383",
+  /** «✓ حُفظ» in the task header. */
+  saved: "#1F7A5C",
+  /** «اليوم» / «أمس» day markers in the timeline. */
+  dayMarker: "#EDECE8",
+  /** The description editor's formatting bar. */
+  toolbar: "#FAFAF8",
+} as const;
+
+/**
+ * The task screen's status pill (6a/6b): a soft fill and a darker text per
+ * status. The design draws «قيد التنفيذ» only; the others follow its recipe
+ * — the status colour's own tint, text from the same family.
+ */
+export const statusPillColors = {
+  NEW: { bg: "#F1F2F5", fg: "#5B6273" },
+  READY: { bg: "#EAEFFB", fg: "#3557B0" },
+  IN_PROGRESS: { bg: "#FBF1E1", fg: "#8F5D12" },
+  REVIEW: { bg: "#EAEFFB", fg: "#3557B0" },
+  DONE: { bg: "#E6F4EE", fg: "#1F7A5C" },
+  CLOSED: { bg: "#F4F3EF", fg: "#6E6E78" },
+  UNCATEGORIZED: { bg: "#F1F2F5", fg: "#5B6273" },
 } as const;
 
 /** A status chip's fill and text («قيد التنفيذ» is amber; the rest stay neutral). */

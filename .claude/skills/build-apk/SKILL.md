@@ -24,6 +24,14 @@ that can't install it (`INSTALL_FAILED_NO_MATCHING_ABIS`, an old 32-bit phone).
 
 Add `-Install` only when the user asks to install on a connected phone.
 
+Add `-Preview` when the user wants a **test build** — to try a branch before
+it reaches users. It builds «غِراس تجريبي» (`com.tasksfollow.app.preview`, see
+`apps/mobile/app.config.ts`): it installs beside the real app instead of
+replacing it, and listens on OTA channel `preview`, so later
+`publish-ota.ps1 -Channel preview` updates reach it alone. It has no push
+unless `PREVIEW_GOOGLE_SERVICES` points at a `google-services.json` that lists
+that package. The file is saved as `tasks-preview_<version>_<runtime>...apk`.
+
 If the user's change is JS-only, point out that an OTA update may be enough
 (the `publish-ota` skill). Build anyway if they asked for an APK.
 

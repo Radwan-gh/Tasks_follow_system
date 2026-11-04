@@ -206,7 +206,7 @@ DELETE /cards/:cardId/comments/:commentId
 ```
 
 تعليق نصّي بسيط (`Comment` — `cardId`, `authorId`, `body`, `createdAt`)، يُدمَج
-مع `CardActivity` في **خيط زمني واحد على العميل** (`features/cards/history-section.tsx`
+مع `CardActivity` في **خيط زمني واحد على العميل** (`features/cards/activity-timeline.tsx`
 يفرز المصفوفتين معًا حسب `createdAt`) — وليس في مخطّط استجابة واحد على الخادم،
 لأن أحداث السجل والتعليقات شكلاهما مختلفان تمامًا وفرضهما في نوع واحد كان
 سيُعقِّد الأمر أكثر من دمج خفيف على العميل. الصلاحية تتبع صلاحية البطاقة الأمّ

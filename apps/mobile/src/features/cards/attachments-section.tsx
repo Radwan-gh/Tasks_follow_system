@@ -1,9 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { I18nManager, Image, Linking, Modal, Pressable, ScrollView, View, useWindowDimensions } from "react-native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import * as DocumentPicker from "expo-document-picker";
 import { File } from "expo-file-system";
-import * as ImagePicker from "expo-image-picker";
 import { ApiError } from "@app/api-client";
 import type { Attachment } from "@app/types";
 import { AppText } from "@/components/text";
@@ -12,15 +10,12 @@ import { ConfirmSheet } from "@/components/confirm-sheet";
 import { useAuth } from "@/features/auth/auth-context";
 import { Skeleton } from "@/components/skeleton";
 import { API_BASE_URL, api } from "@/lib/api";
+import { OVERSIZE_MESSAGE, pickAttachment } from "@/lib/pick-attachment";
 import { indexFromOffset, resolveColumnOffsets } from "@/lib/status-pager";
 import { MIN_TOUCH_TARGET, colors, radii, spacing } from "@/theme/tokens";
 
 const COLUMNS = 3;
 const GAP = spacing.sm;
-
-/** Mirrors `MAX_ATTACHMENT_BYTES` in `apps/api/src/cards/attachments.service.ts`. */
-const MAX_ATTACHMENT_BYTES = 30 * 1024 * 1024;
-const OVERSIZE_MESSAGE = "حجم الملف يتجاوز 30MB";
 
 /** Only these render as a thumbnail/viewer; every other attachment is a file row that opens externally. */
 const PREVIEWABLE_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
@@ -44,8 +39,11 @@ export function AttachmentsSection({
   cardId,
   readOnly = false,
   canManage = !readOnly,
+  openRequest = 0,
 }: {
   cardId: string;
+  /** Bumped by the task screen's «مرفق» chip: opens the camera/library/file picker. */
+  openRequest?: number;
   /** Viewers and archived boards: no adding or deleting. Every other member may attach. */
   readOnly?: boolean;
   /** The task's owner (a board owner or its creator): also deletes other people's files. */
@@ -64,6 +62,10 @@ export function AttachmentsSection({
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
   const [deleting, setDeleting] = useState<Attachment | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (openRequest > 0) setPickerOpen(true);
+  }, [openRequest]);
 
   function invalidate() {
     void queryClient.invalidateQueries({ queryKey: ["cardAttachments", cardId] });
@@ -93,45 +95,11 @@ export function AttachmentsSection({
     },
   });
 
-  async function pickFrom(source: "camera" | "library") {
+  async function pick(source: "camera" | "library" | "file") {
     setPickerOpen(false);
-    const permission =
-      source === "camera"
-        ? await ImagePicker.requestCameraPermissionsAsync()
-        : await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) return;
-
-    const result =
-      source === "camera"
-        ? await ImagePicker.launchCameraAsync({ mediaTypes: ["images"], quality: 0.8 })
-        : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], quality: 0.8 });
-    if (result.canceled) return;
-
-    const asset = result.assets[0]!;
-    upload.mutate({
-      uri: asset.uri,
-      name: asset.fileName ?? "photo.jpg",
-      type: asset.mimeType ?? "image/jpeg",
-    });
-  }
-
-  async function pickFile() {
-    setPickerOpen(false);
-    // Copied into the cache dir so React Native's FormData can read it (a raw
-    // `content://` URI from the system picker is not reliably uploadable).
-    const result = await DocumentPicker.getDocumentAsync({ type: "*/*", copyToCacheDirectory: true, multiple: false });
-    if (result.canceled) return;
-
-    const asset = result.assets[0]!;
-    if (asset.size != null && asset.size > MAX_ATTACHMENT_BYTES) {
-      setUploadError(OVERSIZE_MESSAGE);
-      return;
-    }
-    upload.mutate({
-      uri: asset.uri,
-      name: asset.name,
-      type: asset.mimeType ?? "application/octet-stream",
-    });
+    const picked = await pickAttachment(source);
+    if (picked === "oversize") setUploadError(OVERSIZE_MESSAGE);
+    else if (picked) upload.mutate(picked);
   }
 
   const items = attachments.data ?? [];
@@ -249,21 +217,21 @@ export function AttachmentsSection({
         <View style={{ paddingHorizontal: spacing.xl, gap: spacing.sm, paddingBottom: spacing.sm }}>
           <Pressable
             accessibilityRole="button"
-            onPress={() => pickFrom("camera")}
+            onPress={() => void pick("camera")}
             style={{ minHeight: MIN_TOUCH_TARGET, justifyContent: "center" }}
           >
             <AppText weight="semibold">الكاميرا</AppText>
           </Pressable>
           <Pressable
             accessibilityRole="button"
-            onPress={() => pickFrom("library")}
+            onPress={() => void pick("library")}
             style={{ minHeight: MIN_TOUCH_TARGET, justifyContent: "center" }}
           >
             <AppText weight="semibold">المعرض</AppText>
           </Pressable>
           <Pressable
             accessibilityRole="button"
-            onPress={pickFile}
+            onPress={() => void pick("file")}
             style={{ minHeight: MIN_TOUCH_TARGET, justifyContent: "center" }}
           >
             <AppText weight="semibold">ملف</AppText>

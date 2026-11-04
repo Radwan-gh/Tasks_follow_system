@@ -41,6 +41,7 @@ Options:
 
 | Flag | Use when |
 |---|---|
+| `-Channel preview` | The user wants a **test** update. Publishes to branch `preview`, which only the preview APK (`build-apk.ps1 -Preview`) listens on — no user's app gets it. Needs branch + channel `preview` in the OTA dashboard once. Without this flag the update goes to `production`: every installed app. |
 | `-Message "..."` | The user gave a description. Defaults to the last commit's subject. |
 | `-Rollout N` | The user asks for a staged/partial rollout (1-99 % of devices). Progress it from the dashboard. |
 | `-AllowDirty` | Only after the user agrees to ship uncommitted changes (see below). |

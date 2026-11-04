@@ -1,15 +1,17 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Pressable, TextInput, View } from "react-native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import type { BoardMember, Subtask } from "@app/types";
+import { BottomSheet } from "@/components/bottom-sheet";
+import { SheetAction } from "@/components/rich-text-view";
 import { AppText } from "@/components/text";
-import { avatarColorFor } from "@/lib/avatar";
-import { initials } from "@/lib/initials";
 import { api } from "@/lib/api";
 import { useAutoSavedIds } from "@/lib/use-auto-saved-ids";
 import { useAuth } from "@/features/auth/auth-context";
-import { PeopleField } from "./people-field";
-import { MIN_TOUCH_TARGET, colors, fonts, fontSizes, radii, spacing, statusColors } from "@/theme/tokens";
+import { MembersSheet } from "./members-sheet";
+import { FIELD_ICONS, FieldCard, MemberAvatar } from "./task-fields";
+import { colors, fonts, radii, spacing } from "@/theme/tokens";
 
 /** Stable "nobody" for `useAutoSavedIds` while no subtask's people field is open. */
 const NO_IDS: string[] = [];
@@ -45,11 +47,18 @@ function makeTempSubtask(input: { id: string; cardId: string; title: string; cre
   };
 }
 
+/**
+ * The subtasks group on the task screen (6b): a header row — ☑, «3/5», the
+ * progress bar, «+» — and one row per item: tick box, title, its person.
+ * Every member may tick; only the task's owner adds (the «+» or ⏎), assigns
+ * (the avatar, which opens `MembersSheet`) and deletes (long press).
+ */
 export function SubtasksSection({
   cardId,
   boardMembers,
   readOnly = false,
   canEdit = !readOnly,
+  addRequest = 0,
 }: {
   cardId: string;
   boardMembers: BoardMember[];
@@ -57,6 +66,8 @@ export function SubtasksSection({
   readOnly?: boolean;
   /** May add, assign and delete items — only the task's owner (board owner or creator). */
   canEdit?: boolean;
+  /** Bumped by the screen's «مهام فرعية» chip: opens and focuses the add field. */
+  addRequest?: number;
 }) {
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -119,181 +130,148 @@ export function SubtasksSection({
   const list = subtasks.data ?? [];
   const doneCount = list.filter((s) => s.isDone).length;
   const assigningSubtask = list.find((s) => s.id === assigningId) ?? null;
+  const [menuFor, setMenuFor] = useState<Subtask | null>(null);
+  const [adding, setAdding] = useState(false);
+  const addRef = useRef<TextInput>(null);
 
-  // Saves on every add/remove while the field stays open for the next name.
+  // The «مهام فرعية» chip (or the header's «+») asks for the add field.
+  useEffect(() => {
+    if (addRequest > 0) {
+      setAdding(true);
+      setTimeout(() => addRef.current?.focus(), 50);
+    }
+  }, [addRequest]);
+
+  // Saves on every tick in the sheet.
   const assigneeSelection = useAutoSavedIds(assigningSubtask?.assigneeIds ?? NO_IDS, async (userIds) => {
     if (!assigningId) return;
     await api.subtasks.updateAssignees(assigningId, { userIds });
     invalidate();
   });
 
+  const showAdd = canEdit && (adding || list.length === 0);
+
   return (
-    <View style={{ gap: spacing.md }}>
-      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-        <AppText size="caption" weight="semibold" color={colors.muted}>
-          المهام الفرعية
+    <FieldCard>
+      {/* 6b: ☑ · 3/5 · progress · + */}
+      <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md, minHeight: 50, paddingVertical: 4, paddingHorizontal: 14 }}>
+        <View style={{ width: 28, height: 28, alignItems: "center", justifyContent: "center" }}>
+          <Ionicons name={FIELD_ICONS.subtasks} size={18} color={colors.muted} />
+        </View>
+        <AppText size="small" weight="bold" style={{ lineHeight: 20 }}>
+          {list.length > 0 ? `${doneCount}/${list.length}` : "مهام فرعية"}
         </AppText>
-        {list.length > 0 ? (
-          <AppText size="caption" color={colors.muted}>
-            {doneCount}/{list.length}
-          </AppText>
+        <View style={{ flex: 1, height: 6, borderRadius: 999, backgroundColor: colors.hairline, overflow: "hidden" }}>
+          {list.length > 0 ? (
+            <View style={{ height: "100%", width: `${(doneCount / list.length) * 100}%`, backgroundColor: colors.done }} />
+          ) : null}
+        </View>
+        {canEdit ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="إضافة مهمة فرعية"
+            onPress={() => {
+              setAdding(true);
+              addRef.current?.focus();
+            }}
+            style={{ width: 36, height: 36, borderRadius: radii.iconButton, backgroundColor: colors.chip, alignItems: "center", justifyContent: "center" }}
+          >
+            <AppText color={colors.subtle} style={{ fontSize: 18, lineHeight: 24 }}>
+              +
+            </AppText>
+          </Pressable>
         ) : null}
       </View>
 
-      {list.length > 0 ? (
-        <View style={{ height: 6, borderRadius: 999, backgroundColor: colors.line, overflow: "hidden" }}>
-          <View
-            style={{
-              height: "100%",
-              width: `${(doneCount / list.length) * 100}%`,
-              backgroundColor: statusColors.DONE,
-            }}
-          />
-        </View>
-      ) : null}
-
-      <View style={{ gap: spacing.sm }}>
-        {list.map((subtask) => {
-          const assignees = subtask.assigneeIds
-            .map((id) => boardMembers.find((m) => m.userId === id))
-            .filter((m): m is BoardMember => !!m);
-          const assigning = subtask.id === assigningId;
-          // A subtask still being created has no server id to assign against yet.
-          const pending = subtask.id.startsWith("temp:");
-          return (
-            <View
-              key={subtask.id}
+      {list.map((subtask) => {
+        const assignee = subtask.assigneeIds.map((id) => boardMembers.find((m) => m.userId === id)).find((m): m is BoardMember => !!m);
+        // A subtask still being created has no server id to act on yet.
+        const pending = subtask.id.startsWith("temp:");
+        return (
+          <Pressable
+            key={subtask.id}
+            onLongPress={canEdit && !pending ? () => setMenuFor(subtask) : undefined}
+            accessibilityHint={canEdit ? "اضغط مطولًا للحذف" : undefined}
+            style={{ flexDirection: "row", alignItems: "center", gap: spacing.md, minHeight: 50, paddingVertical: 4, paddingHorizontal: 14, borderTopWidth: 1, borderTopColor: colors.hairline }}
+          >
+            <Pressable
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: subtask.isDone }}
+              accessibilityLabel={subtask.title}
+              disabled={readOnly}
+              onPress={() => toggleDone.mutate(subtask)}
+              hitSlop={11}
               style={{
-                gap: spacing.md,
-                backgroundColor: subtask.isDone ? colors.canvas : colors.surface,
-                borderWidth: subtask.isDone && !assigning ? 0 : 1,
-                borderColor: assigning ? colors.accent : colors.line,
-                borderRadius: radii.field,
-                padding: spacing.md,
+                width: 22,
+                height: 22,
+                marginHorizontal: 3,
+                borderRadius: 7,
+                backgroundColor: subtask.isDone ? colors.done : "transparent",
+                borderWidth: subtask.isDone ? 0 : 1.5,
+                borderColor: colors.lineStrong,
+                alignItems: "center",
+                justifyContent: "center",
               }}
             >
-              <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md }}>
-                <Pressable
-                  accessibilityRole="checkbox"
-                  accessibilityState={{ checked: subtask.isDone }}
-                  disabled={readOnly}
-                  onPress={() => toggleDone.mutate(subtask)}
-                  style={{
-                    width: 22,
-                    height: 22,
-                    borderRadius: 8,
-                    backgroundColor: subtask.isDone ? "#59B08A" : "transparent",
-                    borderWidth: subtask.isDone ? 0 : 1.5,
-                    borderColor: colors.line,
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  {subtask.isDone ? (
-                    <AppText size="caption" color={colors.surface}>
-                      ✓
-                    </AppText>
-                  ) : null}
-                </Pressable>
-
-                <AppText
-                  style={{ flex: 1, textDecorationLine: subtask.isDone ? "line-through" : "none" }}
-                  color={subtask.isDone ? colors.muted : colors.ink}
-                >
-                  {subtask.title}
+              {subtask.isDone ? (
+                <AppText color={colors.surface} style={{ fontSize: 12, lineHeight: 16 }}>
+                  ✓
                 </AppText>
-
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={assigning ? "إغلاق إسناد المهمة الفرعية" : "المسؤولون عن المهمة الفرعية"}
-                  disabled={!canEdit || pending}
-                  onPress={() => setAssigningId(assigning ? null : subtask.id)}
-                  hitSlop={8}
-                >
-                  {assigning ? (
-                    <AppText size="small" weight="semibold" color={colors.accent}>
-                      تم
-                    </AppText>
-                  ) : assignees.length > 0 ? (
-                    <View
-                      style={{
-                        width: 24,
-                        height: 24,
-                        borderRadius: 999,
-                        backgroundColor: avatarColorFor(assignees[0]!.userId).bg,
-                        alignItems: "center",
-                        justifyContent: "center",
-                      }}
-                    >
-                      <AppText size="caption" weight="bold" color={avatarColorFor(assignees[0]!.userId).fg} style={{ fontSize: 10 }}>
-                        {initials(assignees[0]!.user)}
-                      </AppText>
-                    </View>
-                  ) : canEdit ? (
-                    <AppText size="small" color={colors.muted}>
-                      + إسناد
-                    </AppText>
-                  ) : null}
-                </Pressable>
-
-                {canEdit ? (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="حذف المهمة الفرعية"
-                    onPress={() => remove.mutate(subtask.id)}
-                    hitSlop={8}
-                  >
-                    <AppText color={colors.alert}>✕</AppText>
-                  </Pressable>
-                ) : null}
-              </View>
-
-              {assigning ? (
-                <PeopleField
-                  members={boardMembers}
-                  selectedIds={assigneeSelection.ids}
-                  onChange={assigneeSelection.change}
-                  saving={assigneeSelection.saving}
-                  failed={assigneeSelection.failed}
-                  autoFocus
-                  // Keep the subtask's own row (title, «تم») visible above the field.
-                  revealMargin={MIN_TOUCH_TARGET + spacing.xxl * 2}
-                  placeholder="اكتب اسمًا لإسناد المهمة الفرعية"
-                  accessibilityLabel={`أضف مسؤولًا عن «${subtask.title}»`}
-                  emptyHint="لا يوجد أعضاء لإسنادها إليهم."
-                />
               ) : null}
-            </View>
-          );
-        })}
-      </View>
+            </Pressable>
 
-      {canEdit ? (
-        <View
-          style={{
-            borderWidth: 1,
-            borderStyle: "dashed",
-            borderColor: colors.line,
-            borderRadius: radii.field,
-            paddingHorizontal: spacing.md,
-          }}
-        >
+            <AppText
+              style={{ flex: 1, fontSize: 14, lineHeight: 22, textDecorationLine: subtask.isDone ? "line-through" : "none" }}
+              color={subtask.isDone ? colors.faint : colors.ink}
+            >
+              {subtask.title}
+            </AppText>
+
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`المسؤول عن «${subtask.title}»`}
+              disabled={!canEdit || pending}
+              onPress={() => setAssigningId(subtask.id)}
+              hitSlop={9}
+            >
+              {assignee ? (
+                <MemberAvatar member={assignee} />
+              ) : canEdit ? (
+                <View style={{ width: 26, height: 26, borderRadius: 999, borderWidth: 1.5, borderStyle: "dashed", borderColor: colors.dashedStrong }} />
+              ) : null}
+            </Pressable>
+          </Pressable>
+        );
+      })}
+
+      {showAdd ? (
+        <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md, paddingHorizontal: 14, borderTopWidth: list.length > 0 ? 1 : 0, borderTopColor: colors.hairline }}>
+          <View style={{ width: 28, alignItems: "center" }}>
+            <AppText color={colors.accent} style={{ fontSize: 18, lineHeight: 24 }}>
+              +
+            </AppText>
+          </View>
           <TextInput
+            ref={addRef}
             value={newTitle}
             onChangeText={setNewTitle}
-            placeholder="+ إضافة مهمة فرعية"
-            placeholderTextColor={colors.muted}
+            placeholder="أضف مهمة فرعية ثم ⏎"
+            placeholderTextColor={colors.faint}
             onSubmitEditing={() => newTitle.trim() && create.mutate(newTitle.trim())}
+            onBlur={() => {
+              if (!newTitle.trim()) setAdding(false);
+            }}
             // `multiline` (with Enter still submitting) because a single-line,
             // right-aligned Android input always reports it can scroll sideways,
             // so a drag that starts on it never reaches the page's ScrollView.
             multiline
-            submitBehavior="blurAndSubmit"
+            submitBehavior="submit"
             returnKeyType="done"
             style={{
-              minHeight: MIN_TOUCH_TARGET,
+              flex: 1,
+              minHeight: 50,
               fontFamily: fonts.regular,
-              fontSize: fontSizes.body,
+              fontSize: 14,
               color: colors.ink,
               textAlign: "right",
               writingDirection: "rtl",
@@ -302,6 +280,33 @@ export function SubtasksSection({
         </View>
       ) : null}
 
-    </View>
+      <MembersSheet
+        visible={!!assigningSubtask}
+        onClose={() => setAssigningId(null)}
+        title={assigningSubtask ? `المسؤول عن «${assigningSubtask.title}»` : ""}
+        members={boardMembers}
+        selectedIds={assigneeSelection.ids}
+        onChange={assigneeSelection.change}
+        meId={user?.id}
+        saving={assigneeSelection.saving}
+        failed={assigneeSelection.failed}
+      />
+
+      <BottomSheet visible={!!menuFor} onClose={() => setMenuFor(null)}>
+        <View style={{ paddingHorizontal: spacing.xl, gap: spacing.sm }}>
+          <AppText size="small" color={colors.muted} numberOfLines={1}>
+            {menuFor?.title ?? ""}
+          </AppText>
+          <SheetAction
+            label="حذف المهمة الفرعية"
+            destructive
+            onPress={() => {
+              if (menuFor) remove.mutate(menuFor.id);
+              setMenuFor(null);
+            }}
+          />
+        </View>
+      </BottomSheet>
+    </FieldCard>
   );
 }
