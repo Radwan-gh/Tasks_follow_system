@@ -11,9 +11,21 @@ export interface GroupedMyTasks {
   byBoard: MyTasksBoardGroup[];
 }
 
-/** A task is overdue only if it carries its own due date — subtask rows never do. */
+/** Overdue once its due date has passed — a subtask row carries its card's. */
 export function isOverdueItem(item: MyTaskItem, now = new Date()): boolean {
   return Boolean(item.dueDate) && new Date(item.dueDate!) < now;
+}
+
+/**
+ * «متأخّرة 9 أيام» · «متأخّرة 2 يوم» — whole calendar days since the due
+ * date, at least one; the plural only for 3–10. Mirrors mobile's
+ * `overdueLabel` (`apps/mobile/src/lib/date.ts`, which has the tests).
+ */
+export function overdueLabel(iso: string, now = new Date()): string {
+  const startOf = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const days = Math.max(1, Math.round((startOf(now) - startOf(new Date(iso))) / 86400000));
+  const lastTwo = days % 100;
+  return `متأخّرة ${days} ${lastTwo >= 3 && lastTwo <= 10 ? "أيام" : "يوم"}`;
 }
 
 /**

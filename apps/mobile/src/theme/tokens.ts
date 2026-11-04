@@ -32,6 +32,26 @@ export const colors = {
 
   /** The dim behind a bottom sheet — `ink` at 40%. */
   scrim: "rgba(35,35,42,0.4)",
+
+  /** Quieter than `muted`: counts, «ضمن: …», «لا تُطوى». */
+  faint: "#9A9AA4",
+  /** Icon/text on a neutral chip or a bordered icon button. */
+  slate: "#5B6273",
+  /** A neutral status chip's fill («جديد», «جاهز للتنفيذ»). */
+  slateSoft: "#F1F2F5",
+  /** A due-date chip's fill. */
+  chip: "#F4F3EF",
+  /** An unticked tick box's border. */
+  lineStrong: "#D8D5CE",
+  /** An overdue row's border, and the «متأخّرة» count beside its heading. */
+  alertLine: "#E4CFCB",
+  alertMuted: "#B57366",
+} as const;
+
+/** A status chip's fill and text («قيد التنفيذ» is amber; the rest stay neutral). */
+export const statusChipColors = {
+  IN_PROGRESS: { bg: "#FBEFE6", fg: "#B9743A" },
+  default: { bg: colors.slateSoft, fg: colors.slate },
 } as const;
 
 /** One colour per status category, keyed to `ListStatusCategory`. */
@@ -58,6 +78,10 @@ export const avatarPalette = [
 
 export const radii = {
   card: 22,
+  /** «مهامي»'s task rows — the design draws them at 20, a step under the board's cards. */
+  row: 20,
+  /** A 36px icon button such as a row's ← arrow. */
+  iconButton: 12,
   chip: 999,
   field: 16,
   sheet: 30,
