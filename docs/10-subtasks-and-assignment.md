@@ -183,4 +183,26 @@ PATCH /subtasks/:id/assignees   { userIds: string[] }   (استبدال كامل
 المعتمد في `v2-new-style.md` §7.1: **المتأخّرة أولًا** (قسم واحد يجمع كل لوحة)،
 **ثم الباقي مجمّعًا حسب اللوحة**.
 
+**كل صفّ يحمل `statusCategory`** — فئة حالة القائمة التي يظهر فيها (لصفّ المهمة
+الفرعية: قائمة بطاقتها الأمّ)، أو `null` لقائمة يدوية بلا فئة. يُقرأ من نفس القائمة
+التي يأتي منها `listName` (`boardFor` في `my-tasks.service.ts`)، فيتبع اللوحة التي
+يُعرَض الصفّ عليها في المهام متعدّدة اللوحات.
+
+**طيّ اللوحات** (التصميم: الإطار «9b) مهامي — طيّ اللوحات» في
+`Tasks Mobile Redesign.dc.html`) — في الويب (`apps/web/src/features/my-tasks/MyTasksPage.tsx`)
+والجوال (`app/(tabs)/my-tasks.tsx`) بنفس القواعد، والمنطق المشترك في
+`packages/types/src/my-tasks-folds.ts` (ويطابقه في الويب نسخةٌ يدوية `apps/web/src/features/my-tasks/my-tasks-folds.ts`، لأن الويب لا يستورد كودًا تنفيذيًا من `@app/types` المبنيّة CommonJS):
+- رأس كل مجموعة لوحة زرّ يطويها أو يفتحها (`aria-expanded` / `accessibilityState`).
+- المجموعة المطويّة تُستبدَل صفوفها بشريط ملخّص قابل للضغط يفتحها: مقطع لكل مهمة بلون
+  `statusCategory`، ثم «n مهام · m عاجلة · أقرب موعد …» (`summarizeFoldedGroup`: عدد
+  الصفوف ذات `priority === "URGENT"` وأقرب `dueDate`).
+- زرّ في رأس الشاشة يطوي كل اللوحات ما دامت واحدة منها مفتوحة، وإلا يفتحها كلها
+  (`toggleAllBoards`).
+- قسم «متأخّرة» **لا يُطوى** أبدًا، كي لا يختفي المتأخّر.
+- المجموعات تبدأ مفتوحة؛ ويُحفَظ **المطويّ** لكل مستخدم على الجهاز تحت المفتاح
+  `kanban.myTasksFolded.<userId>` — `localStorage` على الويب (`use-folded-boards.ts`)
+  و`expo-secure-store` على الجوال (`src/lib/folded-boards.ts`). فاللوحة التي تظهر لاحقًا
+  تظهر مفتوحة، وعند كل طيّ تُحذَف من المحفوظ معرّفات اللوحات التي لم تعد معروضة
+  (`toggleFoldedBoard`).
+
 </div>

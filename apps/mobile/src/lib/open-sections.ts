@@ -1,4 +1,4 @@
-import * as SecureStore from "expo-secure-store";
+import { loadIdSet, saveIdSet } from "./stored-id-set";
 
 /**
  * Which category sections on the boards list this user left *open*. Sections
@@ -9,17 +9,11 @@ import * as SecureStore from "expo-secure-store";
  */
 const keyFor = (userId: string) => `kanban.openSections.${userId}`;
 
-export async function loadOpenSections(userId: string): Promise<ReadonlySet<string>> {
-  try {
-    const raw = await SecureStore.getItemAsync(keyFor(userId));
-    const parsed: unknown = raw ? JSON.parse(raw) : [];
-    return new Set(Array.isArray(parsed) ? parsed.filter((k): k is string => typeof k === "string") : []);
-  } catch {
-    return new Set();
-  }
+export function loadOpenSections(userId: string): Promise<ReadonlySet<string>> {
+  return loadIdSet(keyFor(userId));
 }
 
 export function saveOpenSections(userId: string, open: ReadonlySet<string>): void {
   // Best effort: losing a fold preference is not worth surfacing an error for.
-  void SecureStore.setItemAsync(keyFor(userId), JSON.stringify([...open])).catch(() => undefined);
+  saveIdSet(keyFor(userId), open);
 }
