@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { CardPriority } from "./domain";
+import { CardPriority, ListStatusCategory } from "./domain";
 
 /**
  * One row in `GET /my-tasks` — either a card or a subtask assigned to the
@@ -18,6 +18,10 @@ export const MyTaskItemSchema = z.object({
   boardId: z.string(),
   boardName: z.string(),
   listName: z.string(),
+  // The status category of that list (a subtask row: its parent card's) —
+  // colours the per-task strip on a folded board group in «مهامي». Null for
+  // a manually created list, which has no category.
+  statusCategory: ListStatusCategory.nullable(),
   // Subtasks have no due date of their own — always null for SUBTASK rows.
   dueDate: z.string().datetime().nullable(),
   // The parent card's priority (a subtask has no priority of its own) — used
