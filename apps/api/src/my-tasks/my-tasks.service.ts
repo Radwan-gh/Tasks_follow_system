@@ -14,12 +14,15 @@ const TASK_SELECT = {
   createdById: true,
   isRestricted: true,
   priority: true,
+  listId: true,
   list: { select: { name: true, statusCategory: true, board: { select: { name: true, ownerId: true } } } },
   members: { select: { userId: true } },
+  subtasks: { select: { isDone: true } },
   boardLinks: {
     orderBy: { createdAt: "asc" },
     select: {
       boardId: true,
+      listId: true,
       list: { select: { name: true, statusCategory: true } },
       board: { select: { name: true, ownerId: true } },
     },
@@ -38,15 +41,35 @@ function boardFor(task: Task, memberOf: Set<string>) {
     ? {
         boardId: link.boardId,
         boardName: link.board.name,
+        listId: link.listId,
         listName: link.list.name,
         statusCategory: link.list.statusCategory,
       }
     : {
         boardId: task.boardId,
         boardName: task.list.board.name,
+        listId: task.listId,
         listName: task.list.name,
         statusCategory: task.list.statusCategory,
       };
+}
+
+/**
+ * The list after each list on its board, in board order (unarchived lists by
+ * `position`, as `BoardsService.getDetail` shows them) — where a row's ←
+ * arrow moves its task. A board's last list maps to nothing.
+ */
+async function nextListIds(prisma: PrismaService, boardIds: string[]): Promise<Map<string, string>> {
+  const lists = await prisma.list.findMany({
+    where: { boardId: { in: boardIds }, isArchived: false },
+    orderBy: [{ boardId: "asc" }, { position: "asc" }],
+    select: { id: true, boardId: true },
+  });
+  const next = new Map<string, string>();
+  for (let i = 0; i + 1 < lists.length; i++) {
+    if (lists[i]!.boardId === lists[i + 1]!.boardId) next.set(lists[i]!.id, lists[i + 1]!.id);
+  }
+  return next;
 }
 
 /** The owners of every board the task is on — each one counts for `canAccessCard`. */
@@ -61,8 +84,8 @@ export class MyTasksService {
   /**
    * Everything assigned to `userId` — as a card or as a subtask — across
    * every board they're a member of. Not a report: no ADMIN gate, and every
-   * user only ever sees their own assignments. Excludes archived cards and
-   * anything in a completed (`DONE`/`CLOSED`) list; a restricted card the
+   * user only ever sees their own assignments. Excludes archived cards,
+   * anything in a completed (`DONE`/`CLOSED`) list and ticked subtasks; a restricted card the
    * user can't actually open (per `canAccessCard`) is dropped even if they
    * were assigned before access was tightened.
    */
@@ -82,6 +105,7 @@ export class MyTasksService {
         where: {
           userId,
           subtask: {
+            isDone: false,
             card: {
               isArchived: false,
               list: { statusCategory: { notIn: COMPLETED_CATEGORIES } },
@@ -102,33 +126,47 @@ export class MyTasksService {
     ]);
     const memberOf = new Set(memberships.map((m) => m.boardId));
 
+    const cards = cardAssignments.map(({ card }) => card).filter((card) => canAccessCard(userId, ownerIdsOf(card), card));
+    const subtasks = subtaskAssignments
+      .map(({ subtask }) => subtask)
+      .filter((subtask) => canAccessCard(userId, ownerIdsOf(subtask.card), subtask.card));
+    const placed = [...cards, ...subtasks.map((s) => s.card)].map((card) => boardFor(card, memberOf));
+    const nextOf = await nextListIds(this.prisma, [...new Set(placed.map((p) => p.boardId))]);
+
     const items: MyTaskItem[] = [];
 
-    for (const { card } of cardAssignments) {
-      if (!canAccessCard(userId, ownerIdsOf(card), card)) continue;
+    for (const card of cards) {
+      const placement = boardFor(card, memberOf);
       items.push({
         kind: "CARD",
         id: card.id,
         title: card.title,
         parentCardTitle: null,
         cardId: card.id,
-        ...boardFor(card, memberOf),
+        ...placement,
+        nextListId: nextOf.get(placement.listId) ?? null,
         dueDate: card.dueDate ? card.dueDate.toISOString() : null,
+        subtaskDone: card.subtasks.filter((s) => s.isDone).length,
+        subtaskTotal: card.subtasks.length,
         priority: card.priority,
       });
     }
 
-    for (const { subtask } of subtaskAssignments) {
+    for (const subtask of subtasks) {
       const card = subtask.card;
-      if (!canAccessCard(userId, ownerIdsOf(card), card)) continue;
+      const placement = boardFor(card, memberOf);
       items.push({
         kind: "SUBTASK",
         id: subtask.id,
         title: subtask.title,
         parentCardTitle: card.title,
         cardId: card.id,
-        ...boardFor(card, memberOf),
-        dueDate: null,
+        ...placement,
+        nextListId: nextOf.get(placement.listId) ?? null,
+        // The parent card's: a subtask is due when its card is.
+        dueDate: card.dueDate ? card.dueDate.toISOString() : null,
+        subtaskDone: 0,
+        subtaskTotal: 0,
         priority: card.priority,
       });
     }

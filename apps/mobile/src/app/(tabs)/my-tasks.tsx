@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Pressable, ScrollView, View } from "react-native";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import {
   anyBoardOpen,
@@ -13,6 +13,7 @@ import { Screen } from "@/components/screen";
 import { AppText } from "@/components/text";
 import { Skeleton } from "@/components/skeleton";
 import { EmptyState, ErrorState } from "@/components/state-views";
+import { Toast, type ToastMessage } from "@/components/toast";
 import { useAuth } from "@/features/auth/auth-context";
 import { TaskRow } from "@/features/my-tasks/task-row";
 import { NotificationBell } from "@/features/notifications/notification-bell";
@@ -33,7 +34,54 @@ import { MIN_TOUCH_TARGET, colors, radii, spacing, statusColors } from "@/theme/
 export default function MyTasksScreen() {
   const openCard = useOpenCard();
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const myTasks = useQuery({ queryKey: ["my-tasks"], queryFn: () => api.myTasks.list() });
+  const [toast, setToast] = useState<ToastMessage | null>(null);
+
+  // The row's ← (a card to its board's next status) and tick box (a subtask
+  // done). Either way the row's data changed on the server — a ticked subtask
+  // and a card moved into «منجز» leave the list — so refetch rather than guess.
+  const [busyRows, setBusyRows] = useState<ReadonlySet<string>>(new Set());
+  const rowAction = useMutation({
+    mutationFn: async (item: MyTaskItem) => {
+      if (item.kind === "SUBTASK") await api.subtasks.update(item.id, { isDone: true });
+      else await api.cards.update(item.cardId, { targetListId: item.nextListId! });
+    },
+    onMutate: (item) => setBusyRows((rows) => new Set(rows).add(rowKey(item))),
+    onError: (_error, item) =>
+      setToast({
+        id: Date.now(),
+        message:
+          item.kind === "SUBTASK"
+            ? "تعذّر إنجاز المهمة الفرعية. أعد المحاولة."
+            : "تعذّر نقل المهمة. تحقّق من الاتصال وأعد المحاولة.",
+      }),
+    onSettled: async (_data, _error, item) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["my-tasks"] }),
+        queryClient.invalidateQueries({ queryKey: ["board", item.boardId] }),
+        queryClient.invalidateQueries({ queryKey: ["card", item.cardId] }),
+      ]);
+      setBusyRows((rows) => {
+        const next = new Set(rows);
+        next.delete(rowKey(item));
+        return next;
+      });
+    },
+  });
+
+  function renderRow(item: MyTaskItem) {
+    return (
+      <TaskRow
+        key={rowKey(item)}
+        item={item}
+        busy={busyRows.has(rowKey(item))}
+        onOpen={() => openCard(item.cardId, item.boardId)}
+        onMoveNext={item.kind === "CARD" && item.nextListId ? () => rowAction.mutate(item) : undefined}
+        onTick={item.kind === "SUBTASK" ? () => rowAction.mutate(item) : undefined}
+      />
+    );
+  }
 
   const overdue = sortByUrgency(myTasks.data?.items.filter((item) => item.dueDate && isOverdue(item.dueDate)) ?? []);
   const remaining = sortByUrgency(myTasks.data?.items.filter((item) => !(item.dueDate && isOverdue(item.dueDate))) ?? []);
@@ -79,23 +127,36 @@ export default function MyTasksScreen() {
           paddingBottom: spacing.lg,
         }}
       >
-        <AppText size="heading" weight="bold">
-          مهامي
-        </AppText>
-        <View style={{ flexDirection: "row", alignItems: "center" }}>
+        <View style={{ gap: 2 }}>
+          <AppText weight="bold" style={{ fontSize: 24, lineHeight: 36 }}>
+            مهامي
+          </AppText>
+          {myTasks.data && myTasks.data.items.length > 0 ? (
+            <AppText size="caption" color={colors.muted}>
+              {openLabel(myTasks.data.items.length)}
+              {overdue.length > 0 ? ` · ${overdue.length} متأخّرة` : ""}
+            </AppText>
+          ) : null}
+        </View>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
           {boardGroups.length > 0 ? (
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={anyOpen ? "طيّ كل اللوحات" : "فتح كل اللوحات"}
               onPress={() => applyFolds(toggleAllBoards(folded, liveBoardIds))}
-              style={{
+              style={({ pressed }) => ({
                 width: MIN_TOUCH_TARGET,
                 height: MIN_TOUCH_TARGET,
+                borderRadius: radii.field,
+                backgroundColor: colors.surface,
+                borderWidth: 1,
+                borderColor: colors.line,
                 alignItems: "center",
                 justifyContent: "center",
-              }}
+                opacity: pressed ? 0.8 : 1,
+              })}
             >
-              <Ionicons name={anyOpen ? "chevron-collapse-outline" : "chevron-expand-outline"} size={22} color={colors.ink} />
+              <Ionicons name={anyOpen ? "chevron-collapse-outline" : "chevron-expand-outline"} size={18} color={colors.slate} />
             </Pressable>
           ) : null}
           <NotificationBell />
@@ -120,15 +181,22 @@ export default function MyTasksScreen() {
         ) : (
           <>
             {overdue.length > 0 ? (
-              <View style={{ gap: spacing.sm }}>
-                <AppText size="small" weight="bold" color={colors.alert}>
-                  متأخّرة
-                </AppText>
-                <View style={{ gap: spacing.sm }}>
-                  {overdue.map((item) => (
-                    <TaskRow key={`${item.kind}-${item.id}`} item={item} onPress={() => openCard(item.cardId, item.boardId)} />
-                  ))}
+              <View style={{ gap: 10 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingHorizontal: spacing.xs }}>
+                  <View style={{ width: 8, height: 8, borderRadius: radii.chip, backgroundColor: colors.alert }} />
+                  <AppText size="small" weight="bold" color={colors.alert}>
+                    متأخّرة
+                  </AppText>
+                  <AppText size="caption" color={colors.alertMuted}>
+                    {overdue.length}
+                  </AppText>
+                  {boardGroups.length > 0 ? (
+                    <AppText color={colors.faint} style={{ marginStart: "auto", fontSize: 11, lineHeight: 18 }}>
+                      لا تُطوى
+                    </AppText>
+                  ) : null}
                 </View>
+                {overdue.map(renderRow)}
               </View>
             ) : null}
 
@@ -136,14 +204,10 @@ export default function MyTasksScreen() {
               const open = !folded.has(group.boardId);
               const toggle = () => applyFolds(toggleFoldedBoard(folded, group.boardId, liveBoardIds));
               return (
-                <View key={group.boardId} style={{ gap: spacing.sm }}>
+                <View key={group.boardId} style={{ gap: 10 }}>
                   <BoardGroupHeader name={group.boardName} count={group.items.length} open={open} onPress={toggle} />
                   {open ? (
-                    <View style={{ gap: spacing.sm }}>
-                      {group.items.map((item) => (
-                        <TaskRow key={`${item.kind}-${item.id}`} item={item} onPress={() => openCard(item.cardId, item.boardId)} />
-                      ))}
-                    </View>
+                    group.items.map(renderRow)
                   ) : (
                     <FoldedSummary name={group.boardName} items={group.items} onPress={toggle} />
                   )}
@@ -153,8 +217,19 @@ export default function MyTasksScreen() {
           </>
         )}
       </ScrollView>
+
+      <View pointerEvents="box-none" style={{ position: "absolute", start: spacing.xl, end: spacing.xl, bottom: spacing.lg }}>
+        <Toast toast={toast} onDismiss={() => setToast(null)} />
+      </View>
     </Screen>
   );
+}
+
+const rowKey = (item: MyTaskItem) => `${item.kind}-${item.id}`;
+
+/** «15 مهمة مفتوحة» · «مهمتان مفتوحتان» · «مهمة واحدة مفتوحة». */
+function openLabel(n: number): string {
+  return n === 2 ? "مهمتان مفتوحتان" : `${countLabel(n, TASKS)} مفتوحة`;
 }
 
 /** A board group's heading — tap folds or unfolds it. */
@@ -176,7 +251,7 @@ function BoardGroupHeader({
       accessibilityLabel={`${name}، ${countLabel(count, TASKS)}`}
       accessibilityHint="اضغط للطي أو الفتح"
       onPress={onPress}
-      style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm, minHeight: MIN_TOUCH_TARGET }}
+      style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm, minHeight: MIN_TOUCH_TARGET, paddingHorizontal: spacing.xs }}
     >
       <View
         style={{
@@ -213,9 +288,9 @@ function FoldedSummary({ name, items, onPress }: { name: string; items: MyTaskIt
       accessibilityLabel={`عرض مهام ${name}`}
       onPress={onPress}
       style={({ pressed }) => ({
-        gap: spacing.sm,
+        gap: 10,
         paddingHorizontal: spacing.lg,
-        paddingVertical: spacing.md,
+        paddingVertical: 14,
         borderWidth: 1.5,
         borderStyle: "dashed",
         borderColor: colors.line,

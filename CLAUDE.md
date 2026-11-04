@@ -108,6 +108,18 @@ Currently: NestJS API + React web app + an Expo/React Native app under
 construction in `apps/mobile`. Realtime (Socket.IO) is still unbuilt — see
 README's Roadmap.
 
+### UI must match the design in `docs/app_design` exactly
+
+Every screen built or changed in `apps/web` or `apps/mobile` must match its
+frame in `docs/app_design` (`Tasks Mobile Redesign.dc.html` and the
+`v2-new-style.md` spec) **exactly** — layout, sizes, colours, copy, and the
+functionality the frame shows (buttons, chips, tick boxes, arrows), not just
+the look. Start from the design file, not from the current app screens. Where
+the design cannot be met exactly — the data isn't available, two frames
+disagree, a frame contradicts a stated rule, or a platform can't render it —
+**say so to the user explicitly**, naming each gap, instead of quietly
+approximating it.
+
 ### UI/frontend work: load the `frontend-design` skill first
 
 Before building or reshaping UI in `apps/web` or `apps/mobile` — new screens,
