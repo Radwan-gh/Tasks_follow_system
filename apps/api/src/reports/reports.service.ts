@@ -5,23 +5,91 @@ import type {
   ReportOverview,
   WorkloadReport,
 } from "@app/types";
+import type { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
+import { BoardsService } from "../boards/boards.service";
 import { COMPLETED_CATEGORIES } from "../common/util/completed.util";
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
+/**
+ * Which boards and cards a report covers for the caller. A supervisor
+ * (`canViewAllBoards`) sees every board and every card, restricted ones
+ * included — `boardIds` is null. Anyone else sees only the boards they are a
+ * member of, and only the cards they could open there (`canAccessCard`).
+ * The ADMIN role alone does not widen it.
+ */
+interface ReportScope {
+  userId: string;
+  /** null = every board. */
+  boardIds: Set<string> | null;
+}
+
+/**
+ * The cards a scope covers, as a Prisma filter: on one of its boards (home or
+ * via a `CardBoardLink`), and — for a non-supervisor — visible by the same
+ * rule as `canAccessCard` (open, or the caller is its creator, an explicit
+ * member, or the owner of any board it is on).
+ */
+function cardScopeWhere(scope: ReportScope): Prisma.CardWhereInput {
+  if (!scope.boardIds) return {};
+  const ids = [...scope.boardIds];
+  const { userId } = scope;
+  return {
+    AND: [
+      { OR: [{ boardId: { in: ids } }, { boardLinks: { some: { boardId: { in: ids } } } }] },
+      {
+        OR: [
+          { isRestricted: false },
+          { createdById: userId },
+          { members: { some: { userId } } },
+          { list: { board: { ownerId: userId } } },
+          { boardLinks: { some: { board: { ownerId: userId } } } },
+        ],
+      },
+    ],
+  };
+}
+
+/**
+ * The board a report row shows for a card: the one the row is about when the
+ * caller can see it, otherwise the first of the card's boards in scope — so a
+ * row never points at a board the caller cannot open.
+ */
+function boardInScope(
+  scope: ReportScope,
+  preferred: string,
+  card: { boardId: string; boardLinks: { boardId: string }[] },
+): string {
+  if (!scope.boardIds || scope.boardIds.has(preferred)) return preferred;
+  const candidates = [card.boardId, ...card.boardLinks.map((l) => l.boardId)];
+  return candidates.find((id) => scope.boardIds!.has(id)) ?? preferred;
+}
+
 @Injectable()
 export class ReportsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly boards: BoardsService,
+  ) {}
+
+  /** The caller's report scope — supervision is read live via `BoardsService.isSupervisor`. */
+  private async scopeFor(userId: string): Promise<ReportScope> {
+    if (await this.boards.isSupervisor(userId)) return { userId, boardIds: null };
+    const memberships = await this.prisma.boardMember.findMany({ where: { userId }, select: { boardId: true } });
+    return { userId, boardIds: new Set(memberships.map((m) => m.boardId)) };
+  }
 
   /**
-   * Report 1 — every (non-archived) board with the number of active cards in
-   * each of its lists. Card counts come from a single `groupBy` rather than a
-   * filtered relation count, so this stays one aggregate query for all boards.
+   * Report 1 — every (non-archived) board in the caller's scope with the
+   * number of active cards in each of its lists. Card counts come from a
+   * single `groupBy` rather than a filtered relation count, so this stays one
+   * aggregate query for all boards.
    */
-  async overview(): Promise<ReportOverview> {
+  async overview(userId: string): Promise<ReportOverview> {
+    const scope = await this.scopeFor(userId);
     const boards = await this.prisma.board.findMany({
-      where: { isArchived: false },
+      where: { isArchived: false, ...(scope.boardIds ? { id: { in: [...scope.boardIds] } } : {}) },
       orderBy: { name: "asc" },
       include: {
         lists: {
@@ -32,9 +100,11 @@ export class ReportsService {
       },
     });
 
+    // Only those boards' lists, and only cards the caller could open.
+    const listIds = boards.flatMap((b) => b.lists.map((l) => l.id));
     const grouped = await this.prisma.card.groupBy({
       by: ["listId"],
-      where: { isArchived: false },
+      where: { isArchived: false, listId: { in: listIds }, ...cardScopeWhere(scope) },
       _count: { _all: true },
     });
     const countByList = new Map(grouped.map((g) => [g.listId, g._count._all]));
@@ -43,7 +113,13 @@ export class ReportsService {
     const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
     const costRows = await this.prisma.card.groupBy({
       by: ["boardId"],
-      where: { isArchived: false, costAmount: { not: null }, createdAt: { gte: monthStart } },
+      where: {
+        isArchived: false,
+        costAmount: { not: null },
+        createdAt: { gte: monthStart },
+        boardId: { in: boards.map((b) => b.id) },
+        ...cardScopeWhere(scope),
+      },
       _sum: { costAmount: true },
     });
     const costByBoard = new Map(costRows.map((r) => [r.boardId, r._sum.costAmount]));
@@ -74,11 +150,12 @@ export class ReportsService {
    * is "completed" when it is moved into a list whose `statusCategory` is
    * `DONE`. We match MOVED activities in the window against the set of DONE list
    * names per board (activities snapshot list *names* in `toValue`), and dedupe
-   * by card keeping the most recent completion.
+   * by card keeping the most recent completion. Only cards in the caller's
+   * scope.
    */
-  async completed(since?: string): Promise<CompletedTasksReport> {
+  async completed(userId: string, since?: string): Promise<CompletedTasksReport> {
     const sinceDate = parseSince(since);
-    const boardNames = await this.boardNameMap();
+    const [scope, boardNames] = await Promise.all([this.scopeFor(userId), this.boardNameMap()]);
 
     const doneLists = await this.prisma.list.findMany({
       where: { statusCategory: "DONE" },
@@ -87,11 +164,11 @@ export class ReportsService {
     const doneKeys = new Set(doneLists.map((l) => `${l.boardId}::${l.name}`));
 
     const activities = await this.prisma.cardActivity.findMany({
-      where: { type: "MOVED", createdAt: { gte: sinceDate } },
+      where: { type: "MOVED", createdAt: { gte: sinceDate }, card: cardScopeWhere(scope) },
       orderBy: { createdAt: "desc" },
       include: {
         actor: { select: { displayName: true } },
-        card: { select: { id: true, title: true } },
+        card: { select: { id: true, title: true, boardId: true, boardLinks: { select: { boardId: true } } } },
       },
     });
 
@@ -102,11 +179,12 @@ export class ReportsService {
       if (!doneKeys.has(`${activity.boardId}::${activity.toValue}`)) continue;
       if (seen.has(activity.cardId)) continue;
       seen.add(activity.cardId);
+      const boardId = boardInScope(scope, activity.boardId, activity.card);
       tasks.push({
         cardId: activity.cardId,
         cardTitle: activity.card.title,
-        boardId: activity.boardId,
-        boardName: boardNames.get(activity.boardId) ?? "",
+        boardId,
+        boardName: boardNames.get(boardId) ?? "",
         listName: activity.toValue,
         completedAt: activity.createdAt.toISOString(),
         actorName: activity.actor.displayName,
@@ -124,11 +202,11 @@ export class ReportsService {
   /**
    * Report 3a — overdue tasks: past their due date, not archived, and not in
    * a completed (`DONE`/`CLOSED`) list (null-category/manual lists count as
-   * not-done).
+   * not-done). Only cards in the caller's scope.
    */
-  async overdue(): Promise<OverdueTasksReport> {
+  async overdue(userId: string): Promise<OverdueTasksReport> {
     const now = new Date();
-    const boardNames = await this.boardNameMap();
+    const [scope, boardNames] = await Promise.all([this.scopeFor(userId), this.boardNameMap()]);
     const cards = await this.prisma.card.findMany({
       where: {
         isArchived: false,
@@ -138,26 +216,31 @@ export class ReportsService {
         AND: [
           { NOT: { list: { statusCategory: { in: COMPLETED_CATEGORIES } } } },
           { list: { board: { isArchived: false } } },
+          cardScopeWhere(scope),
         ],
       },
       orderBy: { dueDate: "asc" },
       include: {
         list: { select: { name: true } },
         assignees: { select: { user: { select: { displayName: true } } } },
+        boardLinks: { select: { boardId: true } },
       },
     });
 
     const tasks = cards
       .filter((card): card is typeof card & { dueDate: Date } => card.dueDate !== null)
-      .map((card) => ({
-        cardId: card.id,
-        cardTitle: card.title,
-        boardId: card.boardId,
-        boardName: boardNames.get(card.boardId) ?? "",
-        listName: card.list.name,
-        dueDate: card.dueDate.toISOString(),
-        assigneeNames: card.assignees.map((a) => a.user.displayName),
-      }));
+      .map((card) => {
+        const boardId = boardInScope(scope, card.boardId, card);
+        return {
+          cardId: card.id,
+          cardTitle: card.title,
+          boardId,
+          boardName: boardNames.get(boardId) ?? "",
+          listName: card.list.name,
+          dueDate: card.dueDate.toISOString(),
+          assigneeNames: card.assignees.map((a) => a.user.displayName),
+        };
+      });
 
     return { generatedAt: now.toISOString(), total: tasks.length, tasks };
   }
@@ -171,9 +254,10 @@ export class ReportsService {
   /**
    * Report 3b — workload: for each user, how many open tasks (non-archived,
    * not in a completed `DONE`/`CLOSED` list) are assigned to them. Sorted by
-   * load, heaviest first.
+   * load, heaviest first. Counts only cards in the caller's scope.
    */
-  async workload(): Promise<WorkloadReport> {
+  async workload(userId: string): Promise<WorkloadReport> {
+    const scope = await this.scopeFor(userId);
     const assignments = await this.prisma.cardAssignee.findMany({
       where: {
         card: {
@@ -181,6 +265,7 @@ export class ReportsService {
           AND: [
             { NOT: { list: { statusCategory: { in: COMPLETED_CATEGORIES } } } },
             { list: { board: { isArchived: false } } },
+            cardScopeWhere(scope),
           ],
         },
       },

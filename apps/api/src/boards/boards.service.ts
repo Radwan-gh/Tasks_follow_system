@@ -108,13 +108,13 @@ export class BoardsService {
    * Single source of truth for "can user X do Y on board Z", reused by
    * lists/cards services.
    *
-   * Oversight («المتابعة»): a non-member who `canSupervise()` (an ADMIN, or a
-   * user granted `canViewAllBoards`) is admitted as a `VIEWER` — but only when
+   * Oversight («المتابعة»): a non-member who `canSupervise()` (a user granted
+   * `canViewAllBoards` — the ADMIN role alone does not count) is admitted as a `VIEWER` — but only when
    * the caller asked for `VIEWER`, i.e. on read paths. Every write path asks
    * for `MEMBER`/`OWNER` and so still rejects them; read-only falls out of the
    * existing role ranking rather than a separate check. A real membership
    * always wins, so a supervisor who is also a member keeps their own role.
-   * Role and flag are read from the database, not the JWT, so revoking takes
+   * The flag is read from the database, not the JWT, so revoking takes
    * effect on the next request.
    */
   async assertMembership(userId: string, boardId: string, minRole: BoardRole = "MEMBER"): Promise<BoardAccess> {
@@ -137,7 +137,7 @@ export class BoardsService {
   async isSupervisor(userId: string): Promise<boolean> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: { role: true, canViewAllBoards: true, isActive: true },
+      select: { canViewAllBoards: true, isActive: true },
     });
     return !!user?.isActive && canSupervise(user);
   }

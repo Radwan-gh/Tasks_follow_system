@@ -6,8 +6,8 @@ import { api } from "../../lib/api-client";
 import { BoardCard } from "../boards/components/BoardCard";
 
 /**
- * «المتابعة» (oversight) — every board and every task, for an ADMIN or a user granted
- * `canViewAllBoards`. Read-only: opening a board or task lands on the normal
+ * «المتابعة» (oversight) — every board and every task, for a user granted
+ * `canViewAllBoards` (admins need the grant too). Read-only: opening a board or task lands on the normal
  * board page, which the server marks `supervised` and renders read-only.
  */
 type Tab = "boards" | "tasks";

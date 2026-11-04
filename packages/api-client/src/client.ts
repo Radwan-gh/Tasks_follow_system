@@ -360,7 +360,7 @@ export function createApiClient({ baseUrl, storage, onUnauthorized }: ApiClientO
     myTasks: {
       list: () => request<MyTasksResponse>("/my-tasks"),
     },
-    /** «المتابعة» — requires ADMIN or `canViewAllBoards` (`canSupervise()`). Read-only. */
+    /** «المتابعة» — requires `canViewAllBoards` (`canSupervise()`). Read-only. */
     oversight: {
       boards: (params: { archived?: boolean } = {}) =>
         request<OversightBoard[]>(`/oversight/boards${params.archived ? "?archived=true" : ""}`),

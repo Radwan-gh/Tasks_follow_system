@@ -46,7 +46,7 @@ All actions run as the signed-in user with their own board permissions.
 Only a board's owner can archive it, delete it (archive first) or manage its members; any other member can leave it with leave_board.
 Only a card's owner — the owner of any board it is on, or the card's creator — can edit its details (update_card), set its assignees or access, or add, rename, reorder, assign and delete its subtasks. Every other member can still change its status with move_card, tick subtasks done (update_subtask isDone), comment and attach files. Moving a card into the CLOSED list is limited to the board owner and the card's assignees (the creator included).
 Changing which boards a task is on is its owner's, or any admin's; a non-admin can only add it to or remove it from boards they are a member of.
-A supervisor (an admin, or a user granted «الاطلاع على كل اللوحات») can also read every board and task through list_all_boards and search_all_tasks, and open any board or card read-only — they still cannot change boards they are not a member of.`;
+A supervisor (a user granted «الاطلاع على كل اللوحات» — being an admin alone is not enough) can also read every board and task through list_all_boards and search_all_tasks, and open any board or card read-only — they still cannot change boards they are not a member of.`;
 
 /**
  * Largest file `read_attachment` returns. Its bytes travel as base64 inside the
@@ -353,7 +353,7 @@ export class McpServerFactory {
       {
         title: "List all boards (oversight)",
         description:
-          "Every board in the system, regardless of membership, with owner and card counts. Supervisors only (an admin, or a user granted view-all-boards). Open one with get_board — read-only unless you are a member.",
+          "Every board in the system, regardless of membership, with owner and card counts. Supervisors only (users granted view-all-boards; admins need the grant too). Open one with get_board — read-only unless you are a member.",
         inputSchema: { archived: z.boolean().optional().describe("true lists archived boards instead of active ones") },
         annotations: readOnly,
       },

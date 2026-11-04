@@ -24,8 +24,8 @@ import { MIN_TOUCH_TARGET, colors, fonts, fontSizes, radii, spacing, statusColor
 type Tab = "boards" | "tasks";
 
 /**
- * `/oversight` («المتابعة») — every board and every task, for an ADMIN or a
- * user granted `canViewAllBoards`; reached from the account tab. Read-only:
+ * `/oversight` («المتابعة») — every board and every task, for a
+ * user granted `canViewAllBoards` (admins need the grant too); reached from the account tab. Read-only:
  * opening a board or task lands on the normal screens, which the server marks
  * `supervised` and which then render like a viewer's.
  */

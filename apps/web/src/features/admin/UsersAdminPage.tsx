@@ -313,7 +313,7 @@ export function UsersAdminPage() {
                         >
                           {u.role === "ADMIN" ? "مشرف" : "مستخدم"}
                         </span>
-                        {u.role !== "ADMIN" && u.canViewAllBoards && (
+                        {u.canViewAllBoards && (
                           <span className="ms-1.5 rounded bg-accent-soft px-2 py-0.5 text-xs font-medium text-accent">
                             يطّلع على كل اللوحات
                           </span>
@@ -348,16 +348,14 @@ export function UsersAdminPage() {
                           >
                             {u.isActive ? "إلغاء التفعيل" : "إعادة التفعيل"}
                           </button>
-                          {/* Admins always see every board — the flag only matters for a USER. */}
-                          {u.role !== "ADMIN" && (
-                            <button
-                              onClick={() => onViewAllToggle(u.id, u.username, !u.canViewAllBoards)}
-                              disabled={isMutating}
-                              className="rounded border border-slate-300 px-2 py-1 text-xs text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
-                            >
-                              {u.canViewAllBoards ? "سحب الاطلاع على الكل" : "الاطلاع على كل اللوحات"}
-                            </button>
-                          )}
+                          {/* Admins too: the ADMIN role alone does not grant «المتابعة». */}
+                          <button
+                            onClick={() => onViewAllToggle(u.id, u.username, !u.canViewAllBoards)}
+                            disabled={isMutating}
+                            className="rounded border border-slate-300 px-2 py-1 text-xs text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                          >
+                            {u.canViewAllBoards ? "سحب الاطلاع على الكل" : "الاطلاع على كل اللوحات"}
+                          </button>
                           <button
                             onClick={() => {
                               setEditError(null);

@@ -343,7 +343,7 @@ export default function AdminUsersScreen() {
                   {u.role !== "ADMIN" && u.canSendNotifications ? (
                     <Badge label="يرسل الإشعارات" background={colors.accentSoft} color={colors.accent} />
                   ) : null}
-                  {u.role !== "ADMIN" && u.canViewAllBoards ? (
+                  {u.canViewAllBoards ? (
                     <Badge label="يطّلع على كل اللوحات" background={colors.accentSoft} color={colors.accent} />
                   ) : null}
                   <AppText size="caption" color={colors.muted}>
@@ -398,14 +398,12 @@ export default function AdminUsersScreen() {
                       onPress={() => updatePermissions.mutate({ id: u.id, canSendNotifications: !u.canSendNotifications })}
                     />
                   ) : null}
-                  {/* Same for «المتابعة»: admins always see every board. Only an admin reaches this screen. */}
-                  {u.role !== "ADMIN" ? (
-                    <ActionButton
-                      label={u.canViewAllBoards ? "سحب الاطلاع على كل اللوحات" : "الاطلاع على كل اللوحات"}
-                      disabled={isMutating}
-                      onPress={() => updatePermissions.mutate({ id: u.id, canViewAllBoards: !u.canViewAllBoards })}
-                    />
-                  ) : null}
+                  {/* Unlike push, «المتابعة» is never implied by the ADMIN role — admins need the grant too. */}
+                  <ActionButton
+                    label={u.canViewAllBoards ? "سحب الاطلاع على كل اللوحات" : "الاطلاع على كل اللوحات"}
+                    disabled={isMutating}
+                    onPress={() => updatePermissions.mutate({ id: u.id, canViewAllBoards: !u.canViewAllBoards })}
+                  />
                 </View>
               </View>
             );

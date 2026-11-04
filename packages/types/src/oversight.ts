@@ -4,7 +4,7 @@ import { BoardSummarySchema, CardPriority, ListStatusCategory, UserSchema } from
 /**
  * Oversight («المتابعة», `/oversight/*`) — a read-only view across every board
  * and task, regardless of board membership. Open to anyone `canSupervise()`
- * allows (an ADMIN, or a user an admin granted `canViewAllBoards`). Opening a
+ * allows (a user an admin granted `canViewAllBoards`; the ADMIN role alone does not qualify). Opening a
  * board or card from here goes through the normal `GET /boards/:id` /
  * `GET /cards/:id`, which admit a supervisor as a read-only viewer
  * (`BoardDetail.supervised`).
