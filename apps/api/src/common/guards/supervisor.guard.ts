@@ -4,7 +4,7 @@ import { BoardsService } from "../../boards/boards.service";
 
 /**
  * Requires the authenticated user to be allowed to oversee every board
- * («المتابعة»): an ADMIN, or a user an admin granted `canViewAllBoards`. Must
+ * («المتابعة»): a user an admin granted `canViewAllBoards` (being an ADMIN alone is not enough). Must
  * run after JwtAuthGuard: `@UseGuards(JwtAuthGuard, SupervisorGuard)`.
  *
  * Delegates to `BoardsService.isSupervisor` — the same check the supervision

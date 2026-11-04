@@ -13,7 +13,7 @@ interface NavItem {
   label: string;
   icon: string;
   adminOnly?: boolean;
-  /** ADMIN, or a user granted `canViewAllBoards`. */
+  /** A user granted `canViewAllBoards` — the ADMIN role alone does not count. */
   supervisorOnly?: boolean;
 }
 

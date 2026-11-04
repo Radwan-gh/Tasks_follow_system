@@ -28,7 +28,7 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-/** «المتابعة» — an ADMIN or a user granted `canViewAllBoards`. The server's `SupervisorGuard` is the real gate. */
+/** «المتابعة» — a user granted `canViewAllBoards` (admins need the grant too). The server's `SupervisorGuard` is the real gate. */
 function SupervisorRoute({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
   if (isLoading) return <div className="p-8 text-slate-500">جارٍ التحميل...</div>;

@@ -214,7 +214,7 @@ createApiClient({ baseUrl, storage, onUnauthorized })
 
 ## «المتابعة» (`app/oversight.tsx`)
 
-لمن `canSupervise()` (ADMIN أو `canViewAllBoards`) صفّ «المتابعة — كل اللوحات
+لمن `canSupervise()` (`canViewAllBoards` فقط، لا دور ADMIN وحده) صفّ «المتابعة — كل اللوحات
 والمهام» في «حسابي» يفتح شاشة `/oversight` (شاشة Stack، لا تبويب). فيها مبدّل
 «اللوحات / المهام»: اللوحات `BoardCard` مع اسم المالك ومبدّل «النشطة/المؤرشفة»؛
 والمهام قائمة `FlatList` تُحمّل الصفحة التالية عند الاقتراب من نهايتها
@@ -222,7 +222,7 @@ createApiClient({ baseUrl, storage, onUnauthorized })
 (`features/oversight/oversight-filter-sheet.tsx`) للمسؤول واللوحة والحالة و«إظهار
 المكتملة». فتح لوحة أو مهمة يمرّ بالشاشات العادية؛ `board/[id].tsx` و`card/[id].tsx`
 يعاملان `board.supervised` كدور المشاهد (لا نقل، لا تعديل، لا تعليق، لا إعدادات) مع
-شريط «وضع المتابعة». منح الصلاحية زرّ في `admin/users.tsx` لصفوف `USER` فقط. انظر
+شريط «وضع المتابعة». منح الصلاحية زرّ في `admin/users.tsx` لكل الصفوف، بما فيها `ADMIN`. انظر
 [`16-oversight.md`](./16-oversight.md).
 
 ## «دليل الاستخدام» (`app/guide.tsx`)

@@ -8,8 +8,8 @@ import { PrismaService } from "../prisma/prisma.service";
 const PERSON = { select: { id: true, username: true, displayName: true } } as const;
 
 /**
- * «المتابعة» — read-only, system-wide views for a supervisor (an ADMIN, or a
- * user granted `canViewAllBoards`). Like the reports section it spans every
+ * «المتابعة» — read-only, system-wide views for a supervisor (a user granted
+ * `canViewAllBoards`; the ADMIN role alone does not qualify). Like the reports section it spans every
  * board and so does not go through per-board `assertMembership`; access is
  * the system-level grant, enforced by `SupervisorGuard` (REST) or
  * `BoardsService.isSupervisor` (MCP) before any method here runs. Restricted

@@ -1,6 +1,7 @@
 import { BadRequestException, Controller, Get, Query, Res, UseGuards } from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiQuery, ApiResponse, ApiTags } from "@nestjs/swagger";
 import type { Response } from "express";
+import { CurrentUser, type AuthUser } from "../common/decorators/current-user.decorator";
 import { AdminGuard } from "../common/guards/admin.guard";
 import { JwtAuthGuard } from "../common/guards/jwt-auth.guard";
 import { SettingsService } from "../settings/settings.service";
@@ -11,10 +12,12 @@ import { ReportsService } from "./reports.service";
 const EXPORTABLE_REPORTS: ExportableReport[] = ["overview", "completed", "overdue", "workload"];
 
 /**
- * Reports section. Read-only, system-wide aggregations gated behind the ADMIN
- * role (JwtAuthGuard populates request.user, then AdminGuard requires ADMIN).
- * Because it spans every board it deliberately does not go through per-board
- * `assertMembership` — access is the system-level ADMIN grant.
+ * Reports section. Read-only aggregations gated behind the ADMIN role
+ * (JwtAuthGuard populates request.user, then AdminGuard requires ADMIN). The
+ * ADMIN role opens the section but does not decide what it covers: each
+ * report spans only the caller's own boards (and the cards they could open
+ * there), or every board for a user granted `canViewAllBoards` — see
+ * `ReportsService.scopeFor`.
  */
 @ApiTags("Reports")
 @ApiBearerAuth()
@@ -30,8 +33,8 @@ export class ReportsController {
   @ApiOperation({ summary: "Every board with its lists' card counts" })
   @ApiResponse({ status: 200, schema: zodRef("ReportOverview") })
   @ApiResponse({ status: 403, description: "Requires ADMIN role" })
-  overview() {
-    return this.reports.overview();
+  overview(@CurrentUser() user: AuthUser) {
+    return this.reports.overview(user.id);
   }
 
   @Get("completed")
@@ -39,24 +42,24 @@ export class ReportsController {
   @ApiQuery({ name: "since", required: false, description: "ISO date; defaults to 7 days ago" })
   @ApiResponse({ status: 200, schema: zodRef("CompletedTasksReport") })
   @ApiResponse({ status: 403, description: "Requires ADMIN role" })
-  completed(@Query("since") since?: string) {
-    return this.reports.completed(since);
+  completed(@CurrentUser() user: AuthUser, @Query("since") since?: string) {
+    return this.reports.completed(user.id, since);
   }
 
   @Get("overdue")
   @ApiOperation({ summary: "Past-due, non-archived tasks not yet in a DONE list" })
   @ApiResponse({ status: 200, schema: zodRef("OverdueTasksReport") })
   @ApiResponse({ status: 403, description: "Requires ADMIN role" })
-  overdue() {
-    return this.reports.overdue();
+  overdue(@CurrentUser() user: AuthUser) {
+    return this.reports.overdue(user.id);
   }
 
   @Get("workload")
   @ApiOperation({ summary: "Count of open (non-archived, non-DONE) tasks per assignee" })
   @ApiResponse({ status: 200, schema: zodRef("WorkloadReport") })
   @ApiResponse({ status: 403, description: "Requires ADMIN role" })
-  workload() {
-    return this.reports.workload();
+  workload(@CurrentUser() user: AuthUser) {
+    return this.reports.workload(user.id);
   }
 
   /**
@@ -71,7 +74,12 @@ export class ReportsController {
   @ApiQuery({ name: "since", required: false, description: "ISO date; only used by the 'completed' report" })
   @ApiResponse({ status: 200, description: "PDF file" })
   @ApiResponse({ status: 403, description: "Requires ADMIN role" })
-  async export(@Query("report") report: string, @Query("since") since: string | undefined, @Res() res: Response) {
+  async export(
+    @CurrentUser() user: AuthUser,
+    @Query("report") report: string,
+    @Query("since") since: string | undefined,
+    @Res() res: Response,
+  ) {
     if (!EXPORTABLE_REPORTS.includes(report as ExportableReport)) {
       throw new BadRequestException(`report must be one of: ${EXPORTABLE_REPORTS.join(", ")}`);
     }
@@ -79,12 +87,12 @@ export class ReportsController {
 
     const [data, { currencySymbol }] = await Promise.all([
       kind === "overview"
-        ? this.reports.overview()
+        ? this.reports.overview(user.id)
         : kind === "completed"
-          ? this.reports.completed(since)
+          ? this.reports.completed(user.id, since)
           : kind === "overdue"
-            ? this.reports.overdue()
-            : this.reports.workload(),
+            ? this.reports.overdue(user.id)
+            : this.reports.workload(user.id),
       this.settings.get(),
     ]);
 

@@ -13,8 +13,8 @@ import { OversightService } from "./oversight.service";
 
 /**
  * `/oversight/*` («المتابعة») — read-only views across every board and task.
- * `JwtAuthGuard` populates request.user, then `SupervisorGuard` requires an
- * ADMIN or a user granted `canViewAllBoards`. Nothing here writes; opening a
+ * `JwtAuthGuard` populates request.user, then `SupervisorGuard` requires a
+ * user granted `canViewAllBoards` (an ADMIN needs the grant too). Nothing here writes; opening a
  * board or card goes through the normal `/boards/:id` and `/cards/:id`, which
  * admit a supervisor as a read-only viewer. See `docs/16-oversight.md`.
  */
@@ -29,7 +29,7 @@ export class OversightController {
   @ApiOperation({ summary: "Every board in the system, regardless of membership" })
   @ApiQuery({ name: "archived", required: false, enum: ["true", "false"] })
   @ApiResponse({ status: 200, schema: zodArrayRef("OversightBoard") })
-  @ApiResponse({ status: 403, description: "Requires ADMIN or canViewAllBoards" })
+  @ApiResponse({ status: 403, description: "Requires canViewAllBoards" })
   boards(@Query(new ZodValidationPipe(OversightBoardsQuerySchema)) query: { archived: boolean }) {
     return this.oversight.boardsList(query.archived);
   }
@@ -47,7 +47,7 @@ export class OversightController {
   @ApiQuery({ name: "cursor", required: false })
   @ApiQuery({ name: "limit", required: false })
   @ApiResponse({ status: 200, schema: zodRef("OversightTasksResponse") })
-  @ApiResponse({ status: 403, description: "Requires ADMIN or canViewAllBoards" })
+  @ApiResponse({ status: 403, description: "Requires canViewAllBoards" })
   tasks(@Query(new ZodValidationPipe(OversightTasksQuerySchema)) query: OversightTasksFilter) {
     return this.oversight.tasks(query);
   }
@@ -55,7 +55,7 @@ export class OversightController {
   @Get("users")
   @ApiOperation({ summary: "Every user, for the tasks view's assignee filter" })
   @ApiResponse({ status: 200, schema: zodArrayRef("OversightUser") })
-  @ApiResponse({ status: 403, description: "Requires ADMIN or canViewAllBoards" })
+  @ApiResponse({ status: 403, description: "Requires canViewAllBoards" })
   users() {
     return this.oversight.users();
   }

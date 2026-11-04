@@ -30,7 +30,7 @@ BoardsService.assertMembership(userId, boardId, minRole = "MEMBER")
 - تبحث عن عضوية المستخدم في اللوحة.
 - ترفض بـ `Forbidden` إن كان دور العضو **أقل** من `minRole` المطلوب.
 - إن **لم** توجد عضوية: تُقبل فقط حين يكون `minRole === "VIEWER"` (مسار قراءة) والمستخدم
-  صاحب صلاحية «المتابعة» (`canSupervise()`: `ADMIN` أو `canViewAllBoards`، تُقرأ من قاعدة
+  صاحب صلاحية «المتابعة» (`canSupervise()`: `canViewAllBoards` وحدها — دور `ADMIN` لا يكفي، تُقرأ من قاعدة
   البيانات عبر `isSupervisor`)، فيُعاد `{ role: "VIEWER", supervised: true }`. وإلا
   `Forbidden`. لأن كل مسارات الكتابة تطلب `MEMBER`/`OWNER`، يبقى المتابع للقراءة فقط
   تلقائيًا. التفاصيل في [`16-oversight.md`](./16-oversight.md).
@@ -160,9 +160,10 @@ BoardsService.assertCardAccess(userId, cardId, minRole = "MEMBER", { mutable, re
 
 الأدوار: **`USER`** و **`ADMIN`** (مخزّنة في `User.role`). هذه منفصلة عن أدوار
 اللوحة — كون المستخدم ADMIN لا يمنحه **عضوية** في لوحة لم يُضَف إليها، والعكس صحيح.
-الاستثناء الوحيد هو **الاطلاع للقراءة فقط**: ADMIN، أو `USER` منحه ADMIN صلاحية
-`canViewAllBoards`، يستطيع قراءة كل اللوحات والمهام دون أن يصير عضوًا ودون أي قدرة على
-التعديل — انظر «المتابعة» في [`16-oversight.md`](./16-oversight.md).
+الاستثناء الوحيد هو **الاطلاع للقراءة فقط**: من منحه ADMIN صلاحية `canViewAllBoards`
+(`USER` كان أو `ADMIN` — دور ADMIN وحده **لا** يمنحها) يستطيع قراءة كل اللوحات والمهام
+دون أن يصير عضوًا ودون أي قدرة على التعديل — انظر «المتابعة» في
+[`16-oversight.md`](./16-oversight.md).
 
 ### `AdminGuard`
 - يتطلّب أن يكون دور المستخدم `ADMIN`، وإلا يرفض بـ `Forbidden`.
@@ -170,8 +171,8 @@ BoardsService.assertCardAccess(userId, cardId, minRole = "MEMBER", { mutable, re
   `@UseGuards(JwtAuthGuard, AdminGuard)`.
 - يحمي مسارات الإدارة تحت `admin/users` (انظر [`07-admin.md`](./07-admin.md))
   **وكذلك قسم التقارير** تحت `reports/*` (انظر [`11-reports.md`](./11-reports.md)).
-  التقارير تشمل كل اللوحات، لذلك تُحمى بصلاحية النظام `ADMIN` ولا تمرّ عبر
-  `assertMembership` الخاصّ باللوحة.
+  `ADMIN` يفتح قسم التقارير فقط؛ أمّا **ما تشمله** فلوحات الطالب التي هو عضو فيها،
+  أو كل اللوحات لصاحب `canViewAllBoards` (`ReportsService.scopeFor`).
 
 ### `CanSendPushGuard`
 - يحمي `push/*` (قائمة الأجهزة والإرسال اليدوي). يسمح لـ `ADMIN` دائمًا، أو لمستخدم
@@ -183,11 +184,11 @@ BoardsService.assertCardAccess(userId, cardId, minRole = "MEMBER", { mutable, re
   فقط ولا يرسل.
 
 ### `SupervisorGuard`
-- يحمي `oversight/*` («المتابعة»). يسمح لـ `ADMIN` دائمًا، أو لمستخدم منحه ADMIN
-  `canViewAllBoards`. القاعدة `canSupervise()` في `packages/types`.
+- يحمي `oversight/*` («المتابعة»). يسمح فقط لمن منحه ADMIN `canViewAllBoards` —
+  الـ ADMIN نفسه يحتاجها أيضًا. القاعدة `canSupervise()` في `packages/types`.
 - يُستخدم بعد `JwtAuthGuard`: `@UseGuards(JwtAuthGuard, SupervisorGuard)`.
 - يفوّض إلى `BoardsService.isSupervisor` — نفس الفحص الذي يستعمله المسار الاحتياطي في
-  `assertMembership` — فيقرأ الدور والصلاحية و`isActive` من قاعدة البيانات.
+  `assertMembership` — فيقرأ الصلاحية و`isActive` من قاعدة البيانات.
 - منح `canViewAllBoards` وسحبها مقصوران على ADMIN (`PATCH /admin/users/:id/permissions`
   تحت `AdminGuard`)؛ صاحب الصلاحية لا يستطيع منحها لأحد.
 
