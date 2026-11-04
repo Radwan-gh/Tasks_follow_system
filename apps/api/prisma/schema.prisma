@@ -33,6 +33,12 @@ enum CardActivityType {
   PRIORITY_CHANGED
   RECURRENCE_CHANGED
   BOARDS_CHANGED
+  SUBTASK_ADDED
+  SUBTASK_RENAMED
+  SUBTASK_COMPLETED
+  SUBTASK_REOPENED
+  SUBTASK_DELETED
+  SUBTASK_ASSIGNED
 }
 
 /// Semantic status of a list, set when a board is seeded from a built-in

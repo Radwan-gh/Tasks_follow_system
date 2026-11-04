@@ -1,10 +1,19 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
-import type { BoardRole, CreateSubtaskRequest, UpdateAssigneesRequest, UpdateSubtaskRequest } from "@app/types";
+import type {
+  BoardRole,
+  CardActivityType,
+  CreateSubtaskRequest,
+  UpdateAssigneesRequest,
+  UpdateSubtaskRequest,
+} from "@app/types";
 import { generateKeyBetween } from "@app/ordering";
+import type { Prisma } from "@prisma/client";
 import { computeMovePosition } from "../common/util/position.util";
 import { PrismaService } from "../prisma/prisma.service";
 import { BoardsService } from "../boards/boards.service";
 import { NotificationsService } from "../notifications/notifications.service";
+
+type Tx = Prisma.TransactionClient;
 
 @Injectable()
 export class SubtasksService {
@@ -48,16 +57,21 @@ export class SubtasksService {
   }
 
   async create(userId: string, cardId: string, input: CreateSubtaskRequest) {
-    this.boards.assertCanManageCard(userId, await this.assertCardAccess(userId, cardId));
+    const access = await this.assertCardAccess(userId, cardId);
+    this.boards.assertCanManageCard(userId, access);
     const last = await this.prisma.subtask.findFirst({
       where: { cardId },
       orderBy: { position: "desc" },
       select: { position: true },
     });
     const position = generateKeyBetween(last?.position ?? null, null);
-    const subtask = await this.prisma.subtask.create({
-      data: { cardId, title: input.title, position, createdById: userId },
-      include: { assignees: { select: { userId: true } } },
+    const subtask = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.subtask.create({
+        data: { cardId, title: input.title, position, createdById: userId },
+        include: { assignees: { select: { userId: true } } },
+      });
+      await recordActivity(tx, access.card, userId, "SUBTASK_ADDED", null, created.title);
+      return created;
     });
     return serializeSubtask(subtask);
   }
@@ -93,6 +107,14 @@ export class SubtasksService {
         include: { assignees: { select: { userId: true } } },
       });
 
+      if (input.title !== undefined && result.title !== subtask.title) {
+        await recordActivity(tx, card, userId, "SUBTASK_RENAMED", subtask.title, result.title);
+      }
+      if (input.isDone !== undefined && input.isDone !== subtask.isDone) {
+        const type = input.isDone ? "SUBTASK_COMPLETED" : "SUBTASK_REOPENED";
+        await recordActivity(tx, card, userId, type, null, result.title);
+      }
+
       // Ticking it off (not re-saving an already-done one, not unticking):
       // tell everyone with a stake in it — the parent card's creator and
       // assignees, plus whoever created or is assigned to this subtask.
@@ -125,15 +147,20 @@ export class SubtasksService {
 
   async remove(userId: string, subtaskId: string) {
     const subtask = await this.loadSubtask(subtaskId);
-    this.boards.assertCanManageCard(userId, await this.assertCardAccess(userId, subtask.cardId));
-    await this.prisma.subtask.delete({ where: { id: subtaskId } });
+    const access = await this.assertCardAccess(userId, subtask.cardId);
+    this.boards.assertCanManageCard(userId, access);
+    await this.prisma.$transaction(async (tx) => {
+      await tx.subtask.delete({ where: { id: subtaskId } });
+      await recordActivity(tx, access.card, userId, "SUBTASK_DELETED", subtask.title, null);
+    });
   }
 
   /**
    * Replace a subtask's assignee set. Every listed user must be a member of one
    * of the task's boards, and every *newly* added one must be an active account
    * — same rules as `CardsService.updateAssignees`, including that only the
-   * task's owner assigns.
+   * task's owner assigns. Records a `SUBTASK_ASSIGNED` activity only when the
+   * set actually changes.
    */
   async updateAssignees(userId: string, subtaskId: string, input: UpdateAssigneesRequest) {
     const subtask = await this.loadSubtask(subtaskId);
@@ -143,9 +170,10 @@ export class SubtasksService {
 
     const userIds = [...new Set(input.userIds)];
     const before = new Set(subtask.assignees.map((a) => a.userId));
+    let members: Awaited<ReturnType<BoardsService["cardPeople"]>> = [];
     if (userIds.length > 0) {
       // §3c-4: viewers never appear in the assignee picker — see `CardsService.updateAssignees`.
-      const members = (await this.boards.cardPeople(access.boardIds, userIds)).filter((m) => m.role !== "VIEWER");
+      members = (await this.boards.cardPeople(access.boardIds, userIds)).filter((m) => m.role !== "VIEWER");
       if (members.length !== userIds.length) {
         throw new BadRequestException("Every assignee must be a member of one of the task's boards");
       }
@@ -156,10 +184,16 @@ export class SubtasksService {
       }
     }
 
+    const changed = before.size !== userIds.length || userIds.some((id) => !before.has(id));
+
     const updated = await this.prisma.$transaction(async (tx) => {
       await tx.subtaskAssignee.deleteMany({ where: { subtaskId } });
       if (userIds.length > 0) {
         await tx.subtaskAssignee.createMany({ data: userIds.map((id) => ({ subtaskId, userId: id })) });
+      }
+      if (changed) {
+        const names = members.map((m) => m.user.displayName).join("، ");
+        await recordActivity(tx, card, userId, "SUBTASK_ASSIGNED", subtask.title, names || null);
       }
       // Only the newly-added assignees — same rule as `CardsService.updateAssignees`.
       for (const addedUserId of userIds.filter((id) => !before.has(id))) {
@@ -194,6 +228,26 @@ export class SubtasksService {
       throw new BadRequestException("Invalid move target");
     }
   }
+}
+
+/**
+ * A subtask change goes into its parent card's history, in the same
+ * transaction as the change itself — the card's own log is where both apps and
+ * `get_card_history` read it. Keyed to the card's home board, like
+ * `CardsService.recordActivity`. The title is snapshotted so the entry still
+ * reads correctly after a later rename or delete.
+ */
+function recordActivity(
+  tx: Tx,
+  card: { id: string; boardId: string },
+  actorId: string,
+  type: CardActivityType,
+  fromValue: string | null,
+  toValue: string | null,
+) {
+  return tx.cardActivity.create({
+    data: { cardId: card.id, boardId: card.boardId, actorId, type, fromValue, toValue },
+  });
 }
 
 function serializeSubtask(subtask: {

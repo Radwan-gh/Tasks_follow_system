@@ -14,11 +14,15 @@ const TASK_SELECT = {
   createdById: true,
   isRestricted: true,
   priority: true,
-  list: { select: { name: true, board: { select: { name: true, ownerId: true } } } },
+  list: { select: { name: true, statusCategory: true, board: { select: { name: true, ownerId: true } } } },
   members: { select: { userId: true } },
   boardLinks: {
     orderBy: { createdAt: "asc" },
-    select: { boardId: true, list: { select: { name: true } }, board: { select: { name: true, ownerId: true } } },
+    select: {
+      boardId: true,
+      list: { select: { name: true, statusCategory: true } },
+      board: { select: { name: true, ownerId: true } },
+    },
   },
 } as const satisfies Prisma.CardSelect;
 type Task = Prisma.CardGetPayload<{ select: typeof TASK_SELECT }>;
@@ -31,8 +35,18 @@ type Task = Prisma.CardGetPayload<{ select: typeof TASK_SELECT }>;
 function boardFor(task: Task, memberOf: Set<string>) {
   const link = memberOf.has(task.boardId) ? undefined : task.boardLinks.find((l) => memberOf.has(l.boardId));
   return link
-    ? { boardId: link.boardId, boardName: link.board.name, listName: link.list.name }
-    : { boardId: task.boardId, boardName: task.list.board.name, listName: task.list.name };
+    ? {
+        boardId: link.boardId,
+        boardName: link.board.name,
+        listName: link.list.name,
+        statusCategory: link.list.statusCategory,
+      }
+    : {
+        boardId: task.boardId,
+        boardName: task.list.board.name,
+        listName: task.list.name,
+        statusCategory: task.list.statusCategory,
+      };
 }
 
 /** The owners of every board the task is on — each one counts for `canAccessCard`. */
