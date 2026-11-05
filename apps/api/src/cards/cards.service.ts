@@ -1,4 +1,12 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
+import {
+  BadRequestException,
+  ForbiddenException,
+  GoneException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from "@nestjs/common";
+import { Cron, CronExpression } from "@nestjs/schedule";
 import {
   RecurrenceRuleSchema,
   describeRecurrence,
@@ -6,28 +14,36 @@ import {
   type CardBoardRef,
   type CardBoardsResponse,
   type CreateCardRequest,
+  type DeleteCardResponse,
   type SetCardBoardsRequest,
   type UpdateAssigneesRequest,
   type UpdateCardAccessRequest,
   type UpdateCardRequest,
 } from "@app/types";
 import { Prisma, type CardPriority } from "@prisma/client";
+import { AttachmentStorageService } from "../common/storage/attachment-storage.service";
 import { computeMovePosition } from "../common/util/position.util";
 import { nextRecurrenceDate } from "../common/util/recurrence.util";
 import { calendarDate } from "../common/util/time-zone.util";
 import { PrismaService } from "../prisma/prisma.service";
 import { BoardsService, canManageCard, serializeCard, type AccessibleCard } from "../boards/boards.service";
 import { NotificationsService } from "../notifications/notifications.service";
+import { isRestorable, purgeCutoff, restoreDeadline } from "./card-deletion.util";
+import { duplicateCardFields } from "./card-duplicate.util";
 import {
   BOARD_LINKS_INCLUDE,
   cardIdsInList,
   columnForNewBoard,
   endOfList,
+  keyRightAfter,
   listForStatus,
   placementsOf,
   positionInList,
   type Placement,
 } from "./card-placement.util";
+
+/** How many expired deletions one purge pass handles; the next pass picks up the rest. */
+const PURGE_BATCH = 100;
 
 /** Prisma transaction client — the subset of PrismaService usable inside `$transaction`. */
 type Tx = Prisma.TransactionClient;
@@ -54,12 +70,23 @@ interface ActivityInput {
   toValue?: string | null;
 }
 
+/** A checklist item as copied onto another card (a recurrence's next instance, a duplicate). */
+interface ChecklistItem {
+  title: string;
+  position: string;
+  createdById: string;
+  assignees: { userId: string }[];
+}
+
 @Injectable()
 export class CardsService {
+  private readonly logger = new Logger(CardsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly boards: BoardsService,
     private readonly notifications: NotificationsService,
+    private readonly storage: AttachmentStorageService,
   ) {}
 
   private async loadList(listId: string) {
@@ -141,55 +168,90 @@ export class CardsService {
         : [],
     );
 
-    const cardAssignees = card.assignees.filter((a) => active.has(a.userId));
+    await this.copyPeopleAndChecklist(
+      tx,
+      created,
+      {
+        assigneeIds: card.assignees.map((a) => a.userId),
+        memberIds: card.isRestricted ? card.members.map((m) => m.userId) : [],
+        subtasks,
+      },
+      { actorId, boardIds, canAssign: (id) => active.has(id) },
+    );
+    await this.recordActivity(tx, created.id, card.boardId, card.createdById, {
+      type: "CREATED",
+      toValue: newList.name,
+    });
+  }
+
+  /**
+   * A card's people and checklist copied onto a new card — shared by a
+   * recurrence's next instance and a duplicate, which differ only in who still
+   * qualifies as an assignee (`canAssign`) and whom the checklist items are
+   * credited to (`checklistCreatorId`, else each item's own creator). Kept
+   * assignees, of the card or of an item, are notified as newly assigned
+   * (`ASSIGNED` / `SUBTASK_ASSIGNED`) — it is a new task on their plate —
+   * except the actor, via `notify`'s own guard. `memberIds` is the access
+   * allow-list, already narrowed by the caller. Items come back unticked, in
+   * the same order: positions are only ever compared within one card, so the
+   * old keys keep their order as-is.
+   */
+  private async copyPeopleAndChecklist(
+    tx: Tx,
+    created: { id: string; title: string; boardId: string },
+    from: { assigneeIds: string[]; memberIds: string[]; subtasks: ChecklistItem[] },
+    opts: { actorId: string; boardIds: string[]; canAssign: (userId: string) => boolean; checklistCreatorId?: string },
+  ): Promise<void> {
+    const { actorId, boardIds, canAssign } = opts;
+    const cardAssignees = from.assigneeIds.filter(canAssign);
     if (cardAssignees.length > 0) {
       await tx.cardAssignee.createMany({
-        data: cardAssignees.map((a) => ({ cardId: created.id, userId: a.userId })),
+        data: cardAssignees.map((userId) => ({ cardId: created.id, userId })),
       });
-      for (const a of cardAssignees) {
+      for (const userId of cardAssignees) {
         await this.notifications.notify(tx, {
-          userId: a.userId,
+          userId,
           actorId,
           type: "ASSIGNED",
           cardId: created.id,
-          boardId: card.boardId,
+          boardId: created.boardId,
           boardIds,
           payload: { cardTitle: created.title },
         });
       }
     }
-    if (card.isRestricted && card.members.length > 0) {
+    if (from.memberIds.length > 0) {
       await tx.cardMember.createMany({
-        data: card.members.map((m) => ({ cardId: created.id, userId: m.userId })),
+        data: from.memberIds.map((userId) => ({ cardId: created.id, userId })),
       });
     }
-    for (const subtask of subtasks) {
-      // Positions are only ever compared within one card, so the old keys keep their order as-is.
+    for (const subtask of from.subtasks) {
       const copy = await tx.subtask.create({
-        data: { cardId: created.id, title: subtask.title, position: subtask.position, createdById: subtask.createdById },
+        data: {
+          cardId: created.id,
+          title: subtask.title,
+          position: subtask.position,
+          createdById: opts.checklistCreatorId ?? subtask.createdById,
+        },
       });
-      const subtaskAssignees = subtask.assignees.filter((a) => active.has(a.userId));
+      const subtaskAssignees = subtask.assignees.map((a) => a.userId).filter(canAssign);
       if (subtaskAssignees.length > 0) {
         await tx.subtaskAssignee.createMany({
-          data: subtaskAssignees.map((a) => ({ subtaskId: copy.id, userId: a.userId })),
+          data: subtaskAssignees.map((userId) => ({ subtaskId: copy.id, userId })),
         });
-        for (const a of subtaskAssignees) {
+        for (const userId of subtaskAssignees) {
           await this.notifications.notify(tx, {
-            userId: a.userId,
+            userId,
             actorId,
             type: "SUBTASK_ASSIGNED",
             cardId: created.id,
-            boardId: card.boardId,
+            boardId: created.boardId,
             boardIds,
             payload: { cardTitle: created.title, subtaskTitle: copy.title },
           });
         }
       }
     }
-    await this.recordActivity(tx, created.id, card.boardId, card.createdById, {
-      type: "CREATED",
-      toValue: newList.name,
-    });
   }
 
   async create(userId: string, listId: string, input: CreateCardRequest) {
@@ -224,6 +286,80 @@ export class CardsService {
       return created;
     });
     return serializeCard({ ...card, boardLinks: [] });
+  }
+
+  /**
+   * «نسخ المهمة» (`POST /cards/:id/duplicate`): a new task right after this one
+   * in its column, titled «… (نسخة)», with the same details
+   * (`duplicateCardFields`), assignees, access allow-list and checklist (all
+   * unticked, same order and assignees) — not its attachments, comments or
+   * history, nor its other boards. Any member who can work on the task may
+   * duplicate it; the caller becomes the copy's creator, so they own it.
+   *
+   * The copy goes on the task's home board — or, when the caller cannot add
+   * tasks there (they only reach it through another of its boards, or the home
+   * board is archived), on the first of its boards they can, in its column
+   * there — so nobody creates a task on a board they cannot see. Anyone no
+   * longer assignable there (deactivated, a viewer, gone from the board) is
+   * left off, as is an access member who is no longer on it or deactivated.
+   * Kept assignees are notified like any new assignment; a `CREATED` entry
+   * starts the copy's history, in the same transaction.
+   */
+  async duplicate(userId: string, cardId: string) {
+    const access = await this.boards.assertCardAccess(userId, cardId, "MEMBER", { mutable: true });
+    const { card } = access;
+
+    const [writable, subtasks] = await Promise.all([
+      this.prisma.boardMember.findMany({
+        where: { userId, boardId: { in: access.boardIds }, role: { not: "VIEWER" }, board: { isArchived: false } },
+        select: { boardId: true },
+      }),
+      this.prisma.subtask.findMany({
+        where: { cardId },
+        orderBy: { position: "asc" },
+        include: { assignees: { select: { userId: true } } },
+      }),
+    ]);
+    const canWrite = new Set(writable.map((m) => m.boardId));
+    const target = placementsOf(card).find((p) => canWrite.has(p.boardId));
+    // `assertCardAccess(…, "MEMBER", { mutable })` already found such a board; kept as a guard.
+    if (!target) throw new ForbiddenException("You can only duplicate a task onto a board you are a member of");
+    const list = await this.loadList(target.listId);
+
+    const memberIds = card.isRestricted ? card.members.map((m) => m.userId) : [];
+    const candidateIds = [
+      ...new Set([...card.assignees.map((a) => a.userId), ...memberIds, ...subtasks.flatMap((s) => s.assignees.map((a) => a.userId))]),
+    ];
+    const people = candidateIds.length ? await this.boards.cardPeople([target.boardId], candidateIds) : [];
+    const active = people.filter((p) => p.user.isActive);
+    // Same rules as `updateAssignees` / `updateAccess` for someone newly added.
+    const assignable = new Set(active.filter((p) => p.role !== "VIEWER").map((p) => p.userId));
+    const grantable = new Set(active.map((p) => p.userId));
+
+    const copy = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.card.create({
+        data: {
+          ...duplicateCardFields(card),
+          listId: target.listId,
+          boardId: target.boardId,
+          position: await keyRightAfter(tx, card.id, target.listId),
+          createdById: userId,
+        },
+      });
+      await this.copyPeopleAndChecklist(
+        tx,
+        created,
+        {
+          assigneeIds: card.assignees.map((a) => a.userId),
+          memberIds: memberIds.filter((id) => grantable.has(id)),
+          subtasks,
+        },
+        { actorId: userId, boardIds: [target.boardId], canAssign: (id) => assignable.has(id), checklistCreatorId: userId },
+      );
+      await this.recordActivity(tx, created.id, created.boardId, userId, { type: "CREATED", toValue: list.name });
+      return tx.card.findUniqueOrThrow({ where: { id: created.id }, include: CARD_RESPONSE_INCLUDE });
+    });
+    return serializeCard(copy);
   }
 
   async getDetail(userId: string, cardId: string) {
@@ -777,12 +913,85 @@ export class CardsService {
     return activities.map(serializeCardActivity);
   }
 
-  async remove(userId: string, cardId: string) {
+  /**
+   * Deleting a task is a pending delete (docs/05-boards-lists-cards.md): it
+   * vanishes at once — every read skips a card with `deletedAt` set
+   * (`card-deletion.util.ts`) — and `restore` can bring it back, untouched and
+   * in its old place, until `restoreUntil`. `purgeDeletedCards` then deletes it
+   * for good. Who may: the task's owner, as before.
+   */
+  async remove(userId: string, cardId: string): Promise<DeleteCardResponse> {
     const access = await this.boards.assertCardAccess(userId, cardId);
     if (!canManageCard(userId, access.ownerIds, access.card)) {
       throw new ForbiddenException("Only the board owner or the task creator can delete this task");
     }
-    await this.prisma.card.delete({ where: { id: cardId } });
+    const deletedAt = new Date();
+    await this.prisma.card.update({ where: { id: cardId }, data: { deletedAt } });
+    // Lazily clear anything already past its window; the cron catches the rest.
+    void this.purgeDeletedCards(deletedAt).catch((err) => this.logger.warn(`Lazy purge failed: ${String(err)}`));
+    return { restoreUntil: restoreDeadline(deletedAt).toISOString() };
+  }
+
+  /**
+   * «تراجع» (`POST /cards/:id/restore`): undo a delete while its window is
+   * open — same permission as deleting. A task that was never deleted comes
+   * back as it is. Past the window it is a 410 (and is purged on the spot);
+   * once purged, a 404 like any missing card.
+   */
+  async restore(userId: string, cardId: string) {
+    const access = await this.boards.assertCardAccess(userId, cardId, "MEMBER", { includeDeleted: true });
+    const { card } = access;
+    if (!canManageCard(userId, access.ownerIds, card)) {
+      throw new ForbiddenException("Only the board owner or the task creator can restore this task");
+    }
+    if (card.deletedAt) {
+      const now = new Date();
+      if (!isRestorable(card.deletedAt, now)) {
+        await this.purgeDeletedCards(now);
+        throw new GoneException("The time to undo this deletion has passed — the task is deleted for good");
+      }
+      // Conditional on the same stamp, so a purge that got there first wins cleanly.
+      const { count } = await this.prisma.card.updateMany({
+        where: { id: cardId, deletedAt: card.deletedAt },
+        data: { deletedAt: null },
+      });
+      if (count === 0) throw new NotFoundException("Card not found");
+    }
+    const restored = await this.prisma.card.findUniqueOrThrow({ where: { id: cardId }, include: CARD_RESPONSE_INCLUDE });
+    return serializeCard(restored);
+  }
+
+  /**
+   * Deletes for good every task whose undo window has passed — with the old
+   * permanent delete's cascade (subtasks, comments, attachments, history,
+   * access, assignees and board links all go with the row), plus its
+   * notifications (they hold a plain `cardId`, like a board delete clears its
+   * own) and its attachments' stored files, best-effort, once the row is gone.
+   * Runs every 30 seconds and lazily after a delete. Each row is deleted on the
+   * same `deletedAt` condition it was found by, so a restore racing it wins or
+   * loses cleanly — never half of each.
+   */
+  @Cron(CronExpression.EVERY_30_SECONDS)
+  async purgeDeletedCards(now: Date = new Date()): Promise<number> {
+    const cutoff = purgeCutoff(now);
+    const due = await this.prisma.card.findMany({
+      where: { deletedAt: { lt: cutoff } },
+      take: PURGE_BATCH,
+      select: { id: true, attachments: { select: { filename: true } } },
+    });
+    let purged = 0;
+    for (const card of due) {
+      const deleted = await this.prisma.$transaction(async (tx) => {
+        const { count } = await tx.card.deleteMany({ where: { id: card.id, deletedAt: { lt: cutoff } } });
+        if (count > 0) await tx.notification.deleteMany({ where: { cardId: card.id } });
+        return count > 0;
+      });
+      if (!deleted) continue;
+      purged++;
+      await Promise.all(card.attachments.map((a) => this.storage.remove(a.filename)));
+    }
+    if (purged > 0) this.logger.log(`Purged ${purged} deleted task(s)`);
+    return purged;
   }
 }
 

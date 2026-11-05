@@ -3,6 +3,7 @@ import type { MyTaskItem, MyTasksResponse } from "@app/types";
 import type { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { canAccessCard } from "../boards/boards.service";
+import { LIVE_CARD } from "../cards/card-deletion.util";
 import { COMPLETED_CATEGORIES } from "../common/util/completed.util";
 
 /** What a «مهامي» row needs of its task, on each board the task is on. */
@@ -95,7 +96,7 @@ export class MyTasksService {
         where: {
           userId,
           card: {
-            isArchived: false,
+            ...LIVE_CARD,
             list: { statusCategory: { notIn: COMPLETED_CATEGORIES } },
           },
         },
@@ -107,7 +108,7 @@ export class MyTasksService {
           subtask: {
             isDone: false,
             card: {
-              isArchived: false,
+              ...LIVE_CARD,
               list: { statusCategory: { notIn: COMPLETED_CATEGORIES } },
             },
           },

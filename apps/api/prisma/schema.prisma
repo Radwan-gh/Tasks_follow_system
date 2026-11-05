@@ -58,9 +58,15 @@ enum ListStatusCategory {
   CLOSED
 }
 
+/// Low → high: LOW, NORMAL (the default, "no priority"), MEDIUM, HIGH, URGENT.
+/// Only URGENT is shown on the card face and sorts first in a column; Postgres
+/// keeps enum values in declaration order, so MEDIUM/HIGH are inserted between
+/// NORMAL and URGENT (see migration `20261104120000_card_priority_levels`).
 enum CardPriority {
   LOW
   NORMAL
+  MEDIUM
+  HIGH
   URGENT
 }
 
@@ -291,6 +297,14 @@ model Card {
   /// `CardsService` reads this to spawn the next instance — see
   /// `design-prompt-group-3.md` §3a-3/§9.
   recurrence   Json?
+  /// Pending deletion («تراجع» within 30 s — docs/05-boards-lists-cards.md).
+  /// `DELETE /cards/:id` only stamps this; while set the card is invisible
+  /// everywhere (every read filters `deletedAt: null`, see
+  /// `cards/card-deletion.util.ts`), `POST /cards/:id/restore` clears it inside
+  /// the window, and `CardsService.purgeDeletedCards` deletes the row for good
+  /// once the window has passed. Distinct from `isArchived`: an archived card
+  /// is never purged.
+  deletedAt    DateTime?
   createdById String
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
@@ -308,6 +322,7 @@ model Card {
 
   @@index([listId, position])
   @@index([boardId, isArchived])
+  @@index([deletedAt])
 }
 
 /// "This task also appears on this board" (docs/18-multi-board-tasks.md). The

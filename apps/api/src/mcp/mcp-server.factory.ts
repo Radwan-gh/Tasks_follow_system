@@ -320,7 +320,7 @@ export class McpServerFactory {
       "get_card_history",
       {
         title: "Get card history",
-        description: "The card's audit trail: who created, moved (status changes), renamed, assigned or archived it, or changed its description, due date, priority, repeat rule or cost — and when. Due dates are YYYY-MM-DD when date-only, a full timestamp when timed; priorities are LOW/NORMAL/URGENT; repeat rules are Arabic summaries.",
+        description: "The card's audit trail: who created, moved (status changes), renamed, assigned or archived it, or changed its description, due date, priority, repeat rule or cost — and when. Due dates are YYYY-MM-DD when date-only, a full timestamp when timed; priorities are LOW/NORMAL/MEDIUM/HIGH/URGENT (low to high, NORMAL = no priority); repeat rules are Arabic summaries.",
         inputSchema: { cardId: z.string() },
         annotations: readOnly,
       },

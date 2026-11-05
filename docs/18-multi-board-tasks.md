@@ -9,7 +9,7 @@
 `getBoards` / `setBoards` / `people` في `apps/api/src/cards/cards.service.ts`. الأنواع:
 `CardSchema.placements` و`CardBoardsResponseSchema` في `packages/types/src/domain.ts`،
 و`SetCardBoardsRequestSchema` في `packages/types/src/requests.ts`. الواجهات: حقل «اللوحات»
-في `apps/mobile/src/features/cards/card-boards-field.tsx` و`CardBoardsSection` في
+في `apps/mobile/src/features/task/task-boards-row.tsx` (سطر «في [لوحة] + لوحة») و`CardBoardsSection` في
 `apps/web/src/features/boards/components/CardDetailPanel.tsx`.
 
 ## الفكرة
@@ -50,8 +50,9 @@
 | المساعد | الوظيفة |
 |---|---|
 | `positionInList` | مفتاح بطاقة في عمود، أيًّا كان مصدرها — لحساب موضع النقل من الجيران |
-| `endOfList` | مفتاح بعد آخر بطاقة حيّة في العمود من المصدرين — «أضِف في النهاية» |
-| `cardIdsInList` | التحقّق من أن الجيران المرسَلين في العمود الهدف فعلًا |
+| `endOfList` | مفتاح بعد آخر بطاقة حيّة في العمود من المصدرين — «أضِف في النهاية» (ويتخطّى مفتاح المهمة قيد الحذف كي تعود إليه عند الاستعادة) |
+| `keyRightAfter` | مفتاح مباشرة بعد بطاقة في عمود، قبل أوّل مفتاح يليها من أي صفّ — موضع نسخة المهمة |
+| `cardIdsInList` | التحقّق من أن الجيران المرسَلين في العمود الهدف فعلًا (المهمة قيد الحذف ليست جارًا) |
 | `cardIdsInColumn` | ترتيب العمود كاملًا (أداة MCP `move_card`) |
 | `listForStatus` | عمود الحالة نفسها في لوحة أخرى |
 | `mergeByPosition` | دمج المصدرين المرتّبين في ترتيب واحد (`getDetail`) |
@@ -145,6 +146,8 @@ PUT /cards/:id/boards          { boardIds: string[] }  (1 إلى 20، التكر
 | تقارير المدير وملخّص اللوحة | باللوحة الأصلية وحدها، فتُعدّ المهمة مرة واحدة ولا تتكرّر كلفتها |
 | قوالب المهام (`saveFromCard`) | باللوحة الأصلية |
 | حذف قائمة (`DELETE /lists/:id`) | يحذف روابطها، وبطاقاتها الأصلية كما كان (لا واجهة تحذف القوائم) |
+| نسخ المهمة (`POST /cards/:id/duplicate`) | النسخة على لوحة واحدة: الأصلية (أو أول لوحة للطالب من لوحاتها إن لم يستطع الإضافة في الأصلية)؛ **لا تُنسخ الروابط** |
+| حذف المهمة (حذف معلَّق 30 ثانية) | تختفي من كل لوحاتها دفعة واحدة — `getDetail` يرشّح الروابط بـ `card: LIVE_CARD` — وتعود إليها كلها عند الاستعادة؛ الروابط تُحذف مع الصفّ عند الحذف النهائي |
 
 ## الأداء: فتح اللوحة لم يتباطأ
 
@@ -174,7 +177,8 @@ PUT /cards/:id/boards          { boardIds: string[] }  (1 إلى 20، التكر
 الإزالة: لا على لوحة ليس عضوًا فيها أو مؤرشفة، ولا على آخر لوحة له في المهمة (`boardChips`).
 بعد كل حفظ تُحدَّث قائمة اللوحات أيضًا، لأن عدّاد مهام كل لوحة تغيّر.
 
-- **الجوال:** `features/cards/card-boards-field.tsx`، والنافذة ورقة سفلية (`BottomSheet`).
+- **الجوال:** `features/task/task-boards-row.tsx` تحت عنوان المهمة: «في [لوحة ✕] + لوحة»، و«+ لوحة»
+  حقل بحث وقائمة «أضف المهمة إلى لوحة أخرى» تحته (كل لوحة بالعمود ذي حالة المهمة).
   منطق المربّعات والنافذة في `lib/card-boards.ts` (`boardChips`، `pickBoards`،
   `boardInitial`، مختبَرة). الشاشة تعمل في اللوحة التي فُتحت منها ما دامت المهمة فيها، وإلا في
   أول لوحة للمستخدم من لوحاتها (`contextBoardId`). انظر [`12-mobile-app.md`](./12-mobile-app.md).

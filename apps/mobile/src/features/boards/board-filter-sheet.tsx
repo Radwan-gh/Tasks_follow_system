@@ -18,7 +18,7 @@ export function isFilterActive(filter: BoardFilter): boolean {
   return filter.myTasksOnly || filter.memberIds.length > 0 || filter.priorities.length > 0;
 }
 
-const PRIORITIES: CardPriority[] = ["LOW", "NORMAL", "URGENT"];
+const PRIORITIES: CardPriority[] = ["LOW", "NORMAL", "MEDIUM", "HIGH", "URGENT"];
 
 /** Above this many members, the chip wall needs a search box in front of it. */
 const SEARCH_THRESHOLD = 6;

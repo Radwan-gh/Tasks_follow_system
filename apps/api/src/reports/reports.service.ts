@@ -8,6 +8,7 @@ import type {
 import type { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { BoardsService } from "../boards/boards.service";
+import { NOT_DELETED } from "../cards/card-deletion.util";
 import { COMPLETED_CATEGORIES } from "../common/util/completed.util";
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
@@ -26,16 +27,18 @@ interface ReportScope {
 }
 
 /**
- * The cards a scope covers, as a Prisma filter: on one of its boards (home or
- * via a `CardBoardLink`), and — for a non-supervisor — visible by the same
- * rule as `canAccessCard` (open, or the caller is its creator, an explicit
- * member, or the owner of any board it is on).
+ * The cards a scope covers, as a Prisma filter: never one pending deletion
+ * (for anyone, a supervisor included); on one of its boards (home or via a
+ * `CardBoardLink`); and — for a non-supervisor — visible by the same rule as
+ * `canAccessCard` (open, or the caller is its creator, an explicit member, or
+ * the owner of any board it is on). Every report goes through this.
  */
 function cardScopeWhere(scope: ReportScope): Prisma.CardWhereInput {
-  if (!scope.boardIds) return {};
+  if (!scope.boardIds) return { ...NOT_DELETED };
   const ids = [...scope.boardIds];
   const { userId } = scope;
   return {
+    ...NOT_DELETED,
     AND: [
       { OR: [{ boardId: { in: ids } }, { boardLinks: { some: { boardId: { in: ids } } } }] },
       {

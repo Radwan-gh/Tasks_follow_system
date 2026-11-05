@@ -153,12 +153,32 @@ export class CardsController {
     return this.templates.saveFromCard(user.id, id, body.name);
   }
 
-  @Delete("cards/:id")
-  @HttpCode(204)
-  @ApiOperation({ summary: "Delete a card" })
+  @Post("cards/:id/duplicate")
+  @ApiOperation({ summary: "Duplicate a task right after itself: details, assignees, access and an unticked checklist" })
   @ApiParam({ name: "id", description: "Card ID" })
-  @ApiResponse({ status: 204, description: "Deleted" })
-  async remove(@CurrentUser() user: AuthUser, @Param("id") id: string) {
-    await this.cards.remove(user.id, id);
+  @ApiResponse({ status: 201, schema: zodRef("Card") })
+  duplicate(@CurrentUser() user: AuthUser, @Param("id") id: string) {
+    return this.cards.duplicate(user.id, id);
+  }
+
+  @Delete("cards/:id")
+  @HttpCode(200)
+  @ApiOperation({ summary: "Delete a card — pending for 30 seconds, undone with POST /cards/:id/restore" })
+  @ApiParam({ name: "id", description: "Card ID" })
+  @ApiResponse({ status: 200, schema: zodRef("DeleteCardResponse") })
+  @ApiResponse({ status: 403, description: "Not the task's owner" })
+  remove(@CurrentUser() user: AuthUser, @Param("id") id: string) {
+    return this.cards.remove(user.id, id);
+  }
+
+  @Post("cards/:id/restore")
+  @HttpCode(200)
+  @ApiOperation({ summary: "Undo a card's deletion within its 30-second window" })
+  @ApiParam({ name: "id", description: "Card ID" })
+  @ApiResponse({ status: 200, schema: zodRef("Card") })
+  @ApiResponse({ status: 404, description: "Card not found (or already deleted for good)" })
+  @ApiResponse({ status: 410, description: "The undo window has passed" })
+  restore(@CurrentUser() user: AuthUser, @Param("id") id: string) {
+    return this.cards.restore(user.id, id);
   }
 }

@@ -28,6 +28,7 @@ import type {
   CreateListRequest,
   CreateSubtaskRequest,
   CurrentUser,
+  DeleteCardResponse,
   List,
   LoginRequest,
   MyTasksResponse,
@@ -318,7 +319,20 @@ export function createApiClient({ baseUrl, storage, onUnauthorized }: ApiClientO
         request<CardBoardsResponse>(`/cards/${id}/boards`, { method: "PUT", body: JSON.stringify(body) }),
       /** Everyone on any of the task's boards — who its assignee and access pickers offer. */
       people: (id: string) => request<BoardMember[]>(`/cards/${id}/people`),
-      remove: (id: string) => request<void>(`/cards/${id}`, { method: "DELETE" }),
+      /**
+       * A pending delete: the task disappears at once and can be brought back
+       * with `restore` until `restoreUntil` (30 s); after that it is gone for good.
+       * Same permission as before — the task's owner (board owner or creator).
+       */
+      remove: (id: string) => request<DeleteCardResponse>(`/cards/${id}`, { method: "DELETE" }),
+      /** Undo a `remove` within its window. 410 once the window has passed, 404 once purged. */
+      restore: (id: string) => request<Card>(`/cards/${id}/restore`, { method: "POST" }),
+      /**
+       * A copy of the task — «(نسخة)» appended to its title — right after it in
+       * its column, with its details, assignees, access and checklist (unticked);
+       * not its attachments, comments or history. The caller becomes its creator.
+       */
+      duplicate: (id: string) => request<Card>(`/cards/${id}/duplicate`, { method: "POST" }),
       saveAsTemplate: (id: string, body: SaveCardAsTemplateRequest) =>
         request<Template>(`/cards/${id}/save-as-template`, { method: "POST", body: JSON.stringify(body) }),
     },

@@ -1,5 +1,6 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { Cron } from "@nestjs/schedule";
+import { LIVE_CARD } from "../cards/card-deletion.util";
 import { COMPLETED_CATEGORIES } from "../common/util/completed.util";
 import { appTimeZone, fromWallClock } from "../common/util/time-zone.util";
 import { PrismaService } from "../prisma/prisma.service";
@@ -42,7 +43,8 @@ export class ScheduledJobsService {
 
     const candidates = await this.prisma.card.findMany({
       where: {
-        isArchived: false,
+        // Neither archived nor pending deletion — a deleted task sends no reminders.
+        ...LIVE_CARD,
         // Wide enough for a date-only card whose day ends within 24h; narrowed below.
         dueDate: { not: null, lt: new Date(now.getTime() + 2 * DAY) },
         list: { statusCategory: { notIn: COMPLETED_CATEGORIES } },

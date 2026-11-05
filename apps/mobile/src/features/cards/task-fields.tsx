@@ -217,7 +217,7 @@ export function DuePill({ iso }: { iso: string }) {
 
 /** «! عاجل» in the urgent colour; «منخفض» plain. «عادي» is the default and has no row. */
 export function PriorityPill({ priority }: { priority: CardPriority }) {
-  return priority === "URGENT" ? <ValuePill text="! عاجل" tone="urgent" /> : <ValuePill text={priorityLabel(priority)} />;
+  return priority === "URGENT" ? <ValuePill text="! عاجلة" tone="urgent" /> : <ValuePill text={priorityLabel(priority)} />;
 }
 
 /** The ✕ at the end of an optional row: clears the field and puts its chip back. */

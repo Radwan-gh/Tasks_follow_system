@@ -36,12 +36,13 @@
 | `boards/board-templates.ts` أو حقل `List.statusCategory` | [`09-list-status-templates.md`](./09-list-status-templates.md) + نصّ «دليل الاستخدام» في الويب والجوال (`GuidePage.tsx`، `app/guide.tsx`) |
 | `subtasks/*` أو الإسناد (`CardAssignee`/`SubtaskAssignee`, `updateAssignees`) | [`10-subtasks-and-assignment.md`](./10-subtasks-and-assignment.md) |
 | `reports/*` أو `packages/types/src/reports.ts` | [`11-reports.md`](./11-reports.md) |
+| `cards/card-deletion.util.ts` (الحذف المعلَّق: `deletedAt`، `LIVE_CARD`/`NOT_DELETED`، `purgeDeletedCards`) أو `cards/card-duplicate.util.ts` (نسخ المهمة) | «الحذف» و«نسخ المهمة» في [`05-boards-lists-cards.md`](./05-boards-lists-cards.md) — وأي قراءة جديدة للبطاقات يجب أن ترشّح بـ `LIVE_CARD`/`NOT_DELETED` |
 | `apps/mobile/*` أو `packages/api-client/*` | [`12-mobile-app.md`](./12-mobile-app.md) |
 | `notifications/*`، `cards/comments.service.ts`، `cards/attachments.service.ts`، `cards/uploads.controller.ts`، `common/storage/attachment-storage.service.ts`، منطق التكرار، أو `users.service.ts`'s `resetPassword` | [`14-notifications-comments-attachments.md`](./14-notifications-comments-attachments.md) |
 | `mcp/*` (أدوات MCP، خادم OAuth، صفحة الدخول) أو `PUBLIC_API_URL` | [`15-mcp-server.md`](./15-mcp-server.md) |
 | `oversight/*`، `supervisor.guard.ts`، `canSupervise`/`canViewAllBoards`، أو المسار الاحتياطي للمتابع في `assertMembership` | [`16-oversight.md`](./16-oversight.md) (+ [`04-authorization.md`](./04-authorization.md)) |
 | `board-categories/*`، `Board.categoryId`، أو `groupBoardsByCategory`/`canManageBoardCategories` (ونسختها في الويب `features/boards/lib/board-sections.ts`) | [`17-board-categories.md`](./17-board-categories.md) |
-| `CardBoardLink`، `cards/card-placement.util.ts`، `assertCardAccess`/`cardPeople`، `GET/PUT /cards/:id/boards`، `GET /cards/:id/board-options`، `Card.placements`، أو حقل «اللوحات» (`card-boards-field.tsx` و`lib/card-boards.ts` في الجوال، `CardBoardsSection.tsx` و`lib/card-boards.ts` في الويب) | [`18-multi-board-tasks.md`](./18-multi-board-tasks.md) (+ [`04-authorization.md`](./04-authorization.md)) |
+| `CardBoardLink`، `cards/card-placement.util.ts`، `assertCardAccess`/`cardPeople`، `GET/PUT /cards/:id/boards`، `GET /cards/:id/board-options`، `Card.placements`، أو حقل «اللوحات» (`features/task/task-boards-row.tsx` و`lib/card-boards.ts` في الجوال، `CardBoardsSection.tsx` و`lib/card-boards.ts` في الويب) | [`18-multi-board-tasks.md`](./18-multi-board-tasks.md) (+ [`04-authorization.md`](./04-authorization.md)) |
 | مسار جديد، مكوّن معماري جديد، أو مصطلح جديد | [`01-overview.md`](./01-overview.md) + الملف المتخصّص |
 
 إن أضفت **موردًا جديدًا كليًا** (مثل التعليقات أو التسميات)، أنشئ ملفًا جديدًا

@@ -13,6 +13,12 @@ import {
   Cairo_700Bold,
   useFonts,
 } from "@expo-google-fonts/cairo";
+import {
+  IBMPlexSansArabic_400Regular,
+  IBMPlexSansArabic_500Medium,
+  IBMPlexSansArabic_600SemiBold,
+  IBMPlexSansArabic_700Bold,
+} from "@expo-google-fonts/ibm-plex-sans-arabic";
 
 import { AuthProvider, useAuth } from "@/features/auth/auth-context";
 import { usePushRegistration } from "@/features/notifications/use-push-registration";
@@ -84,6 +90,11 @@ export default function RootLayout() {
     Cairo_500Medium,
     Cairo_600SemiBold,
     Cairo_700Bold,
+    // The task screen's own face (`theme/task-tokens.ts`, from `Edit Task Prototype.dc.html`).
+    IBMPlexSansArabic_400Regular,
+    IBMPlexSansArabic_500Medium,
+    IBMPlexSansArabic_600SemiBold,
+    IBMPlexSansArabic_700Bold,
   });
 
   // Hide the splash only once Cairo is in memory, otherwise the first frame

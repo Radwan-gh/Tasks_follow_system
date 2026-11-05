@@ -5,6 +5,7 @@ import { BottomSheet } from "@/components/bottom-sheet";
 import { AppText } from "@/components/text";
 import { displayUrl, parseRichText } from "@/lib/rich-text";
 import { MIN_TOUCH_TARGET, colors, fonts, radii, spacing } from "@/theme/tokens";
+import { t, taskFonts } from "@/theme/task-tokens";
 
 /**
  * A description or comment as the task screen shows it (6b–6d): links found
@@ -19,6 +20,7 @@ export function RichTextView({
   lineHeight,
   color = colors.ink,
   onEditLink,
+  look = "app",
 }: {
   text: string;
   mentionNames?: readonly string[];
@@ -27,10 +29,14 @@ export function RichTextView({
   color?: string;
   /** Offered from a link's long press — the screen opens its editor there. Omit when read-only. */
   onEditLink?: () => void;
+  /** `task`: the task screen's face and link colour (`theme/task-tokens.ts`). */
+  look?: "app" | "task";
 }) {
   const segments = useMemo(() => parseRichText(text, mentionNames), [text, mentionNames]);
   const [menuFor, setMenuFor] = useState<{ url: string; label: string } | null>(null);
-  const base: TextStyle = { fontFamily: fonts.regular, fontSize, lineHeight, color };
+  const face = look === "task" ? taskFonts : fonts;
+  const linkColor = look === "task" ? t.accent : colors.link;
+  const base: TextStyle = { fontFamily: face.regular, fontSize, lineHeight, color };
 
   return (
     <>
@@ -44,8 +50,9 @@ export function RichTextView({
                 onPress={() => void Linking.openURL(segment.url)}
                 onLongPress={() => setMenuFor({ url: segment.url, label: segment.label })}
                 weight="semibold"
-                color={colors.link}
+                color={linkColor}
                 style={{
+                  fontFamily: face.semibold,
                   fontSize,
                   lineHeight,
                   textDecorationLine: "underline",
@@ -61,15 +68,15 @@ export function RichTextView({
               <AppText
                 key={i}
                 weight="semibold"
-                color={colors.link}
-                style={{ fontSize, lineHeight, backgroundColor: colors.accentSoft }}
+                color={linkColor}
+                style={{ fontFamily: face.semibold, fontSize, lineHeight, backgroundColor: look === "task" ? t.accentSoft : colors.accentSoft }}
               >
                 {segment.text}
               </AppText>
             );
           }
           return (
-            <AppText key={i} weight={segment.bold ? "bold" : "regular"} color={color} style={{ fontSize, lineHeight }}>
+            <AppText key={i} color={color} style={{ fontFamily: segment.bold ? face.bold : face.regular, fontSize, lineHeight }}>
               {segment.text}
             </AppText>
           );

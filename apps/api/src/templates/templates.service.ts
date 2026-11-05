@@ -61,7 +61,8 @@ export class TemplatesService {
   /** Card detail's «حفظ كقالب» — the server reads the card's current title/description/subtasks, the client only names it. */
   async saveFromCard(userId: string, cardId: string, name: string): Promise<Template> {
     const card = await this.prisma.card.findUnique({
-      where: { id: cardId },
+      // A task pending deletion is gone, as far as anyone can tell.
+      where: { id: cardId, deletedAt: null },
       include: { subtasks: { orderBy: { position: "asc" } } },
     });
     if (!card) throw new NotFoundException("Card not found");

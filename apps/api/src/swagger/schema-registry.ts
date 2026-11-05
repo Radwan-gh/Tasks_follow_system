@@ -14,6 +14,7 @@ import {
   CardSchema,
   CardBoardRefSchema,
   CardBoardsResponseSchema,
+  DeleteCardResponseSchema,
   SubtaskSchema,
   CardActivitySchema,
   ListSchema,
@@ -93,6 +94,7 @@ registry.register("BoardOwnerSummary", BoardOwnerSummarySchema);
 registry.register("Card", CardSchema);
 registry.register("CardBoardRef", CardBoardRefSchema);
 registry.register("CardBoardsResponse", CardBoardsResponseSchema);
+registry.register("DeleteCardResponse", DeleteCardResponseSchema);
 registry.register("Subtask", SubtaskSchema);
 registry.register("CardActivity", CardActivitySchema);
 registry.register("List", ListSchema);

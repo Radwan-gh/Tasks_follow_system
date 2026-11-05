@@ -13,6 +13,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useKeyboardHeight } from "@/lib/keyboard";
 import { colors, radii } from "@/theme/tokens";
+import { t, taskRadii } from "@/theme/task-tokens";
 
 /** Breathing room under the sheet's last control, before the inset or the keyboard. */
 const SHEET_BOTTOM_PAD = 20;
@@ -48,6 +49,7 @@ export function BottomSheet({
   children,
   scrollable = true,
   onShow,
+  look = "app",
 }: {
   visible: boolean;
   onClose: () => void;
@@ -56,6 +58,12 @@ export function BottomSheet({
   onShow?: () => void;
   /** Pass `false` when the body brings its own vertical scroller — two nested ones fight over the gesture. */
   scrollable?: boolean;
+  /**
+   * `task`: the task screen's sheets (`Edit Task Prototype.dc.html`) — 24px
+   * corners, a smaller handle, its scrim. `action`: a phone-style action sheet
+   * — no panel of its own; the children draw their rounded groups.
+   */
+  look?: "app" | "task" | "action";
 }) {
   const insets = useSafeAreaInsets();
   const { height: windowHeight } = useWindowDimensions();
@@ -98,7 +106,9 @@ export function BottomSheet({
       onRequestClose={onClose}
       onShow={onShow}
     >
-      <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: colors.scrim, opacity: progress }]}>
+      <Animated.View
+        style={[StyleSheet.absoluteFill, { backgroundColor: look === "app" ? colors.scrim : t.scrim, opacity: progress }]}
+      >
         <Pressable accessibilityRole="button" accessibilityLabel="إغلاق" onPress={onClose} style={{ flex: 1 }} />
       </Animated.View>
 
@@ -106,9 +116,9 @@ export function BottomSheet({
         <Animated.View
           onLayout={(e) => setSheetHeight(e.nativeEvent.layout.height)}
           style={{
-            backgroundColor: colors.surface,
-            borderTopStartRadius: radii.sheet,
-            borderTopEndRadius: radii.sheet,
+            backgroundColor: look === "action" ? "transparent" : colors.surface,
+            borderTopStartRadius: look === "task" ? taskRadii.sheet : radii.sheet,
+            borderTopEndRadius: look === "task" ? taskRadii.sheet : radii.sheet,
             // The keyboard covers the gesture bar, so it replaces the inset.
             paddingBottom: SHEET_BOTTOM_PAD + Math.max(insets.bottom, keyboardHeight),
             // The box still runs to the bottom of the window — the keyboard is
@@ -118,9 +128,15 @@ export function BottomSheet({
             transform: [{ translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [offscreen, 0] }) }],
           }}
         >
-          <View style={{ alignItems: "center", paddingVertical: 10 }}>
-            <View style={{ width: 44, height: 5, borderRadius: 999, backgroundColor: colors.line }} />
-          </View>
+          {look === "action" ? null : look === "task" ? (
+            <View style={{ alignItems: "center", paddingTop: 8, paddingBottom: 4 }}>
+              <View style={{ width: 36, height: 5, borderRadius: 999, backgroundColor: t.handle }} />
+            </View>
+          ) : (
+            <View style={{ alignItems: "center", paddingVertical: 10 }}>
+              <View style={{ width: 44, height: 5, borderRadius: 999, backgroundColor: colors.line }} />
+            </View>
+          )}
           {scrollable ? (
             <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} bounces={false}>
               {children}

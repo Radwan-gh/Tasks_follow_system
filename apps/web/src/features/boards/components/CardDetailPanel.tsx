@@ -41,7 +41,18 @@ interface CardDetailPanelProps {
   onBoardsChanged: (boardIds: string[]) => void;
 }
 
-const PRIORITY_LABEL: Record<CardPriority, string> = { LOW: "منخفضة", NORMAL: "عادية", URGENT: "عاجل" };
+/**
+ * Low → high, the picker's order. Mirrors `CARD_PRIORITY_LABELS` in
+ * `packages/types/src/card-activity-content.ts` — local for the same
+ * bundle-size reason as `describeActivity` below. Keep the two in sync.
+ */
+const PRIORITY_LABEL: Record<CardPriority, string> = {
+  LOW: "منخفضة",
+  NORMAL: "عادية",
+  MEDIUM: "متوسطة",
+  HIGH: "عالية",
+  URGENT: "عاجلة",
+};
 const WEEKDAY_LABELS = ["أحد", "إثنين", "ثلاثاء", "أربعاء", "خميس", "جمعة", "سبت"];
 
 type RecurrenceFreq = "NONE" | "DAILY" | "WEEKLY" | "MONTHLY";
@@ -192,8 +203,8 @@ export function CardDetailPanel({
 
         <CardBoardsSection cardId={card.id} readOnly={readOnly} onSaved={onBoardsChanged} />
 
-        {/* Priority — 3-way toggle, only URGENT gets a face indicator elsewhere. */}
-        <div className="flex items-center gap-1.5">
+        {/* Priority — five levels, low → high; only URGENT gets a face indicator elsewhere. */}
+        <div className="flex flex-wrap items-center gap-1.5">
           {(Object.keys(PRIORITY_LABEL) as CardPriority[]).map((p) => (
             <button
               key={p}
@@ -820,8 +831,6 @@ function AttachmentsSection({
   );
 }
 
-const HISTORY_PRIORITY_LABEL: Record<CardPriority, string> = { LOW: "منخفض", NORMAL: "عادي", URGENT: "عاجل" };
-
 /**
  * Arabic, human-readable description of a single history event. Mirrors
  * `packages/types/src/card-activity-content.ts`'s `describeCardActivity`, which
@@ -830,7 +839,7 @@ const HISTORY_PRIORITY_LABEL: Record<CardPriority, string> = { LOW: "منخفض"
  */
 function describeActivity(activity: CardActivity): string {
   const { fromValue, toValue } = activity;
-  const priority = (value: string | null) => HISTORY_PRIORITY_LABEL[value as CardPriority] ?? value ?? "؟";
+  const priority = (value: string | null) => PRIORITY_LABEL[value as CardPriority] ?? value ?? "؟";
   switch (activity.type) {
     case "CREATED":
       return toValue ? `أنشأ البطاقة في «${toValue}»` : "أنشأ البطاقة";

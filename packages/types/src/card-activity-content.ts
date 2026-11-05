@@ -8,7 +8,17 @@ import type { CardActivity, CardPriority, RecurrenceRule } from "./domain";
  * drift with every new event type.
  */
 
-export const CARD_PRIORITY_LABELS: Record<CardPriority, string> = { LOW: "منخفض", NORMAL: "عادي", URGENT: "عاجل" };
+/**
+ * Feminine, agreeing with «أولوية». Keyed in `CardPriority` order (low → high),
+ * so `Object.keys` of this map is also a picker's order.
+ */
+export const CARD_PRIORITY_LABELS: Record<CardPriority, string> = {
+  LOW: "منخفضة",
+  NORMAL: "عادية",
+  MEDIUM: "متوسطة",
+  HIGH: "عالية",
+  URGENT: "عاجلة",
+};
 
 /** 0 = Sunday, matching `RecurrenceRule.weekdays` and `Date.getDay()`. */
 export const WEEKDAY_LABELS = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];

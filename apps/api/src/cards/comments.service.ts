@@ -82,8 +82,14 @@ export class CommentsService {
   }
 
   async remove(userId: string, cardId: string, commentId: string): Promise<void> {
-    const comment = await this.prisma.comment.findUnique({ where: { id: commentId } });
-    if (!comment || comment.cardId !== cardId) throw new NotFoundException("Comment not found");
+    const comment = await this.prisma.comment.findUnique({
+      where: { id: commentId },
+      include: { card: { select: { deletedAt: true } } },
+    });
+    // A comment on a task pending deletion is as gone as the task.
+    if (!comment || comment.cardId !== cardId || comment.card.deletedAt) {
+      throw new NotFoundException("Comment not found");
+    }
     if (comment.authorId !== userId) {
       throw new ForbiddenException("Only the comment's author can delete it");
     }

@@ -139,7 +139,11 @@ builds and `I18nManager.forceRTL` covers Expo Go, where config plugins do not
 apply. React Native does not inherit fonts, so **all** text goes through
 `src/components/text.tsx` (Cairo + palette + Arabic line height) — a bare
 `<Text>` silently falls back to the system face. Colours, radii and spacing come
-from `src/theme/tokens.ts`; a hex literal in a component is a bug. Moving a
+from `src/theme/tokens.ts`; a hex literal in a component is a bug. The one
+deliberate exception is the task screen (`app/card/[id].tsx` + `features/task/*`),
+built on `Edit Task Prototype.dc.html` in that prototype's own look: its text
+goes through `TText` (IBM Plex Sans Arabic) and its colours through
+`src/theme/task-tokens.ts` — the same rules, a different token file. Moving a
 card is the ← arrow, a move sheet, or a long-press drag
 (`features/boards/board-drag.tsx`: reorder within the column, drop on a status
 chip, hold at the screen edge to page) — drop neighbours come from
@@ -211,6 +215,13 @@ worded by `describeCardActivity` (`packages/types/src/card-activity-content.ts`)
 — imported by mobile, mirrored by hand in web's `CardDetailPanel.tsx`; a new
 activity type needs the Prisma enum, the zod enum and both wordings. Rows are never mutated, only
 inserted, and cascade-delete with their card.
+
+Deleting a card is a **pending delete**: `DELETE /cards/:id` stamps
+`Card.deletedAt`, `POST /cards/:id/restore` undoes it within 30 s, and
+`CardsService.purgeDeletedCards` removes it for good afterwards. Any new card
+read must exclude pending-deleted rows — use `NOT_DELETED` / `LIVE_CARD` from
+`apps/api/src/cards/card-deletion.util.ts` (card-scoped routes already get it
+through `assertCardAccess`).
 
 ### Authorization: single source of truth
 
