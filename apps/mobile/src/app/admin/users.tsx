@@ -337,8 +337,8 @@ export default function AdminUsersScreen() {
                   />
                   <Badge
                     label={u.isActive ? "نشط" : "غير مفعّل"}
-                    background={u.isActive ? "#E6F4EE" : colors.alertSoft}
-                    color={u.isActive ? "#1F7A5C" : colors.alert}
+                    background={u.isActive ? colors.savedSoft : colors.alertSoft}
+                    color={u.isActive ? colors.saved : colors.alert}
                   />
                   {u.role !== "ADMIN" && u.canSendNotifications ? (
                     <Badge label="يرسل الإشعارات" background={colors.accentSoft} color={colors.accent} />

@@ -7,17 +7,11 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { QueryClientProvider } from "@tanstack/react-query";
 import {
-  Cairo_400Regular,
-  Cairo_500Medium,
-  Cairo_600SemiBold,
-  Cairo_700Bold,
-  useFonts,
-} from "@expo-google-fonts/cairo";
-import {
   IBMPlexSansArabic_400Regular,
   IBMPlexSansArabic_500Medium,
   IBMPlexSansArabic_600SemiBold,
   IBMPlexSansArabic_700Bold,
+  useFonts,
 } from "@expo-google-fonts/ibm-plex-sans-arabic";
 
 import { AuthProvider, useAuth } from "@/features/auth/auth-context";
@@ -85,19 +79,15 @@ function RootNavigator() {
 export default function RootLayout() {
   useAutoUpdate();
 
+  // The app's one face (`theme/tokens.ts`), from the task page's design.
   const [fontsLoaded, fontError] = useFonts({
-    Cairo_400Regular,
-    Cairo_500Medium,
-    Cairo_600SemiBold,
-    Cairo_700Bold,
-    // The task screen's own face (`theme/task-tokens.ts`, from `Edit Task Prototype.dc.html`).
     IBMPlexSansArabic_400Regular,
     IBMPlexSansArabic_500Medium,
     IBMPlexSansArabic_600SemiBold,
     IBMPlexSansArabic_700Bold,
   });
 
-  // Hide the splash only once Cairo is in memory, otherwise the first frame
+  // Hide the splash only once the font is in memory, otherwise the first frame
   // renders in the system font and visibly reflows. A font *error* still
   // releases the splash — a fallback face beats a stuck splash screen.
   const onReady = useCallback(async () => {

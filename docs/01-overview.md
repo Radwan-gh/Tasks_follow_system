@@ -45,7 +45,7 @@
   وتضمّ صفحة «دليل الاستخدام» (`/guide`، ولها نظير في الجوال) تشرح للمستخدم طريقة
   العمل، أولها قسم حالات المهام (انظر [`09-list-status-templates.md`](./09-list-status-templates.md)).
 - **`apps/mobile`** — تطبيق الجوال الأصيل مبني بـ **Expo / React Native** مع
-  **expo-router**، ينفّذ تصميم الجوال (RTL، خط Cairo). يشترك مع الويب في
+  **expo-router**، ينفّذ تصميم الجوال (RTL، خط IBM Plex Sans Arabic وألوان تصميم صفحة المهمة). يشترك مع الويب في
   `packages/types` و`packages/api-client`، ويستبدل السحب والإفلات بإيماءات أبسط
   للنقل بين الحالات (انظر [`12-mobile-app.md`](./12-mobile-app.md)).
 

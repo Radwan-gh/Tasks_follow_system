@@ -1,127 +1,130 @@
 /**
- * The design's palette, radii and spacing, defined once.
+ * The app's palette, type, radii and spacing, defined once.
  *
- * Source: `Tasks Mobile Redesign.dc.html` and `v2-new-style.md` §2. Components
- * must reference these names — a raw hex literal anywhere else is a bug,
- * because it is what made the web app's colours drift in the first place.
+ * Source: the task page's theme — `Edit Task Prototype.dc.html`
+ * (docs/app_design/proposals/tasks page new design) — applied to the whole
+ * app at the user's request: IBM Plex Sans Arabic, a cool grey canvas, a
+ * near-black ink, a strong blue and tighter corners. Layouts still follow
+ * `Tasks Mobile Redesign.dc.html`; only the look changed. `task-tokens.ts`
+ * holds the task screen's extra shades on the same palette.
+ *
+ * Components must reference these names — a raw hex literal anywhere else is
+ * a bug, because it is what made the web app's colours drift in the first place.
  */
 
 export const colors = {
   /** Primary text. */
-  ink: "#23232A",
-  /** Secondary text, disabled states, the «انتهى» status. */
-  muted: "#8B8B95",
+  ink: "#0F1115",
+  /** Secondary text, disabled states. */
+  muted: "#5F6472",
   /** Hairline borders and separators. */
-  line: "#EAE8E3",
+  line: "#E2E3E8",
   /** Cards, sheets, bars — anything raised above the canvas. */
   surface: "#FFFFFF",
   /** The page behind everything. */
-  canvas: "#F7F6F3",
+  canvas: "#F3F4F6",
 
-  accent: "#4A6FD4",
-  accentSoft: "#EAEFFB",
+  accent: "#2155E5",
+  accentSoft: "#E9EEFE",
 
   /** Something went wrong, or a due date has passed. */
-  alert: "#C0503C",
-  alertSoft: "#FBE9E7",
+  alert: "#D92D20",
+  alertSoft: "#FDE4E1",
 
-  /** Priority: عاجل. Deliberately distinct from both `status.inProgress`
-   *  (amber) and `alert` (red) — see `v2-new-style.md` §7.3. */
-  urgent: "#C05A17",
-  urgentSoft: "#FCEEDF",
+  /** Priority: عاجلة — the prototype's urgent flag, the same red as an alert. */
+  urgent: "#D92D20",
+  urgentSoft: "#FDE4E1",
 
-  /** The dim behind a bottom sheet — `ink` at 40%. */
-  scrim: "rgba(35,35,42,0.4)",
+  /** The dim behind a bottom sheet. */
+  scrim: "rgba(15,17,21,0.48)",
 
-  /** Quieter than `muted`: counts, «ضمن: …», «لا تُطوى». */
-  faint: "#9A9AA4",
+  /** Quieter than `muted`: counts, «ضمن: …», «لا تُطوى», placeholders. */
+  faint: "#8C909C",
   /** Icon/text on a neutral chip or a bordered icon button. */
-  slate: "#5B6273",
+  slate: "#3D424E",
   /** A neutral status chip's fill («جديد», «جاهز للتنفيذ»). */
-  slateSoft: "#F1F2F5",
-  /** A due-date chip's fill. */
-  chip: "#F4F3EF",
-  /** An unticked tick box's border. */
-  lineStrong: "#D8D5CE",
+  slateSoft: "#E7E8EC",
+  /** A due-date chip's fill, and a person chip's. */
+  chip: "#F3F4F6",
+  /** An unticked tick box's border, chip and input borders. */
+  lineStrong: "#D9DBE1",
   /** An overdue row's border, and the «متأخّرة» count beside its heading. */
-  alertLine: "#E4CFCB",
-  alertMuted: "#B57366",
+  alertLine: "#F7C1BB",
+  alertMuted: "#B42318",
 
-  // The task screen (6a–6d). Names, not hexes, so its rows stay one family.
-  /** Secondary copy on the task screen: the ✕/›/⋯ glyphs, filter chips, notes. */
-  subtle: "#6E6E78",
-  /** A name inside a timeline line; the 6c toolbar glyphs. */
-  inkSoft: "#3A3A44",
+  /** Secondary glyphs: the ✕/›/⋯ in headers, filter chips, notes. */
+  subtle: "#5F6472",
+  /** A name inside a timeline line; toolbar glyphs. */
+  inkSoft: "#2B2F38",
   /** A link inside a description or comment, and its underline. */
-  link: "#3557B0",
-  linkUnderline: "#9FB4EA",
+  link: "#2155E5",
+  linkUnderline: "#C9D6FA",
   /** The divider between rows inside one rounded group. */
-  hairline: "#F1F0EC",
+  hairline: "#ECEDF1",
   /** An empty optional field's dashed chip, and the dashed «+» add circle. */
-  dashed: "#D6D4CE",
-  dashedStrong: "#C9C8CF",
-  /** A ticked subtask and the subtasks progress bar. */
-  done: "#4FA383",
-  /** «✓ حُفظ» in the task header. */
-  saved: "#1F7A5C",
-  /** «اليوم» / «أمس» day markers in the timeline. */
-  dayMarker: "#EDECE8",
-  /** The description editor's formatting bar. */
-  toolbar: "#FAFAF8",
+  dashed: "#D9DBE1",
+  dashedStrong: "#B8BBC6",
+  /** A ticked subtask, a progress bar, an active account. */
+  done: "#0E9F6E",
+  /** «✓ حُفظ»; the text on a «done»/«active» badge. */
+  saved: "#0A7A52",
+  /** The fill behind a «done»/«active» badge. */
+  savedSoft: "#D3F0E2",
+  /** «اليوم» / «أمس» day markers in a timeline. */
+  dayMarker: "#E7E8EC",
+  /** A formatting bar above the keyboard. */
+  toolbar: "#F7F8FA",
 } as const;
 
-/**
- * The task screen's status pill (6a/6b): a soft fill and a darker text per
- * status. The design draws «قيد التنفيذ» only; the others follow its recipe
- * — the status colour's own tint, text from the same family.
- */
+/** A status pill: a soft fill and a darker text per status (as `task-tokens.ts`). */
 export const statusPillColors = {
-  NEW: { bg: "#F1F2F5", fg: "#5B6273" },
-  READY: { bg: "#EAEFFB", fg: "#3557B0" },
-  IN_PROGRESS: { bg: "#FBF1E1", fg: "#8F5D12" },
-  REVIEW: { bg: "#EAEFFB", fg: "#3557B0" },
-  DONE: { bg: "#E6F4EE", fg: "#1F7A5C" },
-  CLOSED: { bg: "#F4F3EF", fg: "#6E6E78" },
-  UNCATEGORIZED: { bg: "#F1F2F5", fg: "#5B6273" },
+  NEW: { bg: "#E7E8EC", fg: "#2B2F38" },
+  READY: { bg: "#DCE5FD", fg: "#1A3FB0" },
+  IN_PROGRESS: { bg: "#FDEBCB", fg: "#7A3E00" },
+  REVIEW: { bg: "#DCE5FD", fg: "#1A3FB0" },
+  DONE: { bg: "#D3F0E2", fg: "#0A5C3D" },
+  CLOSED: { bg: "#E7E8EC", fg: "#3D424E" },
+  UNCATEGORIZED: { bg: "#E7E8EC", fg: "#2B2F38" },
 } as const;
 
 /** A status chip's fill and text («قيد التنفيذ» is amber; the rest stay neutral). */
 export const statusChipColors = {
-  IN_PROGRESS: { bg: "#FBEFE6", fg: "#B9743A" },
-  default: { bg: colors.slateSoft, fg: colors.slate },
+  IN_PROGRESS: { bg: "#FDEBCB", fg: "#7A3E00" },
+  default: { bg: colors.slateSoft, fg: colors.inkSoft },
 } as const;
 
-/** One colour per status category, keyed to `ListStatusCategory`. */
+/** One colour per status category, keyed to `ListStatusCategory` — the prototype's status dots. */
 export const statusColors = {
-  NEW: "#A9AEC0",
-  READY: "#6E8AD8",
-  IN_PROGRESS: "#E0A34A",
+  NEW: "#6B7080",
+  READY: "#2155E5",
+  IN_PROGRESS: "#D97706",
   /** Retired from the board template but still carried by older lists. */
-  REVIEW: "#6E8AD8",
-  DONE: "#59B08A",
-  CLOSED: "#8B8B95",
+  REVIEW: "#2155E5",
+  DONE: "#0E9F6E",
+  CLOSED: "#8C909C",
   /** Manually created lists carry no category. */
-  UNCATEGORIZED: "#A9AEC0",
+  UNCATEGORIZED: "#6B7080",
 } as const;
 
-/** Rotating per-member avatar colours — the design's five member-chip swatches. */
+/** Rotating per-member avatars: the prototype's solid fills with white initials. */
 export const avatarPalette = [
-  { bg: "#EAEFFB", fg: "#4A6FD4" },
-  { bg: "#F3ECFB", fg: "#8B5FC7" },
-  { bg: "#FBEFE6", fg: "#B9743A" },
-  { bg: "#E6F4EE", fg: "#1F7A5C" },
-  { bg: "#EDEFF3", fg: "#5B6273" },
+  { bg: "#2155E5", fg: "#FFFFFF" },
+  { bg: "#B45309", fg: "#FFFFFF" },
+  { bg: "#0E7A52", fg: "#FFFFFF" },
+  { bg: "#C2352B", fg: "#FFFFFF" },
+  { bg: "#3D424E", fg: "#FFFFFF" },
+  { bg: "#0F7490", fg: "#FFFFFF" },
 ] as const;
 
 export const radii = {
-  card: 22,
-  /** «مهامي»'s task rows — the design draws them at 20, a step under the board's cards. */
-  row: 20,
+  card: 14,
+  /** «مهامي»'s task rows. */
+  row: 14,
   /** A 36px icon button such as a row's ← arrow. */
-  iconButton: 12,
+  iconButton: 10,
   chip: 999,
-  field: 16,
-  sheet: 30,
+  field: 12,
+  sheet: 24,
 } as const;
 
 export const spacing = {
@@ -140,11 +143,12 @@ export const spacing = {
  */
 export const MIN_TOUCH_TARGET = 44;
 
+/** IBM Plex Sans Arabic, loaded in `app/_layout.tsx`. */
 export const fonts = {
-  regular: "Cairo_400Regular",
-  medium: "Cairo_500Medium",
-  semibold: "Cairo_600SemiBold",
-  bold: "Cairo_700Bold",
+  regular: "IBMPlexSansArabic_400Regular",
+  medium: "IBMPlexSansArabic_500Medium",
+  semibold: "IBMPlexSansArabic_600SemiBold",
+  bold: "IBMPlexSansArabic_700Bold",
 } as const;
 
 export const fontSizes = {
@@ -155,3 +159,6 @@ export const fontSizes = {
   heading: 22,
   display: 30,
 } as const;
+
+/** Line height per font size: IBM Plex Sans Arabic needs less leading than Cairo did. */
+export const LINE_HEIGHT = 1.55;

@@ -145,7 +145,17 @@ createApiClient({ baseUrl, storage, onUnauthorized })
 
 لا يرث React Native الخط: `<Text>` عاريًا يقع على خط النظام، وهو في العربية
 مختلف بوضوح عن بقية الواجهة. لذلك يمرّ **كل** نصّ عبر `components/text.tsx`
-الذي يطبّق Cairo والألوان وارتفاع سطر أوسع (×1.7) يناسب العربية.
+الذي يطبّق الخطّ والألوان وارتفاع سطر أوسع (`LINE_HEIGHT` = ×1.55) يناسب العربية.
+
+**مظهر التطبيق كلّه من تصميم صفحة المهمة** (`Edit Task Prototype.dc.html` في
+`docs/app_design/proposals/tasks page new design`) بقرار المستخدم: خطّ **IBM Plex Sans Arabic**
+(يُحمَّل وحده في `app/_layout.tsx`؛ أُزيل تحميل Cairo)، قماش رمادي بارد `#F3F4F6`، حبر شبه أسود
+`#0F1115`، أزرق `#2155E5`، أحمر `#D92D20` للتنبيه وللأولوية «عاجلة» معًا (كما في النموذج — لم
+يعد «العاجل» لونًا مستقلًّا عن التنبيه)، صور رمزية دوائر ملوّنة بحروف بيضاء، وزوايا أضيق
+(بطاقات 14، حقول 12، أوراق 24). كلّها **قيم** في `theme/tokens.ts` بالأسماء نفسها، فلم تتغيّر
+أي شاشة في بنيتها: **التخطيط** باقٍ من `Tasks Mobile Redesign.dc.html`، و**المظهر** من صفحة
+المهمة. ألوان الأيقونة وشاشة البداية والإشعار في `app.json` (الأخضر `#1F7A5C`) لم تتغيّر لأنها
+إعدادات أصيلة لا تصل إلا بـAPK جديد.
 
 الخطوط تُحمَّل عبر `@expo-google-fonts/cairo`، وشاشة البداية (Splash) تبقى ظاهرة
 حتى تُحمَّل — وإلّا ظهر أول إطار بخط النظام ثم أُعيد ترتيب الشاشة أمام المستخدم.
@@ -257,7 +267,7 @@ createApiClient({ baseUrl, storage, onUnauthorized })
 
 الصواب: `height: TAB_BAR_CONTENT_HEIGHT + insets.bottom` مع
 `paddingBottom: insets.bottom` من `useSafeAreaInsets()`. وتُعطى التسمية
-`lineHeight` صريحًا لأن Cairo يقتطع صاعدات العربية ونازلاتها عند ارتفاع السطر
+`lineHeight` صريحًا لأن الخطّ العربي تُقتطع صاعداته ونازلاته عند ارتفاع السطر
 الافتراضي — نفس سبب ضبطه في `components/text.tsx`.
 
 ## لوحة المفاتيح: إفساح المجال لها يدويًا
@@ -414,9 +424,8 @@ createApiClient({ baseUrl, storage, onUnauthorized })
 
 **شاشة المهمة (التعديل)** — `app/card/[id].tsx`، بعرض modal فوق شاشة اللوحة، على
 `Edit Task Prototype.dc.html` (في `docs/app_design/proposals/tasks page new design`)
-**وبمظهره هو**: خطّ IBM Plex Sans Arabic (يُحمَّل في `app/_layout.tsx`)، وألوانه وزواياه في
-`theme/task-tokens.ts` (`t`، `taskStatusColors`، `taskPriorityColors`، `taskAvatarFills`)،
-فتختلف عن بقية التطبيق (Cairo و`tokens.ts`) عمدًا بطلب المستخدم. قطعها في
+**وبمظهره هو** — وهو اليوم مظهر التطبيق كلّه (انظر أعلاه) — ودرجاته الإضافية في
+`theme/task-tokens.ts` (`t`، `taskStatusColors`، `taskPriorityColors`، `taskAvatarFills`). قطعها في
 `features/task/`: `task-ui.tsx` (`TText` بالخطّ الجديد، `TAvatar` دائرة ملوّنة بحروف بيضاء،
 `TCard`، `TPill`، `SectionHeader`، `SectionChip`، `TopToast`، `TDialog`)، و`BottomSheet` بـ`look="task"`
 (زوايا 24 ومقبض أصغر) أو `look="action"` (ورقة إجراءات بلا لوح). من الأعلى:
