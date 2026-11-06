@@ -7,12 +7,12 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { QueryClientProvider } from "@tanstack/react-query";
 import {
-  IBMPlexSansArabic_400Regular,
-  IBMPlexSansArabic_500Medium,
-  IBMPlexSansArabic_600SemiBold,
-  IBMPlexSansArabic_700Bold,
+  NotoNaskhArabic_400Regular,
+  NotoNaskhArabic_500Medium,
+  NotoNaskhArabic_600SemiBold,
+  NotoNaskhArabic_700Bold,
   useFonts,
-} from "@expo-google-fonts/ibm-plex-sans-arabic";
+} from "@expo-google-fonts/noto-naskh-arabic";
 
 import { AuthProvider, useAuth } from "@/features/auth/auth-context";
 import { usePushRegistration } from "@/features/notifications/use-push-registration";
@@ -81,10 +81,10 @@ export default function RootLayout() {
 
   // The app's one face (`theme/tokens.ts`), from the task page's design.
   const [fontsLoaded, fontError] = useFonts({
-    IBMPlexSansArabic_400Regular,
-    IBMPlexSansArabic_500Medium,
-    IBMPlexSansArabic_600SemiBold,
-    IBMPlexSansArabic_700Bold,
+    NotoNaskhArabic_400Regular,
+    NotoNaskhArabic_500Medium,
+    NotoNaskhArabic_600SemiBold,
+    NotoNaskhArabic_700Bold,
   });
 
   // Hide the splash only once the font is in memory, otherwise the first frame

@@ -3,7 +3,7 @@
  *
  * Source: the task page's theme — `Edit Task Prototype.dc.html`
  * (docs/app_design/proposals/tasks page new design) — applied to the whole
- * app at the user's request: IBM Plex Sans Arabic, a cool grey canvas, a
+ * app at the user's request: a cool grey canvas, a
  * near-black ink, a strong blue and tighter corners. Layouts still follow
  * `Tasks Mobile Redesign.dc.html`; only the look changed. `task-tokens.ts`
  * holds the task screen's extra shades on the same palette.
@@ -151,12 +151,12 @@ export const spacing = {
  */
 export const MIN_TOUCH_TARGET = 44;
 
-/** IBM Plex Sans Arabic, loaded in `app/_layout.tsx`. */
+/** Noto Naskh Arabic, the user's pick over IBM Plex Sans Arabic (2026-11-07); loaded in `app/_layout.tsx`. */
 export const fonts = {
-  regular: "IBMPlexSansArabic_400Regular",
-  medium: "IBMPlexSansArabic_500Medium",
-  semibold: "IBMPlexSansArabic_600SemiBold",
-  bold: "IBMPlexSansArabic_700Bold",
+  regular: "NotoNaskhArabic_400Regular",
+  medium: "NotoNaskhArabic_500Medium",
+  semibold: "NotoNaskhArabic_600SemiBold",
+  bold: "NotoNaskhArabic_700Bold",
 } as const;
 
 export const fontSizes = {
@@ -168,5 +168,8 @@ export const fontSizes = {
   display: 30,
 } as const;
 
-/** Line height per font size: IBM Plex Sans Arabic needs less leading than Cairo did. */
+/**
+ * Line height per font size. Noto Naskh's natural line is 1.70em; 1.55 still
+ * clears its letters, and long text (descriptions, comments) sets taller lines.
+ */
 export const LINE_HEIGHT = 1.55;

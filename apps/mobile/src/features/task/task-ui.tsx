@@ -6,7 +6,7 @@ import { t, taskAvatarFills, taskFonts, taskRadii } from "@/theme/task-tokens";
 
 /**
  * The task screen's building blocks, drawn from `Edit Task Prototype.dc.html`.
- * Everything here uses `theme/task-tokens.ts` and IBM Plex Sans Arabic — the
+ * Everything here uses `theme/task-tokens.ts` and Noto Naskh Arabic — the
  * rest of the app keeps Cairo and `tokens.ts`.
  */
 

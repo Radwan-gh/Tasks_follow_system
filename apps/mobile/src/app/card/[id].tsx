@@ -49,7 +49,7 @@ function accessNote(viewerIds: ReadonlySet<string>, meId: string | undefined): s
 /**
  * `/card/:id` — the task screen, after `Edit Task Prototype.dc.html`
  * (docs/app_design/proposals/tasks page new design), in that prototype's own
- * look (`theme/task-tokens.ts`, IBM Plex Sans Arabic).
+ * look (`theme/task-tokens.ts`, Noto Naskh Arabic).
  *
  * Top to bottom: a «مكتملة» banner with «إعادة فتح» once the task is done; the
  * title in its own card; «في [لوحة] + لوحة»; the description (⤢ opens it full

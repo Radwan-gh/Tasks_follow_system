@@ -109,8 +109,8 @@ export function CardItem({
         }}
       >
         {card.isRestricted ? <AppText size="small">🔒</AppText> : null}
-        {/* Medium, not semibold: IBM Plex reads heavy at 600 in a column of titles. */}
-        <AppText weight="medium" style={{ flex: 1, fontSize: 16, lineHeight: 25 }}>
+        {/* Regular weight: the user picked Noto Naskh at 400 for list titles. */}
+        <AppText style={{ flex: 1, fontSize: 16, lineHeight: 25 }}>
           <HighlightedTitle title={card.title} query={highlightQuery} />
         </AppText>
         {hasMeta ? null : moveArrow}

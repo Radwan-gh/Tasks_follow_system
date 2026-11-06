@@ -266,7 +266,7 @@ function OversightTaskRow({ task, onPress }: { task: OversightTask; onPress: () 
     >
       <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs }}>
         {task.isRestricted ? <Ionicons name="lock-closed-outline" size={14} color={colors.muted} /> : null}
-        <AppText weight="medium" style={{ flex: 1, fontSize: 16, lineHeight: 25 }} numberOfLines={2}>
+        <AppText style={{ flex: 1, fontSize: 16, lineHeight: 25 }} numberOfLines={2}>
           {task.title}
         </AppText>
       </View>
