@@ -10,12 +10,15 @@ import { useAuth } from "@/features/auth/auth-context";
 import { api } from "@/lib/api";
 import { topMatches } from "@/lib/match-users";
 import { activeMention, replaceRange, type Selection } from "@/lib/rich-text";
+import { countLabel, type ArabicNoun } from "@/lib/plural";
 import { relativeTime } from "@/lib/task-format";
 import { t, taskFonts } from "@/theme/task-tokens";
 import { SheetTitle, TAvatar, TText, type TIcon } from "./task-ui";
 
 export const historyKey = (cardId: string) => ["cardHistory", cardId] as const;
 export const commentsKey = (cardId: string) => ["cardComments", cardId] as const;
+
+const CHANGES: ArabicNoun = { zero: "لا تغييرات", one: "تغيير واحد", two: "تغييران", few: "تغييرات", many: "تغييرًا" };
 
 /** How many entries the activity shows at first, and adds each time the bottom is reached. */
 export const ACTIVITY_PAGE = 5;
@@ -30,8 +33,24 @@ type Entry =
  * writer, a change one small grey line. It shows five entries and five more
  * each time the screen is scrolled to the bottom (`shown`), ending with
  * «بداية سجل المهمة». Long-pressing a comment copies it, or deletes your own.
+ *
+ * Collapsed by default (the user's call, not the prototype's): just «النشاط»
+ * with its counts and a chevron; tapping the header opens it, and posting a
+ * comment opens it so the new comment shows.
  */
-export function TaskActivity({ cardId, members, shown }: { cardId: string; members: BoardMember[]; shown: number }) {
+export function TaskActivity({
+  cardId,
+  members,
+  shown,
+  open,
+  onToggle,
+}: {
+  cardId: string;
+  members: BoardMember[];
+  shown: number;
+  open: boolean;
+  onToggle: () => void;
+}) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const history = useQuery({ queryKey: historyKey(cardId), queryFn: () => api.cards.history(cardId) });
@@ -58,7 +77,13 @@ export function TaskActivity({ cardId, members, shown }: { cardId: string; membe
 
   return (
     <View style={{ gap: 10, paddingTop: 14, marginTop: 4, borderTopWidth: 1, borderTopColor: t.line }}>
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ expanded: open }}
+        accessibilityLabel={open ? "إخفاء النشاط" : "عرض النشاط"}
+        onPress={onToggle}
+        style={{ flexDirection: "row", alignItems: "center", gap: 8, minHeight: 44 }}
+      >
         <TText size={15} weight="bold">
           النشاط
         </TText>
@@ -67,9 +92,17 @@ export function TaskActivity({ cardId, members, shown }: { cardId: string; membe
             {comments.data?.length ?? 0}
           </TText>
         </View>
-      </View>
+        {!open && history.data ? (
+          <TText size={12} color={t.muted}>
+            {countLabel(history.data.length, CHANGES)}
+          </TText>
+        ) : null}
+        <View style={{ marginStart: "auto", width: 32, height: 32, borderRadius: 999, backgroundColor: t.surface, borderWidth: 1, borderColor: t.line, alignItems: "center", justifyContent: "center" }}>
+          <Ionicons name={open ? "chevron-up" : "chevron-down"} size={16} color={t.ink3} />
+        </View>
+      </Pressable>
 
-      {history.isPending || comments.isPending ? (
+      {!open ? null : history.isPending || comments.isPending ? (
         <TText size={12} color={t.muted}>
           جارٍ تحميل النشاط…
         </TText>
@@ -197,7 +230,18 @@ export function MenuRow({ icon, label, onPress, danger }: { icon: TIcon; label: 
  * there is something to send. Typing «@» and a few letters suggests the task's
  * people (an addition to the prototype, carried over from the app).
  */
-export function TaskComposer({ cardId, members, me }: { cardId: string; members: BoardMember[]; me: BoardMember | undefined }) {
+export function TaskComposer({
+  cardId,
+  members,
+  me,
+  onSent,
+}: {
+  cardId: string;
+  members: BoardMember[];
+  me: BoardMember | undefined;
+  /** After a comment is posted — the screen opens the activity so it shows. */
+  onSent?: () => void;
+}) {
   const queryClient = useQueryClient();
   const [draft, setDraft] = useState("");
   const [selection, setSelection] = useState<Selection>({ start: 0, end: 0 });
@@ -207,6 +251,7 @@ export function TaskComposer({ cardId, members, me }: { cardId: string; members:
     mutationFn: (body: string) => api.comments.create(cardId, { body }),
     onSuccess: () => {
       setDraft("");
+      onSent?.();
       void queryClient.invalidateQueries({ queryKey: commentsKey(cardId) });
     },
   });

@@ -118,6 +118,8 @@ export default function CardDetailScreen() {
   const [attOpened, setAttOpened] = useState(0);
   const [accessDraft, setAccessDraft] = useState(false);
   const [shown, setShown] = useState(ACTIVITY_PAGE);
+  // «النشاط» starts collapsed; it opens on tap, or when you post a comment.
+  const [activityOpen, setActivityOpen] = useState(false);
   const [pullRefreshing, setPullRefreshing] = useState(false);
   const [now, setNow] = useState(Date.now());
 
@@ -421,7 +423,7 @@ export default function CardDetailScreen() {
           onScroll={(e) => {
             // Five more activity entries each time the bottom comes into view.
             const { contentOffset, layoutMeasurement, contentSize } = e.nativeEvent;
-            if (contentOffset.y + layoutMeasurement.height >= contentSize.height - 40) setShown((n) => n + ACTIVITY_PAGE);
+            if (activityOpen && contentOffset.y + layoutMeasurement.height >= contentSize.height - 40) setShown((n) => n + ACTIVITY_PAGE);
           }}
           refreshControl={<RefreshControl refreshing={pullRefreshing} onRefresh={() => void pullToRefresh()} />}
           contentContainerStyle={{ paddingTop: 16, paddingHorizontal: 16, paddingBottom: 20, gap: 10 }}
@@ -653,11 +655,11 @@ export default function CardDetailScreen() {
             </View>
           ) : null}
 
-          <TaskActivity cardId={id} members={members} shown={shown} />
+          <TaskActivity cardId={id} members={members} shown={shown} open={activityOpen} onToggle={() => setActivityOpen((o) => !o)} />
         </ScrollView>
 
         {/* §3c-4: a viewer reads everything but gets no comment field. */}
-        {!boardLocked ? <TaskComposer cardId={id} members={members} me={me} /> : null}
+        {!boardLocked ? <TaskComposer cardId={id} members={members} me={me} onSent={() => setActivityOpen(true)} /> : null}
       </View>
 
       <TopToast message={toast} onDone={() => setToast(null)} top={insets.top + 60} />
