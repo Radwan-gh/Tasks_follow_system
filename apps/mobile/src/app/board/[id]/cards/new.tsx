@@ -35,7 +35,7 @@ import {
 } from "@/features/cards/task-fields";
 import { api } from "@/lib/api";
 import { OVERSIZE_MESSAGE, pickAttachment, type PickedFile } from "@/lib/pick-attachment";
-import { MIN_TOUCH_TARGET, colors, fonts, radii, spacing } from "@/theme/tokens";
+import { GUTTER, MIN_TOUCH_TARGET, colors, fonts, radii, spacing } from "@/theme/tokens";
 
 type OptionalField = "due" | "recurrence" | "priority" | "subtasks" | "attachments" | "access";
 
@@ -197,7 +197,7 @@ export default function NewCardScreen() {
 
   if (board.isPending) {
     return (
-      <Screen edges={{ top: true, bottom: true }} style={{ padding: spacing.xl, gap: spacing.md }}>
+      <Screen edges={{ top: true, bottom: true }} style={{ paddingVertical: spacing.xl, paddingHorizontal: GUTTER, gap: spacing.md }}>
         <Skeleton height={24} width="50%" />
         <Skeleton height={180} radius={20} />
         <Skeleton height={54} radius={20} />
@@ -242,7 +242,7 @@ export default function NewCardScreen() {
       </View>
 
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: spacing.lg }}>
-        <View style={{ paddingTop: 10, paddingHorizontal: spacing.xl, paddingBottom: 14, gap: 6 }}>
+        <View style={{ paddingTop: 10, paddingHorizontal: GUTTER, paddingBottom: 14, gap: 6 }}>
           <TextInput
             value={title}
             onChangeText={setTitle}
@@ -271,7 +271,7 @@ export default function NewCardScreen() {
         </View>
 
         {failedStep ? (
-          <View style={{ marginHorizontal: spacing.lg, marginBottom: spacing.md, backgroundColor: colors.alertSoft, borderRadius: radii.field, padding: spacing.md, gap: spacing.sm }}>
+          <View style={{ marginHorizontal: GUTTER, marginBottom: spacing.md, backgroundColor: colors.alertSoft, borderRadius: radii.field, padding: spacing.md, gap: spacing.sm }}>
             <AppText size="small" color={colors.alert}>
               تعذّر إكمال الخطوة: {failedStep}. باقي البيانات محفوظة — أعد المحاولة للمتابعة.
             </AppText>
@@ -290,7 +290,7 @@ export default function NewCardScreen() {
         {/* The description, straight under the title; ⤢ opens the full-screen editor (6c). */}
         <View
           style={{
-            marginHorizontal: spacing.lg,
+            marginHorizontal: GUTTER,
             marginBottom: spacing.md,
             minHeight: 180,
             backgroundColor: colors.surface,
@@ -328,7 +328,7 @@ export default function NewCardScreen() {
           <ExpandButton onPress={() => setEditingDescription(true)} />
         </View>
 
-        <View style={{ marginHorizontal: spacing.lg, gap: 10 }}>
+        <View style={{ marginHorizontal: GUTTER, gap: 10 }}>
           <FieldCard>
             <FieldRow icon={FIELD_ICONS.status} onPress={() => setSheet("status")} accessibilityLabel={`الحالة: ${list?.name ?? ""}. اضغط للتغيير`}>
               <StatusPill name={list?.name ?? "—"} category={list?.statusCategory} editable />
@@ -463,7 +463,7 @@ export default function NewCardScreen() {
         </View>
 
         {chips.some((c) => !opened.includes(c.field)) ? (
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, paddingTop: spacing.lg, paddingHorizontal: spacing.lg }}>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, paddingTop: spacing.lg, paddingHorizontal: GUTTER }}>
             {chips
               .filter((c) => !opened.includes(c.field))
               .map((c) => (
@@ -473,7 +473,7 @@ export default function NewCardScreen() {
         ) : null}
       </ScrollView>
 
-      <View style={{ paddingTop: spacing.md, paddingHorizontal: spacing.lg, paddingBottom: spacing.sm, backgroundColor: colors.canvas, borderTopWidth: 1, borderTopColor: colors.line, alignItems: "center", gap: spacing.sm }}>
+      <View style={{ paddingTop: spacing.md, paddingHorizontal: GUTTER, paddingBottom: spacing.sm, backgroundColor: colors.canvas, borderTopWidth: 1, borderTopColor: colors.line, alignItems: "center", gap: spacing.sm }}>
         <Pressable
           accessibilityRole="button"
           accessibilityState={{ disabled: !canSubmit }}

@@ -4,7 +4,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import type { ListStatusCategory } from "@app/types";
 import { Screen } from "@/components/screen";
 import { AppText } from "@/components/text";
-import { MIN_TOUCH_TARGET, colors, radii, spacing, statusColors } from "@/theme/tokens";
+import { GUTTER, MIN_TOUCH_TARGET, colors, radii, spacing, statusColors } from "@/theme/tokens";
 
 /**
  * `/guide` — «دليل الاستخدام», reached from the account tab. Static end-user
@@ -77,7 +77,7 @@ export default function GuideScreen() {
           flexDirection: "row",
           alignItems: "center",
           gap: spacing.md,
-          paddingHorizontal: spacing.xl,
+          paddingHorizontal: GUTTER,
           paddingBottom: spacing.md,
         }}
       >
@@ -94,7 +94,7 @@ export default function GuideScreen() {
         </AppText>
       </View>
 
-      <ScrollView contentContainerStyle={{ paddingHorizontal: spacing.xl, paddingBottom: spacing.xxl * 2 }}>
+      <ScrollView contentContainerStyle={{ paddingHorizontal: GUTTER, paddingBottom: spacing.xxl * 2 }}>
         <AppText size="heading" weight="bold" accessibilityRole="header">
           حالات المهام
         </AppText>

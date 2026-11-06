@@ -24,7 +24,7 @@ import { useAuth } from "@/features/auth/auth-context";
 import { api } from "@/lib/api";
 import { loadOpenSections, saveOpenSections } from "@/lib/open-sections";
 import { BOARDS, countLabel } from "@/lib/plural";
-import { MIN_TOUCH_TARGET, colors, spacing } from "@/theme/tokens";
+import { GUTTER, MIN_TOUCH_TARGET, colors, spacing } from "@/theme/tokens";
 
 export default function BoardsScreen() {
   const { user } = useAuth();
@@ -117,7 +117,7 @@ export default function BoardsScreen() {
         style={{
           flexDirection: "row",
           alignItems: "center",
-          paddingHorizontal: spacing.xl,
+          paddingHorizontal: GUTTER,
           paddingTop: spacing.sm,
           paddingBottom: spacing.lg,
         }}
@@ -151,7 +151,7 @@ export default function BoardsScreen() {
       </View>
 
       <ScrollView
-        contentContainerStyle={{ paddingHorizontal: spacing.xl, paddingBottom: spacing.xxl, gap: spacing.md }}
+        contentContainerStyle={{ paddingHorizontal: GUTTER, paddingBottom: spacing.xxl, gap: spacing.md }}
         refreshControl={
           <RefreshControl refreshing={boards.isRefetching} onRefresh={() => void boards.refetch()} />
         }

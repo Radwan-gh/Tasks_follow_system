@@ -127,6 +127,14 @@ export const radii = {
   sheet: 24,
 } as const;
 
+/**
+ * The page's side margin: the left/right padding of every screen's header,
+ * scrolling content and bottom bar, and what the board's status columns are
+ * inset by. Narrowed from 20 so lists use more of the phone's width. Padding
+ * *inside* cards, rows and sheets stays on `spacing`.
+ */
+export const GUTTER = 12;
+
 export const spacing = {
   xs: 4,
   sm: 8,

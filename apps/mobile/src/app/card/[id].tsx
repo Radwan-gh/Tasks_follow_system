@@ -28,6 +28,7 @@ import { useCurrencySymbol } from "@/lib/currency";
 import { daysFromToday, dueLabel, formatDayMonth } from "@/lib/task-format";
 import { useAutoSavedIds } from "@/lib/use-auto-saved-ids";
 import { t, taskFonts, taskPriorityColors, taskRadii, taskStatusColors } from "@/theme/task-tokens";
+import { GUTTER } from "@/theme/tokens";
 
 /** Stable fallback while the card loads, so `useAutoSavedIds` sees one empty list, not a new one per render. */
 const NO_IDS: string[] = [];
@@ -426,7 +427,7 @@ export default function CardDetailScreen() {
             if (activityOpen && contentOffset.y + layoutMeasurement.height >= contentSize.height - 40) setShown((n) => n + ACTIVITY_PAGE);
           }}
           refreshControl={<RefreshControl refreshing={pullRefreshing} onRefresh={() => void pullToRefresh()} />}
-          contentContainerStyle={{ paddingTop: 16, paddingHorizontal: 16, paddingBottom: 20, gap: 10 }}
+          contentContainerStyle={{ paddingTop: 16, paddingHorizontal: GUTTER, paddingBottom: 20, gap: 10 }}
         >
           {done ? (
             <View style={{ flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: t.doneSoft, borderRadius: taskRadii.card, paddingVertical: 10, paddingStart: 12, paddingEnd: 10 }}>
@@ -965,7 +966,7 @@ function LabelRow({ label, children, minHeight = 48 }: { label: string; children
 function LoadingSkeleton() {
   const bar = (width: number | `${number}%`, height: number, radius = 6) => <View style={{ width, height, borderRadius: radius, backgroundColor: t.chip }} />;
   return (
-    <View style={{ flex: 1, backgroundColor: t.canvas, paddingTop: 16, paddingHorizontal: 16, gap: 10 }}>
+    <View style={{ flex: 1, backgroundColor: t.canvas, paddingTop: 16, paddingHorizontal: GUTTER, gap: 10 }}>
       <TCard style={{ minHeight: 58, paddingHorizontal: 14, justifyContent: "center" }}>{bar("62%", 16)}</TCard>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
         {bar(14, 10)}

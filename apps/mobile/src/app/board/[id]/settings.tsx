@@ -17,7 +17,7 @@ import { formatDueDate } from "@/lib/date";
 import { api } from "@/lib/api";
 import { RevealScrollView } from "@/lib/scroll-reveal";
 import { useAutoSavedIds } from "@/lib/use-auto-saved-ids";
-import { MIN_TOUCH_TARGET, colors, fonts, fontSizes, radii, spacing } from "@/theme/tokens";
+import { GUTTER, MIN_TOUCH_TARGET, colors, fonts, fontSizes, radii, spacing } from "@/theme/tokens";
 
 /**
  * `/board/:id/settings` — the design's «إعدادات اللوحة والأعضاء» single
@@ -183,7 +183,7 @@ export default function BoardSettingsScreen() {
 
   if (board.isPending) {
     return (
-      <Screen edges={{ top: true, bottom: true }} style={{ padding: spacing.xl, gap: spacing.md }}>
+      <Screen edges={{ top: true, bottom: true }} style={{ paddingVertical: spacing.xl, paddingHorizontal: GUTTER, gap: spacing.md }}>
         <Skeleton height={24} width="50%" />
         <Skeleton height={48} />
       </Screen>
@@ -239,7 +239,7 @@ export default function BoardSettingsScreen() {
           flexDirection: "row",
           alignItems: "center",
           justifyContent: "space-between",
-          paddingHorizontal: spacing.xl,
+          paddingHorizontal: GUTTER,
           paddingVertical: spacing.md,
           borderBottomWidth: 1,
           borderBottomColor: colors.line,
@@ -256,7 +256,7 @@ export default function BoardSettingsScreen() {
         </Pressable>
       </View>
 
-      <RevealScrollView contentContainerStyle={{ padding: spacing.xl, gap: spacing.xl }} keyboardShouldPersistTaps="handled">
+      <RevealScrollView contentContainerStyle={{ paddingVertical: spacing.xl, paddingHorizontal: GUTTER, gap: spacing.xl }} keyboardShouldPersistTaps="handled">
         {error ? (
           <View style={{ backgroundColor: colors.alertSoft, borderRadius: radii.field, padding: spacing.md }}>
             <AppText size="small" color={colors.alert}>

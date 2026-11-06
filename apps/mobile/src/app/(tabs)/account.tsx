@@ -14,7 +14,7 @@ import { NotificationPrefsSection } from "@/features/account/notification-prefs-
 import { useAuth } from "@/features/auth/auth-context";
 import { api } from "@/lib/api";
 import { initials } from "@/lib/initials";
-import { MIN_TOUCH_TARGET, colors, radii, spacing } from "@/theme/tokens";
+import { GUTTER, MIN_TOUCH_TARGET, colors, radii, spacing } from "@/theme/tokens";
 
 export default function AccountScreen() {
   const { user, logout, refreshUser } = useAuth();
@@ -50,13 +50,13 @@ export default function AccountScreen() {
 
   return (
     <Screen>
-      <View style={{ paddingHorizontal: spacing.xl, paddingTop: spacing.sm, paddingBottom: spacing.lg }}>
+      <View style={{ paddingHorizontal: GUTTER, paddingTop: spacing.sm, paddingBottom: spacing.lg }}>
         <AppText size="heading" weight="bold">
           حسابي
         </AppText>
       </View>
 
-      <ScrollView contentContainerStyle={{ paddingHorizontal: spacing.xl, gap: spacing.lg }}>
+      <ScrollView contentContainerStyle={{ paddingHorizontal: GUTTER, gap: spacing.lg }}>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="تعديل بياناتي"

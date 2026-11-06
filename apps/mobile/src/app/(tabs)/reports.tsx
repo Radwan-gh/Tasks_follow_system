@@ -11,7 +11,7 @@ import { Skeleton } from "@/components/skeleton";
 import { useCurrencySymbol } from "@/lib/currency";
 import { saveAndSharePdf } from "@/lib/pdf-export";
 import { api } from "@/lib/api";
-import { MIN_TOUCH_TARGET, colors, radii, spacing } from "@/theme/tokens";
+import { GUTTER, MIN_TOUCH_TARGET, colors, radii, spacing } from "@/theme/tokens";
 
 const TABS: { key: ExportableReport; label: string }[] = [
   { key: "overview", label: "نظرة عامة" },
@@ -43,7 +43,7 @@ export default function ReportsScreen() {
           flexDirection: "row",
           alignItems: "center",
           justifyContent: "space-between",
-          paddingHorizontal: spacing.xl,
+          paddingHorizontal: GUTTER,
           paddingTop: spacing.sm,
           paddingBottom: spacing.md,
         }}
@@ -65,7 +65,7 @@ export default function ReportsScreen() {
         horizontal
         showsHorizontalScrollIndicator={false}
         style={{ flexGrow: 0, marginBottom: spacing.md }}
-        contentContainerStyle={{ paddingHorizontal: spacing.xl, gap: spacing.sm }}
+        contentContainerStyle={{ paddingHorizontal: GUTTER, gap: spacing.sm }}
       >
         {TABS.map((t) => (
           <Pressable
@@ -88,7 +88,7 @@ export default function ReportsScreen() {
         ))}
       </ScrollView>
 
-      <ScrollView contentContainerStyle={{ paddingHorizontal: spacing.xl, paddingBottom: spacing.xxl, gap: spacing.sm }}>
+      <ScrollView contentContainerStyle={{ paddingHorizontal: GUTTER, paddingBottom: spacing.xxl, gap: spacing.sm }}>
         {tab === "overview" ? (
           <ReportList
             query={overview}
