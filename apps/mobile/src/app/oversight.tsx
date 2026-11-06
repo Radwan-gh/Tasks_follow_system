@@ -266,7 +266,7 @@ function OversightTaskRow({ task, onPress }: { task: OversightTask; onPress: () 
     >
       <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs }}>
         {task.isRestricted ? <Ionicons name="lock-closed-outline" size={14} color={colors.muted} /> : null}
-        <AppText weight="semibold" style={{ flex: 1 }} numberOfLines={2}>
+        <AppText weight="medium" style={{ flex: 1, fontSize: 16, lineHeight: 25 }} numberOfLines={2}>
           {task.title}
         </AppText>
       </View>
@@ -290,7 +290,7 @@ function OversightTaskRow({ task, onPress }: { task: OversightTask; onPress: () 
             paddingVertical: 4,
           }}
         >
-          <AppText size="caption" weight="semibold" color={overdue ? colors.alert : colors.muted}>
+          <AppText size="caption" weight={overdue ? "medium" : "regular"} color={overdue ? colors.alert : colors.muted}>
             ◷ {formatDueDate(task.dueDate)}
           </AppText>
         </View>
