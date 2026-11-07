@@ -3,11 +3,12 @@ import { AccessibilityInfo, Animated, Modal, Pressable, Text, View, type TextPro
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { initials } from "@/lib/initials";
 import { t, taskAvatarFills, taskFonts, taskRadii } from "@/theme/task-tokens";
+import { fs } from "@/theme/tokens";
 
 /**
  * The task screen's building blocks, drawn from `Edit Task Prototype.dc.html`.
- * Everything here uses `theme/task-tokens.ts` and Noto Naskh Arabic — the
- * rest of the app keeps Cairo and `tokens.ts`.
+ * Everything here uses `theme/task-tokens.ts` and Noto Naskh Arabic, the same
+ * face and text scale as the rest of the app (`tokens.ts`).
  */
 
 export type TIcon = ComponentProps<typeof Ionicons>["name"];
@@ -23,10 +24,11 @@ export function TText({
   style,
   ...rest
 }: TextProps & { size?: number; weight?: Weight; color?: string; lineHeight?: number }) {
+  // `size`/`lineHeight` are design sizes, set at the app's text scale (`fs`).
   const base: TextStyle = {
     fontFamily: taskFonts[weight],
-    fontSize: size,
-    lineHeight: lineHeight ?? Math.round(size * 1.55),
+    fontSize: fs(size),
+    lineHeight: fs(lineHeight ?? Math.round(size * 1.55)),
     color,
     writingDirection: "rtl",
   };

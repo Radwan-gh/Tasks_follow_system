@@ -20,10 +20,10 @@ import {
   type LineStyle,
   type Selection,
 } from "@/lib/rich-text";
-import { MIN_TOUCH_TARGET, colors, fonts, fontSizes, radii, spacing } from "@/theme/tokens";
+import { MIN_TOUCH_TARGET, colors, fonts, fontSizes, fs, radii, spacing } from "@/theme/tokens";
 import { MemberAvatar } from "./task-fields";
 
-const EDITOR_FONT = 17;
+const EDITOR_FONT = fs(17);
 
 /**
  * 6c «تحرير الوصف بكامل الشاشة»: the whole screen to write in, the task's

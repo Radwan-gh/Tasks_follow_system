@@ -7,6 +7,7 @@ import { useAuth } from "@/features/auth/auth-context";
 import { api } from "@/lib/api";
 import { useAutoSavedIds } from "@/lib/use-auto-saved-ids";
 import { t, taskFonts } from "@/theme/task-tokens";
+import { fs } from "@/theme/tokens";
 import { PeopleSheet } from "./task-people";
 import { CloseButton, SectionHeader, TAvatar, TCard, TDialog, TText } from "./task-ui";
 
@@ -231,7 +232,7 @@ export function TaskSubtasks({
             returnKeyType="done"
             // Multiline so a drag that starts here still scrolls the page (single-line RTL inputs swallow it on Android).
             multiline
-            style={{ flex: 1, minHeight: 44, padding: 0, fontFamily: taskFonts.regular, fontSize: 14, color: t.ink, textAlign: "right", writingDirection: "rtl", textAlignVertical: "center" }}
+            style={{ flex: 1, minHeight: 44, padding: 0, fontFamily: taskFonts.regular, fontSize: fs(14), color: t.ink, textAlign: "right", writingDirection: "rtl", textAlignVertical: "center" }}
           />
           <Pressable accessibilityRole="button" onPress={add} hitSlop={6} style={{ paddingVertical: 6, paddingHorizontal: 4 }}>
             <TText size={13} weight="semibold" color={t.accent}>

@@ -13,6 +13,7 @@ import { activeMention, replaceRange, type Selection } from "@/lib/rich-text";
 import { countLabel, type ArabicNoun } from "@/lib/plural";
 import { relativeTime } from "@/lib/task-format";
 import { t, taskFonts } from "@/theme/task-tokens";
+import { fs } from "@/theme/tokens";
 import { SheetTitle, TAvatar, TText, type TIcon } from "./task-ui";
 
 export const historyKey = (cardId: string) => ["cardHistory", cardId] as const;
@@ -324,8 +325,8 @@ export function TaskComposer({
             paddingHorizontal: 16,
             paddingVertical: 10,
             fontFamily: taskFonts.regular,
-            fontSize: 14,
-            lineHeight: 21,
+            fontSize: fs(14),
+            lineHeight: fs(21),
             color: t.ink,
             textAlign: "right",
             writingDirection: "rtl",

@@ -98,7 +98,7 @@ function StatTile({ label, value, color }: { label: string; value: string; color
       <AppText size="caption" color={colors.muted}>
         {label}
       </AppText>
-      <AppText weight="bold" style={{ fontSize: fontSizes.heading, color: color ?? colors.ink }}>
+      <AppText size="heading" weight="bold" color={color ?? colors.ink}>
         {value}
       </AppText>
     </View>

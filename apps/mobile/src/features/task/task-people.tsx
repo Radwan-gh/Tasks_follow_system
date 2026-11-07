@@ -5,6 +5,7 @@ import type { BoardMember } from "@app/types";
 import { BottomSheet } from "@/components/bottom-sheet";
 import { matchesUser } from "@/lib/match-users";
 import { t, taskFonts } from "@/theme/task-tokens";
+import { fs } from "@/theme/tokens";
 import { CloseButton, IconBox, SheetTitle, TAvatar, TCard, TText } from "./task-ui";
 
 const ROLE_LABELS: Record<BoardMember["role"], string> = {
@@ -174,7 +175,7 @@ export function AssigneesCard({
                   onKeyPress={(e) => {
                     if (e.nativeEvent.key === "Backspace" && !term && selectedIds.length > 0) onChange(selectedIds.slice(0, -1));
                   }}
-                  style={{ flex: 1, minWidth: 90, height: 32, padding: 0, paddingHorizontal: 4, fontFamily: taskFonts.regular, fontSize: 14, color: t.ink, textAlign: "right", writingDirection: "rtl" }}
+                  style={{ flex: 1, minWidth: 90, height: 32, padding: 0, paddingHorizontal: 4, fontFamily: taskFonts.regular, fontSize: fs(14), color: t.ink, textAlign: "right", writingDirection: "rtl" }}
                 />
                 <Pressable
                   accessibilityRole="button"

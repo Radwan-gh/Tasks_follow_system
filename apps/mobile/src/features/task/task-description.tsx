@@ -6,6 +6,7 @@ import { RichTextView } from "@/components/rich-text-view";
 import { useKeyboardHeight } from "@/lib/keyboard";
 import { wordCount } from "@/lib/task-format";
 import { t, taskFonts } from "@/theme/task-tokens";
+import { fs } from "@/theme/tokens";
 import { TCard, TText } from "./task-ui";
 
 /** How long typing must pause before the full-screen editor saves («يُحفظ تلقائيًا»). */
@@ -57,7 +58,7 @@ export function DescriptionCard({
             placeholder="أضف وصفًا أو الصق رابطًا…"
             placeholderTextColor={t.faint}
             accessibilityLabel="الوصف"
-            style={{ minHeight: 90, padding: 0, fontFamily: taskFonts.regular, fontSize: 15, lineHeight: 28, color: t.ink, textAlign: "right", textAlignVertical: "top", writingDirection: "rtl" }}
+            style={{ minHeight: 90, padding: 0, fontFamily: taskFonts.regular, fontSize: fs(15), lineHeight: fs(28), color: t.ink, textAlign: "right", textAlignVertical: "top", writingDirection: "rtl" }}
           />
         ) : value ? (
           <Pressable disabled={!editable} accessibilityRole={editable ? "button" : undefined} accessibilityLabel={editable ? "تعديل الوصف" : undefined} onPress={() => setEditingBoth(true)}>
@@ -169,7 +170,7 @@ export function DescriptionFullScreen({
           placeholder="اكتب وصف المهمة هنا…"
           placeholderTextColor={t.faint}
           accessibilityLabel="الوصف"
-          style={{ flex: 1, paddingVertical: 18, paddingHorizontal: 22, fontFamily: taskFonts.regular, fontSize: 17, lineHeight: 33, color: t.ink, textAlign: "right", textAlignVertical: "top", writingDirection: "rtl" }}
+          style={{ flex: 1, paddingVertical: 18, paddingHorizontal: 22, fontFamily: taskFonts.regular, fontSize: fs(17), lineHeight: fs(33), color: t.ink, textAlign: "right", textAlignVertical: "top", writingDirection: "rtl" }}
         />
         <View
           style={{

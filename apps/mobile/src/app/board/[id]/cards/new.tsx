@@ -35,7 +35,7 @@ import {
 } from "@/features/cards/task-fields";
 import { api } from "@/lib/api";
 import { OVERSIZE_MESSAGE, pickAttachment, type PickedFile } from "@/lib/pick-attachment";
-import { GUTTER, MIN_TOUCH_TARGET, colors, fonts, radii, spacing } from "@/theme/tokens";
+import { GUTTER, MIN_TOUCH_TARGET, colors, fonts, fs, radii, spacing } from "@/theme/tokens";
 
 type OptionalField = "due" | "recurrence" | "priority" | "subtasks" | "attachments" | "access";
 
@@ -257,8 +257,8 @@ export default function NewCardScreen() {
             accessibilityLabel="عنوان المهمة"
             style={{
               fontFamily: fonts.bold,
-              fontSize: 22,
-              lineHeight: 33,
+              fontSize: fs(22),
+              lineHeight: fs(33),
               color: colors.ink,
               textAlign: "right",
               writingDirection: "rtl",
@@ -317,7 +317,7 @@ export default function NewCardScreen() {
                 placeholder="أضف وصفًا أو الصق رابطًا…"
                 placeholderTextColor={colors.faint}
                 accessibilityLabel="الوصف"
-                style={{ minHeight: 146, fontFamily: fonts.regular, fontSize: 16, lineHeight: 31, color: colors.ink, textAlign: "right", textAlignVertical: "top", writingDirection: "rtl", padding: 0 }}
+                style={{ minHeight: 146, fontFamily: fonts.regular, fontSize: fs(16), lineHeight: fs(31), color: colors.ink, textAlign: "right", textAlignVertical: "top", writingDirection: "rtl", padding: 0 }}
               />
             ) : (
               <Pressable accessibilityRole="button" accessibilityLabel="تعديل الوصف" onPress={() => setDescriptionFocused(true)}>
@@ -408,7 +408,7 @@ export default function NewCardScreen() {
                         multiline
                         submitBehavior="submit"
                         returnKeyType="done"
-                        style={{ flex: 1, minHeight: 50, fontFamily: fonts.regular, fontSize: 14, color: colors.ink, textAlign: "right", writingDirection: "rtl" }}
+                        style={{ flex: 1, minHeight: 50, fontFamily: fonts.regular, fontSize: fs(14), color: colors.ink, textAlign: "right", writingDirection: "rtl" }}
                       />
                     </View>
                   </FieldCard>

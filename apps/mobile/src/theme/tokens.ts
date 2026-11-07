@@ -159,7 +159,19 @@ export const fonts = {
   bold: "NotoNaskhArabic_700Bold",
 } as const;
 
-export const fontSizes = {
+/**
+ * Every text size in the app is multiplied by this. Noto Naskh's letters sit
+ * smaller than IBM Plex's at the same pixel size, and the user found it too
+ * small (2026-11-07), so all text is set one step larger. Sizes in components
+ * are written at the old scale and pass through `fs()` — `AppText`, `TText`
+ * and `fontSizes` do it for you; a raw `fontSize` on a `TextInput` must call `fs()`.
+ */
+export const FONT_SCALE = 1.125;
+
+/** A design size at the app's text scale (`FONT_SCALE`). */
+export const fs = (size: number): number => Math.round(size * FONT_SCALE);
+
+const BASE_FONT_SIZES = {
   caption: 12,
   small: 13,
   body: 15,
@@ -167,6 +179,11 @@ export const fontSizes = {
   heading: 22,
   display: 30,
 } as const;
+
+/** Already at the app's text scale — do not pass these through `fs()` again. */
+export const fontSizes = Object.fromEntries(
+  Object.entries(BASE_FONT_SIZES).map(([name, size]) => [name, fs(size)]),
+) as { readonly [K in keyof typeof BASE_FONT_SIZES]: number };
 
 /**
  * Line height per font size. Noto Naskh's natural line is 1.70em; 1.55 still

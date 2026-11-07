@@ -7,6 +7,7 @@ import { api } from "@/lib/api";
 import { boardChips, pickBoards } from "@/lib/card-boards";
 import { useAutoSavedIds } from "@/lib/use-auto-saved-ids";
 import { t, taskFonts, taskRadii } from "@/theme/task-tokens";
+import { fs } from "@/theme/tokens";
 import { TText } from "./task-ui";
 
 const NO_IDS: string[] = [];
@@ -120,7 +121,7 @@ export function TaskBoardsRow({
               returnKeyType="done"
               submitBehavior="submit"
               onSubmitEditing={() => matches[0] && add(matches[0])}
-              style={{ flex: 1, minWidth: 90, height: 30, padding: 0, paddingHorizontal: 4, fontFamily: taskFonts.regular, fontSize: 14, color: t.ink, textAlign: "right", writingDirection: "rtl" }}
+              style={{ flex: 1, minWidth: 90, height: 30, padding: 0, paddingHorizontal: 4, fontFamily: taskFonts.regular, fontSize: fs(14), color: t.ink, textAlign: "right", writingDirection: "rtl" }}
             />
             <Pressable
               accessibilityRole="button"

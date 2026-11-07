@@ -1,5 +1,5 @@
-import { Text, type TextProps, type TextStyle } from "react-native";
-import { LINE_HEIGHT, colors, fonts, fontSizes } from "@/theme/tokens";
+import { StyleSheet, Text, type TextProps, type TextStyle } from "react-native";
+import { LINE_HEIGHT, colors, fonts, fontSizes, fs } from "@/theme/tokens";
 
 type Weight = keyof typeof fonts;
 type Size = keyof typeof fontSizes;
@@ -26,5 +26,15 @@ export function AppText({ weight = "regular", size = "body", color, style, ...re
     lineHeight: Math.round(fontSizes[size] * LINE_HEIGHT),
     writingDirection: "rtl",
   };
-  return <Text {...rest} style={[base, style]} />;
+  // A `fontSize`/`lineHeight` given in `style` is a design size: bring it to
+  // the app's text scale like the `size` tokens above (`FONT_SCALE`).
+  const own = StyleSheet.flatten(style);
+  const scaled: TextStyle | null =
+    own && (own.fontSize != null || own.lineHeight != null)
+      ? {
+          ...(own.fontSize != null ? { fontSize: fs(own.fontSize) } : null),
+          ...(own.lineHeight != null ? { lineHeight: fs(own.lineHeight) } : null),
+        }
+      : null;
+  return <Text {...rest} style={[base, own, scaled]} />;
 }

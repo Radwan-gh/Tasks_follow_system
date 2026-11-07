@@ -28,7 +28,7 @@ import { useCurrencySymbol } from "@/lib/currency";
 import { daysFromToday, dueLabel, formatDayMonth } from "@/lib/task-format";
 import { useAutoSavedIds } from "@/lib/use-auto-saved-ids";
 import { t, taskFonts, taskPriorityColors, taskRadii, taskStatusColors } from "@/theme/task-tokens";
-import { GUTTER } from "@/theme/tokens";
+import { GUTTER, fs } from "@/theme/tokens";
 
 /** Stable fallback while the card loads, so `useAutoSavedIds` sees one empty list, not a new one per render. */
 const NO_IDS: string[] = [];
@@ -490,7 +490,7 @@ export default function CardDetailScreen() {
                   submitBehavior="blurAndSubmit"
                   returnKeyType="done"
                   accessibilityLabel="عنوان المهمة"
-                  style={{ padding: 0, fontFamily: taskFonts.bold, fontSize: 19, lineHeight: 29, color: t.ink, textAlign: "right", writingDirection: "rtl" }}
+                  style={{ padding: 0, fontFamily: taskFonts.bold, fontSize: fs(19), lineHeight: fs(29), color: t.ink, textAlign: "right", writingDirection: "rtl" }}
                 />
               </TCard>
 
