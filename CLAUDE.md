@@ -137,13 +137,12 @@ Expo SDK 57 + expo-router, implementing the Arabic mobile design. RTL is the
 layout, not a preference: `expo-localization`'s `forcesRTL` handles native
 builds and `I18nManager.forceRTL` covers Expo Go, where config plugins do not
 apply. React Native does not inherit fonts, so **all** text goes through
-`src/components/text.tsx` (Noto Naskh Arabic + palette + Arabic line height) — a bare
+`src/components/text.tsx` (IBM Plex Sans Arabic + palette + Arabic line height) — a bare
 `<Text>` silently falls back to the system face. Colours, radii and spacing come
 from `src/theme/tokens.ts`; a hex literal in a component is a bug. The app's
 **look** (font, palette, corners) follows the task page's design,
 `Edit Task Prototype.dc.html` in `docs/app_design/proposals/tasks page new design`,
-by the user's decision — except the face, which is Noto Naskh Arabic by a later
-choice of the user's (the prototype was updated to match); screen **layouts** still follow `Tasks Mobile Redesign.dc.html`.
+by the user's decision; screen **layouts** still follow `Tasks Mobile Redesign.dc.html`.
 The task screen itself (`app/card/[id].tsx` + `features/task/*`) is built from
 `TText` and `src/theme/task-tokens.ts` — the same palette plus its extra shades. Moving a
 card is the ← arrow, a move sheet, or a long-press drag

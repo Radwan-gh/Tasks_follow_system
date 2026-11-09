@@ -190,7 +190,7 @@ export function TaskRow({
   );
 }
 
-/** A task title in a list: regular 16 (Noto Naskh at 400, the user's pick). */
+/** A task title in a list: regular 16 (400, the user's pick). */
 const TITLE_STYLE = { fontSize: 16, lineHeight: 25 } as const;
 
 function Chip({ label, background, color, bold = false }: { label: string; background: string; color: string; bold?: boolean }) {

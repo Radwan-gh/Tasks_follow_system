@@ -16,7 +16,7 @@
     "@app/api-client": "workspace:*",
     "@app/types": "workspace:*",
     "@expo-google-fonts/cairo": "^0.4.2",
-    "@expo-google-fonts/noto-naskh-arabic": "^0.4.5",
+    "@expo-google-fonts/ibm-plex-sans-arabic": "^0.4.2",
     "@expo/vector-icons": "^15.1.1",
     "@tanstack/react-query": "^5.62.7",
     "expo": "~57.0.19",

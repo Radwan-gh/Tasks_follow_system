@@ -7,7 +7,7 @@ import { fs } from "@/theme/tokens";
 
 /**
  * The task screen's building blocks, drawn from `Edit Task Prototype.dc.html`.
- * Everything here uses `theme/task-tokens.ts` and Noto Naskh Arabic, the same
+ * Everything here uses `theme/task-tokens.ts` and IBM Plex Sans Arabic, the same
  * face and text scale as the rest of the app (`tokens.ts`).
  */
 

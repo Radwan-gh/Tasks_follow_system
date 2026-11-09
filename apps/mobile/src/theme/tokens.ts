@@ -3,7 +3,7 @@
  *
  * Source: the task page's theme — `Edit Task Prototype.dc.html`
  * (docs/app_design/proposals/tasks page new design) — applied to the whole
- * app at the user's request: a cool grey canvas, a
+ * app at the user's request: IBM Plex Sans Arabic, a cool grey canvas, a
  * near-black ink, a strong blue and tighter corners. Layouts still follow
  * `Tasks Mobile Redesign.dc.html`; only the look changed. `task-tokens.ts`
  * holds the task screen's extra shades on the same palette.
@@ -151,18 +151,17 @@ export const spacing = {
  */
 export const MIN_TOUCH_TARGET = 44;
 
-/** Noto Naskh Arabic, the user's pick over IBM Plex Sans Arabic (2026-11-07); loaded in `app/_layout.tsx`. */
+/** IBM Plex Sans Arabic, loaded in `app/_layout.tsx`. */
 export const fonts = {
-  regular: "NotoNaskhArabic_400Regular",
-  medium: "NotoNaskhArabic_500Medium",
-  semibold: "NotoNaskhArabic_600SemiBold",
-  bold: "NotoNaskhArabic_700Bold",
+  regular: "IBMPlexSansArabic_400Regular",
+  medium: "IBMPlexSansArabic_500Medium",
+  semibold: "IBMPlexSansArabic_600SemiBold",
+  bold: "IBMPlexSansArabic_700Bold",
 } as const;
 
 /**
- * Every text size in the app is multiplied by this. Noto Naskh's letters sit
- * smaller than IBM Plex's at the same pixel size, and the user found it too
- * small (2026-11-07), so all text is set one step larger. Sizes in components
+ * Every text size in the app is multiplied by this: the user found the text
+ * too small (2026-11-07), so all of it is set one step larger. Sizes in components
  * are written at the old scale and pass through `fs()` — `AppText`, `TText`
  * and `fontSizes` do it for you; a raw `fontSize` on a `TextInput` must call `fs()`.
  */
@@ -185,8 +184,5 @@ export const fontSizes = Object.fromEntries(
   Object.entries(BASE_FONT_SIZES).map(([name, size]) => [name, fs(size)]),
 ) as { readonly [K in keyof typeof BASE_FONT_SIZES]: number };
 
-/**
- * Line height per font size. Noto Naskh's natural line is 1.70em; 1.55 still
- * clears its letters, and long text (descriptions, comments) sets taller lines.
- */
+/** Line height per font size: IBM Plex Sans Arabic needs less leading than Cairo did. */
 export const LINE_HEIGHT = 1.55;

@@ -109,7 +109,7 @@ export function CardItem({
         }}
       >
         {card.isRestricted ? <AppText size="small">🔒</AppText> : null}
-        {/* Regular weight: the user picked Noto Naskh at 400 for list titles. */}
+        {/* Regular weight: the user picked 400 for list titles. */}
         <AppText style={{ flex: 1, fontSize: 16, lineHeight: 25 }}>
           <HighlightedTitle title={card.title} query={highlightQuery} />
         </AppText>

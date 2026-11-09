@@ -4,7 +4,7 @@ import type { CardPriority, ListStatusCategory } from "@app/types";
  * The task screen's own look, from `Edit Task Prototype.dc.html`
  * (docs/app_design/proposals/tasks page new design). It deliberately differs
  * from the rest of the app (`tokens.ts`) only by a few extra shades: same
- * face (Noto Naskh Arabic), same palette, 14px corners. Only
+ * face (IBM Plex Sans Arabic), same palette, 14px corners. Only
  * `app/card/[id].tsx` and `features/task/*` use these; a hex literal in those
  * files is still a bug — add it here.
  */
@@ -59,10 +59,10 @@ export const t = {
 } as const;
 
 export const taskFonts = {
-  regular: "NotoNaskhArabic_400Regular",
-  medium: "NotoNaskhArabic_500Medium",
-  semibold: "NotoNaskhArabic_600SemiBold",
-  bold: "NotoNaskhArabic_700Bold",
+  regular: "IBMPlexSansArabic_400Regular",
+  medium: "IBMPlexSansArabic_500Medium",
+  semibold: "IBMPlexSansArabic_600SemiBold",
+  bold: "IBMPlexSansArabic_700Bold",
 } as const;
 
 export const taskRadii = {
