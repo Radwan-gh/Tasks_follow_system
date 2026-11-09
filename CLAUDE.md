@@ -111,7 +111,7 @@ README's Roadmap.
 ### UI must match the design in `docs/app_design` exactly
 
 Every screen built or changed in `apps/web` or `apps/mobile` must match its
-frame in `docs/app_design` (`Tasks Mobile Redesign.dc.html` and the
+frame in `docs/app_design` (`Tasks Mobile Redesign v2.dc.html` and the
 `v2-new-style.md` spec) **exactly** — layout, sizes, colours, copy, and the
 functionality the frame shows (buttons, chips, tick boxes, arrows), not just
 the look. Start from the design file, not from the current app screens. Where
@@ -142,7 +142,8 @@ apply. React Native does not inherit fonts, so **all** text goes through
 from `src/theme/tokens.ts`; a hex literal in a component is a bug. The app's
 **look** (font, palette, corners) follows the task page's design,
 `Edit Task Prototype.dc.html` in `docs/app_design/proposals/tasks page new design`,
-by the user's decision; screen **layouts** still follow `Tasks Mobile Redesign.dc.html`.
+by the user's decision; `Tasks Mobile Redesign v2.dc.html` is the main design with that look applied
+(the original `Tasks Mobile Redesign.dc.html` is kept for reference).
 The task screen itself (`app/card/[id].tsx` + `features/task/*`) is built from
 `TText` and `src/theme/task-tokens.ts` — the same palette plus its extra shades. Moving a
 card is the ← arrow, a move sheet, or a long-press drag
