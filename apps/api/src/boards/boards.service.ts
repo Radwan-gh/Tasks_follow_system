@@ -13,6 +13,7 @@ import { PrismaService } from "../prisma/prisma.service";
 import { BoardCategoriesService } from "../board-categories/board-categories.service";
 import { AttachmentStorageService } from "../common/storage/attachment-storage.service";
 import { COMPLETED_CATEGORIES } from "../common/util/completed.util";
+import { LIVE_CARD } from "../cards/card-deletion.util";
 import { BOARD_LINKS_INCLUDE, mergeByPosition, placementsOf } from "../cards/card-placement.util";
 import { TASK_WORKFLOW_TEMPLATE } from "./board-templates";
 
@@ -206,6 +207,11 @@ export class BoardsService {
    * Unless `requireCardAccess` is false, a restricted card the caller may not
    * see is a 404, exactly as before — a supervisor sees every card.
    *
+   * A card pending deletion (`Card.deletedAt`, cards/card-deletion.util.ts) is
+   * a 404 here, so it vanishes from every card-scoped route at once — card,
+   * history, comments, attachments, subtasks. Only `restore` passes
+   * `includeDeleted` to reach it.
+   *
    * Cost: one card read plus one board and one membership read (in
    * parallel), whatever the number of boards.
    */
@@ -213,9 +219,16 @@ export class BoardsService {
     userId: string,
     cardId: string,
     minRole: BoardRole = "MEMBER",
-    { mutable = false, requireCardAccess = true }: { mutable?: boolean; requireCardAccess?: boolean } = {},
+    {
+      mutable = false,
+      requireCardAccess = true,
+      includeDeleted = false,
+    }: { mutable?: boolean; requireCardAccess?: boolean; includeDeleted?: boolean } = {},
   ): Promise<CardAccess> {
-    const card = await this.prisma.card.findUnique({ where: { id: cardId }, include: CARD_ACCESS_INCLUDE });
+    const card = await this.prisma.card.findUnique({
+      where: { id: cardId, ...(includeDeleted ? {} : { deletedAt: null }) },
+      include: CARD_ACCESS_INCLUDE,
+    });
     if (!card) throw new NotFoundException("Card not found");
     const boardIds = placementsOf(card).map((p) => p.boardId);
     const [boards, memberships] = await Promise.all([
@@ -344,14 +357,14 @@ export class BoardsService {
       this.prisma.boardMember.groupBy({ by: ["boardId"], where: { boardId: { in: boardIds } }, _count: { _all: true } }),
       this.prisma.card.groupBy({
         by: ["boardId"],
-        where: { boardId: { in: boardIds }, isArchived: false, list: { isArchived: false } },
+        where: { boardId: { in: boardIds }, ...LIVE_CARD, list: { isArchived: false } },
         _count: { _all: true },
       }),
       this.prisma.card.groupBy({
         by: ["boardId"],
         where: {
           boardId: { in: boardIds },
-          isArchived: false,
+          ...LIVE_CARD,
           list: { isArchived: false, statusCategory: { in: COMPLETED_CATEGORIES } },
         },
         _count: { _all: true },
@@ -361,14 +374,14 @@ export class BoardsService {
       // no extra round trip whether or not anything is shared.
       this.prisma.cardBoardLink.groupBy({
         by: ["boardId"],
-        where: { boardId: { in: boardIds }, card: { isArchived: false }, list: { isArchived: false } },
+        where: { boardId: { in: boardIds }, card: LIVE_CARD, list: { isArchived: false } },
         _count: { _all: true },
       }),
       this.prisma.cardBoardLink.groupBy({
         by: ["boardId"],
         where: {
           boardId: { in: boardIds },
-          card: { isArchived: false },
+          card: LIVE_CARD,
           list: { isArchived: false, statusCategory: { in: COMPLETED_CATEGORIES } },
         },
         _count: { _all: true },
@@ -428,7 +441,8 @@ export class BoardsService {
             where: { isArchived: false },
             orderBy: { position: "asc" },
             include: {
-              cards: { where: { isArchived: false }, orderBy: { position: "asc" }, include: BOARD_CARD_INCLUDE },
+              // `LIVE_CARD`: neither archived nor pending deletion.
+              cards: { where: LIVE_CARD, orderBy: { position: "asc" }, include: BOARD_CARD_INCLUDE },
             },
           },
         },
@@ -436,7 +450,7 @@ export class BoardsService {
       // Both ways round: tasks from other boards shown on this one, and the
       // other boards this board's own tasks are also on.
       this.prisma.cardBoardLink.findMany({
-        where: { OR: [{ boardId }, { card: { boardId } }], card: { isArchived: false } },
+        where: { OR: [{ boardId }, { card: { boardId } }], card: LIVE_CARD },
         orderBy: { position: "asc" },
         select: {
           cardId: true,
@@ -898,7 +912,7 @@ export class BoardsService {
 
     const completedListNames = new Set(await this.completedListNames(boardId));
     const moves = await this.prisma.cardActivity.findMany({
-      where: { boardId, type: "MOVED", createdAt: { gte: weekAgo }, card: { isArchived: false } },
+      where: { boardId, type: "MOVED", createdAt: { gte: weekAgo }, card: LIVE_CARD },
       orderBy: { createdAt: "desc" },
       select: { cardId: true, toValue: true },
     });
@@ -913,7 +927,7 @@ export class BoardsService {
     const overdueCount = await this.prisma.card.count({
       where: {
         boardId,
-        isArchived: false,
+        ...LIVE_CARD,
         dueDate: { lt: now },
         NOT: { list: { statusCategory: { in: COMPLETED_CATEGORIES } } },
       },
@@ -921,7 +935,7 @@ export class BoardsService {
 
     const assignments = await this.prisma.cardAssignee.findMany({
       where: {
-        card: { boardId, isArchived: false, NOT: { list: { statusCategory: { in: COMPLETED_CATEGORIES } } } },
+        card: { boardId, ...LIVE_CARD, NOT: { list: { statusCategory: { in: COMPLETED_CATEGORIES } } } },
       },
       select: { userId: true, user: { select: { displayName: true } } },
     });
@@ -936,7 +950,7 @@ export class BoardsService {
       .sort((x, y) => y.openCards - x.openCards);
 
     const costRows = await this.prisma.card.findMany({
-      where: { boardId, isArchived: false, costAmount: { not: null }, createdAt: { gte: monthStart } },
+      where: { boardId, ...LIVE_CARD, costAmount: { not: null }, createdAt: { gte: monthStart } },
       select: { costAmount: true },
     });
     const costThisMonth =

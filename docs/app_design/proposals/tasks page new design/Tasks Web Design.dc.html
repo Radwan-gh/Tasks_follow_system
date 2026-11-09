@@ -1,0 +1,1754 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+  body { margin:0; background:#EDEBE6; font-family:"Cairo", system-ui, sans-serif; }
+  a { color:#4A6FD4; text-decoration:none; }
+  a:hover { color:#33509E; }
+  .scr::-webkit-scrollbar { display:none; }
+</style>
+</helmet>
+
+<section dir="rtl" style="position:absolute; left:32px; top:0; padding:56px 48px 80px; display:flex; flex-direction:column; gap:40px; font-family:'Cairo', system-ui, sans-serif; color:#23232A;">
+
+  <div style="display:flex; flex-direction:column; gap:10px; max-width:860px;">
+    <div style="display:flex; align-items:center; gap:12px;">
+      <span style="font-size:12px; font-weight:600; letter-spacing:0.04em; color:#fff; background:#4A6FD4; border-radius:999px; padding:4px 12px;">w1</span>
+      <h1 style="margin:0; font-size:30px; font-weight:700;">متابعة المهام — تصميم الويب</h1>
+    </div>
+    <p style="margin:0; font-size:15px; line-height:1.8; color:#6E6E78; text-wrap:pretty;">
+      1440×900. الشريط الجانبي ثابت 260px يحمل التصنيفات ولوحاتها، ومنطقة العمل تتغيّر حسب الصفحة. نفس ألوان الجوال ونفس المنطق — ما يتغيّر هو الكثافة: أعمدة الكانبان الخمسة ظاهرة معًا، والتفاصيل في نافذة جانبية بدل شاشة كاملة.
+    </p>
+    <div style="display:flex; align-items:center; gap:10px; margin-top:4px; flex-wrap:wrap;">
+      <span style="display:flex; align-items:center; gap:7px; font-size:12px; color:#6E6E78; background:#FFFFFF; border:1px solid #EAE8E3; border-radius:999px; padding:6px 12px;"><span style="width:12px; height:12px; border-radius:4px; background:#4A6FD4;"></span>أساسي #4A6FD4</span>
+      <span style="display:flex; align-items:center; gap:7px; font-size:12px; color:#6E6E78; background:#FFFFFF; border:1px solid #EAE8E3; border-radius:999px; padding:6px 12px;"><span style="width:12px; height:12px; border-radius:4px; background:#C05A17;"></span>عاجل #C05A17</span>
+      <span style="display:flex; align-items:center; gap:7px; font-size:12px; color:#6E6E78; background:#FFFFFF; border:1px solid #EAE8E3; border-radius:999px; padding:6px 12px;"><span style="width:12px; height:12px; border-radius:4px; background:#C0503C;"></span>تنبيه #C0503C</span>
+      <span style="display:flex; align-items:center; gap:7px; font-size:12px; color:#6E6E78; background:#FFFFFF; border:1px solid #EAE8E3; border-radius:999px; padding:6px 12px;"><span style="width:12px; height:12px; border-radius:4px; background:#F7F6F3; border:1px solid #E2DFD9;"></span>خلفية #F7F6F3</span>
+    </div>
+  </div>
+
+  <div style="display:flex; flex-wrap:nowrap; gap:44px; align-items:flex-start;">
+
+    <!-- ============ اللوحات ============ -->
+    <div style="display:flex; flex-direction:column; gap:12px;">
+      <div style="display:flex; align-items:baseline; gap:8px;">
+        <span style="font-size:15px; font-weight:600;">اللوحات — مجمّعة بالتصنيف</span>
+        <span style="font-size:12px; color:#9A9AA4;">/boards</span>
+      </div>
+      <div style="width:1440px; height:900px; background:#F7F6F3; border-radius:18px; border:1px solid #E2DFD9; box-shadow:0 20px 44px -26px rgba(35,35,42,0.4); overflow:hidden; display:flex;">
+
+        <div style="width:260px; flex:0 0 auto; background:#FFFFFF; border-inline-start:1px solid #EAE8E3; display:flex; flex-direction:column; gap:22px; padding:22px 16px;">
+          <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; padding:0 6px;">
+            <div style="display:flex; align-items:center; gap:10px;">
+              <span style="width:36px; height:36px; border-radius:12px; background:#4A6FD4; color:#FFFFFF; font-size:16px; font-weight:700; display:flex; align-items:center; justify-content:center;">◈</span>
+              <span style="font-size:15px; font-weight:700;">متابعة المهام</span>
+            </div>
+            <div style="width:36px; height:36px; border-radius:12px; background:#F7F6F3; border:1px solid #EAE8E3; display:flex; align-items:center; justify-content:center; font-size:14px; color:#5B6273; position:relative;">
+              <span>♫</span>
+              <span style="position:absolute; top:-4px; left:-4px; min-width:17px; height:17px; padding:0 4px; border-radius:999px; background:#4A6FD4; color:#FFFFFF; font-size:10px; font-weight:700; display:flex; align-items:center; justify-content:center; border:2px solid #FFFFFF;">3</span>
+            </div>
+          </div>
+
+          <div style="display:flex; flex-direction:column; gap:4px;">
+            <div style="display:flex; align-items:center; gap:11px; min-height:44px; padding:0 14px; border-radius:14px; background:#EAEFFB; color:#4A6FD4; font-size:14px; font-weight:600;"><span>▤</span>اللوحات</div>
+            <div style="display:flex; align-items:center; gap:11px; min-height:44px; padding:0 14px; border-radius:14px; color:#5B6273; font-size:14px;"><span style="color:#A6A6B0;">◔</span>مهامي<span style="margin-inline-start:auto; font-size:11px; font-weight:600; color:#C0503C; background:#FBE9E7; border-radius:999px; padding:3px 8px;">3</span></div>
+            <div style="display:flex; align-items:center; gap:11px; min-height:44px; padding:0 14px; border-radius:14px; color:#5B6273; font-size:14px;"><span style="color:#A6A6B0;">◫</span>التقارير</div>
+          </div>
+
+          <div class="scr" style="flex:1; overflow:auto; display:flex; flex-direction:column; gap:16px; padding:0 6px;">
+            <div style="display:flex; flex-direction:column; gap:6px;">
+              <div style="display:flex; align-items:center; justify-content:space-between; min-height:32px;">
+                <span style="display:flex; align-items:center; gap:7px; font-size:11px; font-weight:700; color:#8B8B95;"><span style="color:#C2C6D0;">⌄</span>الجامع</span>
+                <span style="font-size:11px; color:#C2C6D0;">3</span>
+              </div>
+              <div style="display:flex; flex-direction:column; gap:2px;">
+                <div style="display:flex; align-items:center; gap:9px; min-height:40px; padding:0 10px; border-radius:12px; font-size:13px; font-weight:600;"><span style="width:7px; height:7px; border-radius:999px; background:#E0A34A;"></span>الكهرباء<span style="margin-inline-start:auto; font-size:11px; font-weight:600; color:#C0503C;">3</span></div>
+                <div style="display:flex; align-items:center; gap:9px; min-height:40px; padding:0 10px; border-radius:12px; font-size:13px; color:#6E6E78;"><span style="width:7px; height:7px; border-radius:999px; background:#6E8AD8;"></span>الماء</div>
+                <div style="display:flex; align-items:center; gap:9px; min-height:40px; padding:0 10px; border-radius:12px; font-size:13px; color:#6E6E78;"><span style="width:7px; height:7px; border-radius:999px; background:#59B08A;"></span>النظافة</div>
+              </div>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:6px;">
+              <div style="display:flex; align-items:center; justify-content:space-between; min-height:32px;">
+                <span style="display:flex; align-items:center; gap:7px; font-size:11px; font-weight:700; color:#8B8B95;"><span style="color:#C2C6D0;">⌄</span>المعهد الشرعي</span>
+                <span style="font-size:11px; color:#C2C6D0;">2</span>
+              </div>
+              <div style="display:flex; flex-direction:column; gap:2px;">
+                <div style="display:flex; align-items:center; gap:9px; min-height:40px; padding:0 10px; border-radius:12px; font-size:13px; color:#6E6E78;"><span style="width:7px; height:7px; border-radius:999px; background:#8B5FC7;"></span>الدورات الصيفية</div>
+                <div style="display:flex; align-items:center; gap:9px; min-height:40px; padding:0 10px; border-radius:12px; font-size:13px; color:#6E6E78;"><span style="width:7px; height:7px; border-radius:999px; background:#B9743A;"></span>ترميم المكتبة</div>
+              </div>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:6px;">
+              <div style="display:flex; align-items:center; justify-content:space-between; min-height:32px;">
+                <span style="display:flex; align-items:center; gap:7px; font-size:11px; font-weight:700; color:#8B8B95;"><span style="color:#C2C6D0;">›</span>بلا تصنيف</span>
+                <span style="font-size:11px; color:#C2C6D0;">2</span>
+              </div>
+            </div>
+            <div style="display:flex; align-items:center; gap:8px; min-height:40px; padding:0 10px; font-size:12px; font-weight:600; color:#8B8B95;"><span>+</span>تصنيف جديد</div>
+            <div style="display:flex; align-items:center; gap:9px; min-height:40px; padding:0 10px; font-size:12px; color:#A6A6B0;"><span style="width:7px; height:7px; border-radius:999px; background:#EFEDE8;"></span>المؤرشفة (2)</div>
+          </div>
+
+          <div style="display:flex; align-items:center; gap:10px; padding:12px 10px; border-radius:16px; background:#F7F6F3;">
+            <span style="width:34px; height:34px; flex:0 0 auto; border-radius:12px; background:#EAEFFB; color:#4A6FD4; font-size:12px; font-weight:700; display:flex; align-items:center; justify-content:center;">ر.غ</span>
+            <div style="display:flex; flex-direction:column; gap:1px; min-width:0;">
+              <span style="font-size:13px; font-weight:600;">رضوان غانم</span>
+              <span style="font-size:11px; color:#8B8B95;">مشرف</span>
+            </div>
+            <span style="margin-inline-start:auto; font-size:14px; color:#A6A6B0;">⌄</span>
+          </div>
+        </div>
+
+        <div style="flex:1; display:flex; flex-direction:column; min-width:0;">
+          <div style="padding:22px 32px 18px; display:flex; align-items:flex-end; justify-content:space-between; gap:16px; background:#FFFFFF; border-bottom:1px solid #EAE8E3;">
+            <div style="display:flex; flex-direction:column; gap:4px;">
+              <span style="font-size:13px; color:#8B8B95;">مرحبًا، رضوان</span>
+              <span style="font-size:24px; font-weight:700;">اللوحات</span>
+            </div>
+            <div style="display:flex; align-items:center; gap:10px;">
+              <div style="display:flex; align-items:center; gap:9px; width:280px; background:#F7F6F3; border:1px solid #EAE8E3; border-radius:14px; padding:12px 14px;">
+                <span style="font-size:14px; color:#B4B4BC;">⌕</span>
+                <span style="font-size:14px; color:#B4B4BC;">ابحث في اللوحات والمهام</span>
+              </div>
+              <div style="min-height:44px; padding:0 18px; display:flex; align-items:center; gap:8px; border-radius:14px; background:#4A6FD4; color:#FFFFFF; font-size:14px; font-weight:600;">+ لوحة جديدة</div>
+            </div>
+          </div>
+
+          <div class="scr" style="flex:1; overflow:auto; padding:24px 32px 32px; display:flex; flex-direction:column; gap:26px;">
+
+            <div style="display:flex; gap:14px;">
+              <div style="flex:1; background:#FFFFFF; border:1px solid #EAE8E3; border-radius:18px; padding:18px 20px; display:flex; flex-direction:column; gap:6px;">
+                <span style="font-size:12px; color:#8B8B95;">مهام مفتوحة</span>
+                <span style="font-size:26px; font-weight:700; line-height:1;">62</span>
+              </div>
+              <div style="flex:1; background:#FFFFFF; border:1px solid #F3D8D3; border-radius:18px; padding:18px 20px; display:flex; flex-direction:column; gap:6px;">
+                <span style="font-size:12px; color:#C0503C;">متأخّرة</span>
+                <span style="font-size:26px; font-weight:700; line-height:1; color:#C0503C;">5</span>
+              </div>
+              <div style="flex:1; background:#FFFFFF; border:1px solid #EAE8E3; border-radius:18px; padding:18px 20px; display:flex; flex-direction:column; gap:6px;">
+                <span style="font-size:12px; color:#8B8B95;">منجَز هذا الأسبوع</span>
+                <span style="font-size:26px; font-weight:700; line-height:1;">19</span>
+              </div>
+              <div style="flex:1; background:#FFFFFF; border:1px solid #EAE8E3; border-radius:18px; padding:18px 20px; display:flex; flex-direction:column; gap:6px;">
+                <span style="font-size:12px; color:#8B8B95;">تكاليف الشهر</span>
+                <span style="font-size:22px; font-weight:700; line-height:1.2; direction:ltr; text-align:right;">2,030,000 ل.س</span>
+              </div>
+            </div>
+
+            <div style="display:flex; flex-direction:column; gap:14px;">
+              <div style="display:flex; align-items:center; gap:10px;">
+                <span style="width:10px; height:10px; border-radius:999px; background:#E0A34A;"></span>
+                <span style="font-size:16px; font-weight:700;">الجامع</span>
+                <span style="font-size:12px; color:#8B8B95;">3 لوحات · 44 مهمة</span>
+                <span style="margin-inline-start:auto; font-size:13px; font-weight:600; color:#4A6FD4;">+ لوحة في هذا التصنيف</span>
+              </div>
+              <div style="display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:14px;">
+                <div style="background:#FFFFFF; border:1px solid #EAE8E3; border-radius:20px; padding:20px; display:flex; flex-direction:column; gap:14px;">
+                  <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:10px;">
+                    <div style="display:flex; flex-direction:column; gap:5px;">
+                      <span style="font-size:17px; font-weight:700;">الكهرباء</span>
+                      <span style="font-size:12px; color:#8B8B95;">صيانة الشبكة والإنارة</span>
+                    </div>
+                    <span style="font-size:15px; color:#C2C6D0;">⋯</span>
+                  </div>
+                  <div style="display:flex; flex-direction:column; gap:7px;">
+                    <div style="display:flex; align-items:center; justify-content:space-between;">
+                      <span style="font-size:12px; color:#8B8B95;">9 من 24 مكتملة</span>
+                      <span style="font-size:12px; font-weight:600; color:#C0503C;">3 متأخّرة</span>
+                    </div>
+                    <span style="height:7px; border-radius:999px; background:#F1F0EC; display:block; overflow:hidden;"><span style="display:block; width:38%; height:7px; border-radius:999px; background:#59B08A;"></span></span>
+                  </div>
+                  <div style="display:flex; align-items:center; justify-content:space-between;">
+                    <div style="display:flex; align-items:center;">
+                      <span style="width:28px; height:28px; border-radius:999px; background:#EAEFFB; color:#4A6FD4; font-size:10px; font-weight:700; display:flex; align-items:center; justify-content:center; border:2px solid #FFFFFF;">ر.غ</span>
+                      <span style="width:28px; height:28px; border-radius:999px; background:#F3ECFB; color:#8B5FC7; font-size:10px; font-weight:700; display:flex; align-items:center; justify-content:center; border:2px solid #FFFFFF; margin-inline-start:-10px;">ع.ك</span>
+                      <span style="width:28px; height:28px; border-radius:999px; background:#E6F4EE; color:#1F7A5C; font-size:10px; font-weight:700; display:flex; align-items:center; justify-content:center; border:2px solid #FFFFFF; margin-inline-start:-10px;">ع.ص</span>
+                    </div>
+                    <span style="font-size:12px; color:#6E6E78; background:#F4F3EF; border-radius:999px; padding:5px 11px;">◷ 30 سبتمبر</span>
+                  </div>
+                </div>
+
+                <div style="background:#FFFFFF; border:1px solid #EAE8E3; border-radius:20px; padding:20px; display:flex; flex-direction:column; gap:14px;">
+                  <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:10px;">
+                    <div style="display:flex; flex-direction:column; gap:5px;">
+                      <span style="font-size:17px; font-weight:700;">الماء</span>
+                      <span style="font-size:12px; color:#8B8B95;">المضخات ودورات المياه</span>
+                    </div>
+                    <span style="font-size:15px; color:#C2C6D0;">⋯</span>
+                  </div>
+                  <div style="display:flex; flex-direction:column; gap:7px;">
+                    <div style="display:flex; align-items:center; justify-content:space-between;">
+                      <span style="font-size:12px; color:#8B8B95;">5 من 12 مكتملة</span>
+                      <span style="font-size:12px; color:#8B8B95;">بلا متأخّرات</span>
+                    </div>
+                    <span style="height:7px; border-radius:999px; background:#F1F0EC; display:block; overflow:hidden;"><span style="display:block; width:42%; height:7px; border-radius:999px; background:#59B08A;"></span></span>
+                  </div>
+                  <div style="display:flex; align-items:center; justify-content:space-between;">
+                    <div style="display:flex; align-items:center;">
+                      <span style="width:28px; height:28px; border-radius:999px; background:#F3ECFB; color:#8B5FC7; font-size:10px; font-weight:700; display:flex; align-items:center; justify-content:center; border:2px solid #FFFFFF;">ع.ك</span>
+                      <span style="width:28px; height:28px; border-radius:999px; background:#FBEFE6; color:#B9743A; font-size:10px; font-weight:700; display:flex; align-items:center; justify-content:center; border:2px solid #FFFFFF; margin-inline-start:-10px;">أ.م</span>
+                    </div>
+                    <span style="font-size:12px; color:#A6A6B0;">بلا موعد</span>
+                  </div>
+                </div>
+
+                <div style="background:#FFFFFF; border:1px solid #EAE8E3; border-radius:20px; padding:20px; display:flex; flex-direction:column; gap:14px;">
+                  <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:10px;">
+                    <div style="display:flex; flex-direction:column; gap:5px;">
+                      <span style="font-size:17px; font-weight:700;">النظافة</span>
+                      <span style="font-size:12px; color:#8B8B95;">الفرش والساحات</span>
+                    </div>
+                    <span style="font-size:15px; color:#C2C6D0;">⋯</span>
+                  </div>
+                  <div style="display:flex; flex-direction:column; gap:7px;">
+                    <div style="display:flex; align-items:center; justify-content:space-between;">
+                      <span style="font-size:12px; color:#8B8B95;">7 من 8 مكتملة</span>
+                      <span style="font-size:12px; color:#8B8B95;">بلا متأخّرات</span>
+                    </div>
+                    <span style="height:7px; border-radius:999px; background:#F1F0EC; display:block; overflow:hidden;"><span style="display:block; width:88%; height:7px; border-radius:999px; background:#59B08A;"></span></span>
+                  </div>
+                  <div style="display:flex; align-items:center; justify-content:space-between;">
+                    <div style="display:flex; align-items:center;">
+                      <span style="width:28px; height:28px; border-radius:999px; background:#E6F4EE; color:#1F7A5C; font-size:10px; font-weight:700; display:flex; align-items:center; justify-content:center; border:2px solid #FFFFFF;">ع.ص</span>
+                    </div>
+                    <span style="font-size:12px; color:#6E6E78; background:#F4F3EF; border-radius:999px; padding:5px 11px;">◷ 5 أكتوبر</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div style="display:flex; flex-direction:column; gap:14px;">
+              <div style="display:flex; align-items:center; gap:10px;">
+                <span style="width:10px; height:10px; border-radius:999px; background:#8B5FC7;"></span>
+                <span style="font-size:16px; font-weight:700;">المعهد الشرعي</span>
+                <span style="font-size:12px; color:#8B8B95;">2 لوحتان · 18 مهمة</span>
+              </div>
+              <div style="display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:14px;">
+                <div style="background:#FFFFFF; border:1px solid #EAE8E3; border-radius:20px; padding:20px; display:flex; flex-direction:column; gap:14px;">
+                  <span style="font-size:17px; font-weight:700;">الدورات الصيفية</span>
+                  <div style="display:flex; flex-direction:column; gap:7px;">
+                    <span style="font-size:12px; color:#8B8B95;">4 من 11 مكتملة</span>
+                    <span style="height:7px; border-radius:999px; background:#F1F0EC; display:block; overflow:hidden;"><span style="display:block; width:36%; height:7px; border-radius:999px; background:#59B08A;"></span></span>
+                  </div>
+                  <div style="display:flex; align-items:center; justify-content:space-between;">
+                    <span style="width:28px; height:28px; border-radius:999px; background:#EAEFFB; color:#4A6FD4; font-size:10px; font-weight:700; display:flex; align-items:center; justify-content:center;">ر.غ</span>
+                    <span style="font-size:12px; color:#6E6E78; background:#F4F3EF; border-radius:999px; padding:5px 11px;">◷ 12 أكتوبر</span>
+                  </div>
+                </div>
+                <div style="background:#FFFFFF; border:1px solid #EAE8E3; border-radius:20px; padding:20px; display:flex; flex-direction:column; gap:14px;">
+                  <span style="font-size:17px; font-weight:700;">ترميم المكتبة</span>
+                  <div style="display:flex; flex-direction:column; gap:7px;">
+                    <span style="font-size:12px; color:#8B8B95;">2 من 7 مكتملة</span>
+                    <span style="height:7px; border-radius:999px; background:#F1F0EC; display:block; overflow:hidden;"><span style="display:block; width:28%; height:7px; border-radius:999px; background:#59B08A;"></span></span>
+                  </div>
+                  <div style="display:flex; align-items:center; justify-content:space-between;">
+                    <span style="width:28px; height:28px; border-radius:999px; background:#FBEFE6; color:#B9743A; font-size:10px; font-weight:700; display:flex; align-items:center; justify-content:center;">أ.م</span>
+                    <span style="font-size:12px; color:#A6A6B0;">بلا موعد</span>
+                  </div>
+                </div>
+                <div style="border:1.5px dashed #DEDCD6; border-radius:20px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:7px; min-height:150px; color:#A6A6B0;">
+                  <span style="font-size:22px;">+</span>
+                  <span style="font-size:13px; font-weight:600;">لوحة في «المعهد الشرعي»</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ اللوحة — كانبان ============ -->
+    <div style="display:flex; flex-direction:column; gap:12px;">
+      <div style="display:flex; align-items:baseline; gap:8px;">
+        <span style="font-size:15px; font-weight:600;">اللوحة — الأعمدة الخمسة</span>
+        <span style="font-size:12px; color:#9A9AA4;">/boards/:id</span>
+      </div>
+      <div style="width:1440px; height:900px; background:#F7F6F3; border-radius:18px; border:1px solid #E2DFD9; box-shadow:0 20px 44px -26px rgba(35,35,42,0.4); overflow:hidden; display:flex;">
+
+        <div style="width:260px; flex:0 0 auto; background:#FFFFFF; border-inline-start:1px solid #EAE8E3; display:flex; flex-direction:column; gap:22px; padding:22px 16px;">
+          <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; padding:0 6px;">
+            <div style="display:flex; align-items:center; gap:10px;">
+              <span style="width:36px; height:36px; border-radius:12px; background:#4A6FD4; color:#FFFFFF; font-size:16px; font-weight:700; display:flex; align-items:center; justify-content:center;">◈</span>
+              <span style="font-size:15px; font-weight:700;">متابعة المهام</span>
+            </div>
+            <div style="width:36px; height:36px; border-radius:12px; background:#F7F6F3; border:1px solid #EAE8E3; display:flex; align-items:center; justify-content:center; font-size:14px; color:#5B6273;">♫</div>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:4px;">
+            <div style="display:flex; align-items:center; gap:11px; min-height:44px; padding:0 14px; border-radius:14px; background:#EAEFFB; color:#4A6FD4; font-size:14px; font-weight:600;"><span>▤</span>اللوحات</div>
+            <div style="display:flex; align-items:center; gap:11px; min-height:44px; padding:0 14px; border-radius:14px; color:#5B6273; font-size:14px;"><span style="color:#A6A6B0;">◔</span>مهامي<span style="margin-inline-start:auto; font-size:11px; font-weight:600; color:#C0503C; background:#FBE9E7; border-radius:999px; padding:3px 8px;">3</span></div>
+            <div style="display:flex; align-items:center; gap:11px; min-height:44px; padding:0 14px; border-radius:14px; color:#5B6273; font-size:14px;"><span style="color:#A6A6B0;">◫</span>التقارير</div>
+          </div>
+          <div class="scr" style="flex:1; overflow:auto; display:flex; flex-direction:column; gap:16px; padding:0 6px;">
+            <div style="display:flex; flex-direction:column; gap:6px;">
+              <div style="display:flex; align-items:center; justify-content:space-between; min-height:32px;">
+                <span style="display:flex; align-items:center; gap:7px; font-size:11px; font-weight:700; color:#8B8B95;"><span style="color:#C2C6D0;">⌄</span>الجامع</span>
+                <span style="font-size:11px; color:#C2C6D0;">3</span>
+              </div>
+              <div style="display:flex; flex-direction:column; gap:2px;">
+                <div style="display:flex; align-items:center; gap:9px; min-height:40px; padding:0 10px; border-radius:12px; background:#F1F0EC; font-size:13px; font-weight:700;"><span style="width:7px; height:7px; border-radius:999px; background:#E0A34A;"></span>الكهرباء<span style="margin-inline-start:auto; font-size:11px; font-weight:600; color:#C0503C;">3</span></div>
+                <div style="display:flex; align-items:center; gap:9px; min-height:40px; padding:0 10px; border-radius:12px; font-size:13px; color:#6E6E78;"><span style="width:7px; height:7px; border-radius:999px; background:#6E8AD8;"></span>الماء</div>
+                <div style="display:flex; align-items:center; gap:9px; min-height:40px; padding:0 10px; border-radius:12px; font-size:13px; color:#6E6E78;"><span style="width:7px; height:7px; border-radius:999px; background:#59B08A;"></span>النظافة</div>
+              </div>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:6px;">
+              <div style="display:flex; align-items:center; justify-content:space-between; min-height:32px;">
+                <span style="display:flex; align-items:center; gap:7px; font-size:11px; font-weight:700; color:#8B8B95;"><span style="color:#C2C6D0;">›</span>المعهد الشرعي</span>
+                <span style="font-size:11px; color:#C2C6D0;">2</span>
+              </div>
+            </div>
+          </div>
+          <div style="display:flex; align-items:center; gap:10px; padding:12px 10px; border-radius:16px; background:#F7F6F3;">
+            <span style="width:34px; height:34px; flex:0 0 auto; border-radius:12px; background:#EAEFFB; color:#4A6FD4; font-size:12px; font-weight:700; display:flex; align-items:center; justify-content:center;">ر.غ</span>
+            <div style="display:flex; flex-direction:column; gap:1px;">
+              <span style="font-size:13px; font-weight:600;">رضوان غانم</span>
+              <span style="font-size:11px; color:#8B8B95;">مشرف</span>
+            </div>
+            <span style="margin-inline-start:auto; font-size:14px; color:#A6A6B0;">⌄</span>
+          </div>
+        </div>
+
+        <div style="flex:1; display:flex; flex-direction:column; min-width:0;">
+          <div style="padding:20px 32px 16px; display:flex; align-items:center; justify-content:space-between; gap:16px; background:#FFFFFF; border-bottom:1px solid #EAE8E3;">
+            <div style="display:flex; flex-direction:column; gap:5px;">
+              <div style="display:flex; align-items:center; gap:8px; font-size:12px; color:#8B8B95;">
+                <span>الجامع</span><span style="color:#C2C6D0;">›</span><span>الكهرباء</span>
+              </div>
+              <div style="display:flex; align-items:center; gap:10px;">
+                <span style="font-size:22px; font-weight:700;">الكهرباء</span>
+                <span style="font-size:12px; color:#8B8B95;">24 مهمة · 9 مكتملة · 3 متأخّرة</span>
+              </div>
+            </div>
+            <div style="display:flex; align-items:center; gap:10px;">
+              <div style="display:flex; align-items:center;">
+                <span style="width:32px; height:32px; border-radius:999px; background:#EAEFFB; color:#4A6FD4; font-size:11px; font-weight:700; display:flex; align-items:center; justify-content:center; border:2px solid #FFFFFF;">ر.غ</span>
+                <span style="width:32px; height:32px; border-radius:999px; background:#F3ECFB; color:#8B5FC7; font-size:11px; font-weight:700; display:flex; align-items:center; justify-content:center; border:2px solid #FFFFFF; margin-inline-start:-11px;">ع.ك</span>
+                <span style="width:32px; height:32px; border-radius:999px; background:#E6F4EE; color:#1F7A5C; font-size:11px; font-weight:700; display:flex; align-items:center; justify-content:center; border:2px solid #FFFFFF; margin-inline-start:-11px;">ع.ص</span>
+                <span style="width:32px; height:32px; border-radius:999px; background:#F1F0EC; color:#8B8B95; font-size:11px; font-weight:700; display:flex; align-items:center; justify-content:center; border:2px solid #FFFFFF; margin-inline-start:-11px;">+2</span>
+              </div>
+              <div style="display:flex; align-items:center; gap:9px; width:230px; background:#F7F6F3; border:1px solid #EAE8E3; border-radius:14px; padding:11px 14px;">
+                <span style="font-size:14px; color:#B4B4BC;">⌕</span>
+                <span style="font-size:14px; color:#B4B4BC;">بحث في اللوحة</span>
+              </div>
+              <div style="min-height:44px; padding:0 14px; display:flex; align-items:center; gap:8px; border:1px solid #EAE8E3; border-radius:14px; font-size:13px; font-weight:600;">≡ ترشيح</div>
+              <div style="min-height:44px; padding:0 18px; display:flex; align-items:center; border-radius:14px; background:#4A6FD4; color:#FFFFFF; font-size:13px; font-weight:600;">+ مهمة</div>
+              <div style="width:44px; min-height:44px; display:flex; align-items:center; justify-content:center; border:1px solid #EAE8E3; border-radius:14px; font-size:15px; color:#5B6273;">⋯</div>
+            </div>
+          </div>
+
+          <div class="scr" style="flex:1; overflow:auto; padding:20px 32px 26px; display:flex; gap:16px; align-items:flex-start;">
+
+            <div style="width:212px; flex:0 0 auto; display:flex; flex-direction:column; gap:10px;">
+              <div style="display:flex; align-items:center; gap:7px; padding:0 4px; min-height:32px;">
+                <span style="width:8px; height:8px; border-radius:999px; background:#A9AEC0;"></span>
+                <span style="font-size:13px; font-weight:700;">جديد</span>
+                <span style="font-size:12px; color:#9A9AA4;">6</span>
+                <span style="margin-inline-start:auto; font-size:14px; color:#C2C6D0;">+</span>
+              </div>
+              <div style="background:#FFFFFF; border:1px solid #EAE8E3; border-radius:18px; padding:14px; display:flex; flex-direction:column; gap:10px;">
+                <span style="font-size:14px; font-weight:600; line-height:1.6;">شراء قاطع احتياطي 63A</span>
+                <span style="font-size:12px; color:#8B8B95;">بلا موعد</span>
+              </div>
+              <div style="background:#FFFFFF; border:1px solid #EAE8E3; border-radius:18px; padding:14px; display:flex; flex-direction:column; gap:10px;">
+                <span style="font-size:14px; font-weight:600; line-height:1.6;">جرد مصابيح الساحة الخارجية</span>
+                <div style="display:flex; align-items:center; justify-content:space-between;">
+                  <span style="font-size:12px; color:#8B8B95;">☑ 0/3</span>
+                  <span style="width:24px; height:24px; border-radius:999px; background:#FBEFE6; color:#B9743A; font-size:10px; font-weight:700; display:flex; align-items:center; justify-content:center;">أ.م</span>
+                </div>
+              </div>
+              <div style="background:#FFFFFF; border:1px solid #EAE8E3; border-radius:18px; padding:14px;">
+                <span style="font-size:14px; font-weight:600; line-height:1.6;">تسعير كابل التغذية الرئيسي</span>
+              </div>
+            </div>
+
+            <div style="width:212px; flex:0 0 auto; display:flex; flex-direction:column; gap:10px;">
+              <div style="display:flex; align-items:center; gap:7px; padding:0 4px; min-height:32px;">
+                <span style="width:8px; height:8px; border-radius:999px; background:#6E8AD8;"></span>
+                <span style="font-size:13px; font-weight:700;">جاهز للتنفيذ</span>
+                <span style="font-size:12px; color:#9A9AA4;">4</span>
+                <span style="margin-inline-start:auto; font-size:14px; color:#C2C6D0;">+</span>
+              </div>
+              <div style="background:#FFFFFF; border:1px solid #EAE8E3; border-radius:18px; padding:14px; display:flex; flex-direction:column; gap:10px;">
+                <span style="font-size:14px; font-weight:600; line-height:1.6;">تجهيز عدّة الفحص</span>
+                <div style="display:flex; align-items:center; justify-content:space-between;">
+                  <span style="font-size:12px; color:#6E6E78;">◷ 24 سبتمبر</span>
+                  <span style="width:24px; height:24px; border-radius:999px; background:#EAEFFB; color:#4A6FD4; font-size:10px; font-weight:700; display:flex; align-items:center; justify-content:center;">ر.غ</span>
+                </div>
+              </div>
+            </div>
+
+            <div style="width:212px; flex:0 0 auto; display:flex; flex-direction:column; gap:10px;">
+              <div style="display:flex; align-items:center; gap:7px; padding:0 4px; min-height:32px;">
+                <span style="width:8px; height:8px; border-radius:999px; background:#E0A34A;"></span>
+                <span style="font-size:13px; font-weight:700;">قيد التنفيذ</span>
+                <span style="font-size:12px; color:#9A9AA4;">5</span>
+                <span style="margin-inline-start:auto; font-size:14px; color:#C2C6D0;">+</span>
+              </div>
+              <div style="background:#FFFFFF; border:1px solid #EAE8E3; border-radius:18px; padding:14px; display:flex; flex-direction:column; gap:10px; position:relative; overflow:hidden; box-shadow:0 12px 24px -18px rgba(35,35,42,0.5);">
+                <span style="position:absolute; top:0; bottom:0; right:0; width:3px; background:#C05A17;"></span>
+                <span style="font-size:14px; font-weight:600; line-height:1.6;">فحص لوحة الكهرباء الرئيسية</span>
+                <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                  <span style="font-size:11px; font-weight:600; color:#C0503C; background:#FBE9E7; border-radius:999px; padding:4px 9px;">◷ متأخّرة يومين</span>
+                  <span style="font-size:12px; color:#8B8B95;">☑ 2/4</span>
+                  <span style="font-size:12px; color:#8B8B95;">↻</span>
+                </div>
+                <div style="display:flex; align-items:center; justify-content:space-between;">
+                  <span style="font-size:12px; color:#8B8B95;">▨ 3</span>
+                  <span style="width:24px; height:24px; border-radius:999px; background:#EAEFFB; color:#4A6FD4; font-size:10px; font-weight:700; display:flex; align-items:center; justify-content:center;">ر.غ</span>
+                </div>
+              </div>
+              <div style="background:#FFFFFF; border:1px solid #EAE8E3; border-radius:18px; padding:14px; display:flex; flex-direction:column; gap:10px; position:relative; overflow:hidden;">
+                <span style="position:absolute; top:0; bottom:0; right:0; width:3px; background:#C05A17;"></span>
+                <span style="font-size:14px; font-weight:600; line-height:1.6;">استبدال قاطع مكيفات المصلى</span>
+                <div style="display:flex; align-items:center; justify-content:space-between;">
+                  <span style="font-size:12px; color:#6E6E78;">◷ 22 سبتمبر · 2:30 م</span>
+                  <span style="width:24px; height:24px; border-radius:999px; background:#F3ECFB; color:#8B5FC7; font-size:10px; font-weight:700; display:flex; align-items:center; justify-content:center;">ع.ك</span>
+                </div>
+              </div>
+              <div style="background:#FFFFFF; border:1px solid #EAE8E3; border-radius:18px; padding:14px; display:flex; flex-direction:column; gap:10px;">
+                <span style="font-size:14px; font-weight:600; line-height:1.6;">تنظيف مراوح السقف</span>
+                <div style="display:flex; align-items:center; justify-content:space-between;">
+                  <span style="font-size:12px; color:#6E6E78;">◷ 28 سبتمبر</span>
+                  <span style="font-size:12px; color:#8B8B95;">↻</span>
+                </div>
+              </div>
+            </div>
+
+            <div style="width:212px; flex:0 0 auto; display:flex; flex-direction:column; gap:10px;">
+              <div style="display:flex; align-items:center; gap:7px; padding:0 4px; min-height:32px;">
+                <span style="width:8px; height:8px; border-radius:999px; background:#59B08A;"></span>
+                <span style="font-size:13px; font-weight:700;">تم التنفيذ</span>
+                <span style="font-size:12px; color:#9A9AA4;">9</span>
+                <span style="margin-inline-start:auto; font-size:14px; color:#C2C6D0;">+</span>
+              </div>
+              <div style="background:#FFFFFF; border:1px solid #EAE8E3; border-radius:18px; padding:14px; display:flex; flex-direction:column; gap:10px;">
+                <span style="font-size:14px; font-weight:600; line-height:1.6;">فحص الإنارة الاحتياطية</span>
+                <span style="font-size:12px; color:#8B8B95;">اليوم 10:24 ص</span>
+              </div>
+              <div style="background:#FFFFFF; border:1px solid #EAE8E3; border-radius:18px; padding:14px; display:flex; flex-direction:column; gap:10px;">
+                <span style="font-size:14px; font-weight:600; line-height:1.6;">ربط مؤقّت إنارة الساحة</span>
+                <span style="font-size:12px; color:#8B8B95;">أمس 3:10 م</span>
+              </div>
+            </div>
+
+            <div style="width:212px; flex:0 0 auto; display:flex; flex-direction:column; gap:10px;">
+              <div style="display:flex; align-items:center; gap:7px; padding:0 4px; min-height:32px;">
+                <span style="width:8px; height:8px; border-radius:999px; background:#8B8B95;"></span>
+                <span style="font-size:13px; font-weight:700;">انتهى</span>
+                <span style="font-size:12px; color:#9A9AA4;">7</span>
+                <span style="margin-inline-start:auto; font-size:11px; color:#A6A6B0;">آخر 30 يومًا</span>
+              </div>
+              <div style="background:#FFFFFF; border:1px solid #EAE8E3; border-radius:18px; padding:14px; display:flex; flex-direction:column; gap:8px;">
+                <span style="font-size:14px; font-weight:600; line-height:1.6; color:#5B6273;">تبديل قاطع مضخة الوضوء</span>
+                <span style="font-size:12px; color:#8B8B95;">انتهت 2 سبتمبر</span>
+              </div>
+              <div style="background:#FFFFFF; border:1px solid #EAE8E3; border-radius:18px; padding:14px; display:flex; flex-direction:column; gap:8px;">
+                <span style="font-size:14px; font-weight:600; line-height:1.6; color:#5B6273;">صيانة مضخة الوضوء</span>
+                <span style="font-size:12px; color:#8B8B95;">انتهت 28 أغسطس</span>
+              </div>
+              <div style="text-align:center; font-size:13px; font-weight:600; color:#4A6FD4; padding:6px;">عرض الأقدم</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ تفاصيل المهمة ============ -->
+    <div style="display:flex; flex-direction:column; gap:12px;">
+      <div style="display:flex; align-items:baseline; gap:8px;">
+        <span style="font-size:15px; font-weight:600;">تفاصيل المهمة — لوح جانبي</span>
+        <span style="font-size:12px; color:#9A9AA4;">/boards/:id/cards/:cardId</span>
+      </div>
+      <div style="width:1440px; height:900px; background:#F7F6F3; border-radius:18px; border:1px solid #E2DFD9; box-shadow:0 20px 44px -26px rgba(35,35,42,0.4); overflow:hidden; display:flex; position:relative;">
+
+        <div style="width:260px; flex:0 0 auto; background:#FFFFFF; border-inline-start:1px solid #EAE8E3; display:flex; flex-direction:column; gap:22px; padding:22px 16px;">
+          <div style="display:flex; align-items:center; gap:10px; padding:0 6px;">
+            <span style="width:36px; height:36px; border-radius:12px; background:#4A6FD4; color:#FFFFFF; font-size:16px; font-weight:700; display:flex; align-items:center; justify-content:center;">◈</span>
+            <span style="font-size:15px; font-weight:700;">متابعة المهام</span>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:4px;">
+            <div style="display:flex; align-items:center; gap:11px; min-height:44px; padding:0 14px; border-radius:14px; background:#EAEFFB; color:#4A6FD4; font-size:14px; font-weight:600;"><span>▤</span>اللوحات</div>
+            <div style="display:flex; align-items:center; gap:11px; min-height:44px; padding:0 14px; border-radius:14px; color:#5B6273; font-size:14px;"><span style="color:#A6A6B0;">◔</span>مهامي</div>
+            <div style="display:flex; align-items:center; gap:11px; min-height:44px; padding:0 14px; border-radius:14px; color:#5B6273; font-size:14px;"><span style="color:#A6A6B0;">◫</span>التقارير</div>
+          </div>
+          <div style="margin-top:auto; display:flex; align-items:center; gap:10px; padding:12px 10px; border-radius:16px; background:#F7F6F3;">
+            <span style="width:34px; height:34px; flex:0 0 auto; border-radius:12px; background:#EAEFFB; color:#4A6FD4; font-size:12px; font-weight:700; display:flex; align-items:center; justify-content:center;">ر.غ</span>
+            <span style="font-size:13px; font-weight:600;">رضوان غانم</span>
+            <span style="margin-inline-start:auto; font-size:14px; color:#A6A6B0;">⌄</span>
+          </div>
+        </div>
+
+        <div style="flex:1; display:flex; flex-direction:column; min-width:0; filter:blur(0.4px); opacity:0.5;">
+          <div style="padding:20px 32px 16px; background:#FFFFFF; border-bottom:1px solid #EAE8E3;">
+            <span style="font-size:22px; font-weight:700;">الكهرباء</span>
+          </div>
+          <div style="flex:1; padding:20px 32px; display:flex; gap:16px; align-items:flex-start;">
+            <div style="width:212px; display:flex; flex-direction:column; gap:10px;">
+              <span style="font-size:13px; font-weight:700;">جديد</span>
+              <div style="background:#FFFFFF; border:1px solid #EAE8E3; border-radius:18px; padding:14px; font-size:14px;">شراء قاطع احتياطي 63A</div>
+            </div>
+            <div style="width:212px; display:flex; flex-direction:column; gap:10px;">
+              <span style="font-size:13px; font-weight:700;">جاهز للتنفيذ</span>
+              <div style="background:#FFFFFF; border:1px solid #EAE8E3; border-radius:18px; padding:14px; font-size:14px;">تجهيز عدّة الفحص</div>
+            </div>
+          </div>
+        </div>
+
+        <div style="position:absolute; inset:0; background:rgba(35,35,42,0.3);"></div>
+
+        <div style="position:absolute; top:60px; bottom:60px; left:0; right:0; width:760px; margin:0 auto; background:#FFFFFF; border:1px solid #E2DFD9; border-radius:22px; box-shadow:0 32px 64px -28px rgba(35,35,42,0.5); display:flex; flex-direction:column; overflow:hidden;">
+          <div style="padding:22px 28px 18px; border-bottom:1px solid #F1F0EC; display:flex; flex-direction:column; gap:12px; position:relative;">
+            <span style="position:absolute; top:0; bottom:0; right:0; width:4px; background:#C05A17;"></span>
+            <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px;">
+              <div style="display:flex; gap:7px; flex-wrap:wrap;">
+                <span style="display:flex; align-items:center; gap:6px; font-size:12px; font-weight:600; color:#B9743A; background:#FDF3E8; border-radius:999px; padding:5px 11px;"><span style="width:7px; height:7px; border-radius:999px; background:#E0A34A;"></span>قيد التنفيذ</span>
+                <span style="font-size:12px; font-weight:700; color:#C05A17; background:#FCEEDF; border-radius:999px; padding:5px 11px;">عاجل</span>
+                <span style="font-size:12px; font-weight:600; color:#33509E; background:#EAEFFB; border-radius:999px; padding:5px 11px;">↻ أسبوعيًا — الأحد</span>
+              </div>
+              <div style="display:flex; align-items:center; gap:7px; flex:0 0 auto;">
+                <span style="width:36px; height:36px; border-radius:12px; background:#F7F6F3; display:flex; align-items:center; justify-content:center; font-size:15px; color:#5B6273;">⋯</span>
+                <span style="width:36px; height:36px; border-radius:12px; background:#F7F6F3; display:flex; align-items:center; justify-content:center; font-size:14px; color:#5B6273;">✕</span>
+              </div>
+            </div>
+            <span style="font-size:21px; font-weight:700; line-height:1.5;">فحص لوحة الكهرباء الرئيسية</span>
+            <div style="display:flex; flex-direction:column; gap:3px;">
+              <span style="font-size:13px; font-weight:600; color:#C0503C;">◷ متأخّرة يومين · 19 سبتمبر 2026 · 2:30 م</span>
+              <span style="font-size:11px; color:#A6A6B0;">الموافق 7 ربيع الآخر 1448</span>
+            </div>
+            <div style="display:flex; gap:8px; margin-top:4px;">
+              <span style="min-height:40px; padding:0 14px; display:flex; align-items:center; gap:8px; border-radius:13px; background:#4A6FD4; color:#FFFFFF; font-size:13px; font-weight:600;">نقل إلى «تم التنفيذ»</span>
+              <span style="min-height:40px; padding:0 14px; display:flex; align-items:center; border-radius:13px; border:1px solid #EAE8E3; font-size:13px; font-weight:600;">تعديل</span>
+            </div>
+          </div>
+
+          <div class="scr" style="flex:1; overflow:auto; padding:20px 28px 24px; display:flex; flex-direction:column; gap:20px;">
+
+            <span style="font-size:14px; color:#5B6273; line-height:1.9;">قياس الأحمال على القواطع الرئيسية وتوثيق القراءات قبل صلاة الجمعة.</span>
+
+            <div style="display:flex; flex-direction:column; gap:10px;">
+              <div style="display:flex; align-items:center; justify-content:space-between;">
+                <span style="font-size:14px; font-weight:700;">المسؤولون</span>
+                <span style="font-size:13px; font-weight:600; color:#4A6FD4;">تعديل</span>
+              </div>
+              <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                <span style="display:flex; align-items:center; gap:8px; background:#F7F6F3; border-radius:999px; padding:6px 12px 6px 6px;">
+                  <span style="width:26px; height:26px; border-radius:999px; background:#EAEFFB; color:#4A6FD4; font-size:10px; font-weight:700; display:flex; align-items:center; justify-content:center;">ر.غ</span>
+                  <span style="font-size:13px; font-weight:600;">رضوان غانم</span>
+                </span>
+                <span style="display:flex; align-items:center; gap:8px; background:#F7F6F3; border-radius:999px; padding:6px 12px 6px 6px;">
+                  <span style="width:26px; height:26px; border-radius:999px; background:#F3ECFB; color:#8B5FC7; font-size:10px; font-weight:700; display:flex; align-items:center; justify-content:center;">ع.ك</span>
+                  <span style="font-size:13px; font-weight:600;">عبد الله كحال</span>
+                </span>
+              </div>
+            </div>
+
+            <div style="display:flex; flex-direction:column; gap:12px;">
+              <div style="display:flex; align-items:center; justify-content:space-between;">
+                <span style="font-size:14px; font-weight:700;">المهام الفرعية</span>
+                <span style="font-size:12px; color:#8B8B95;">2 من 4</span>
+              </div>
+              <span style="height:6px; border-radius:999px; background:#F1F0EC; display:block; overflow:hidden;"><span style="display:block; width:50%; height:6px; border-radius:999px; background:#59B08A;"></span></span>
+              <div style="display:flex; flex-direction:column; gap:2px;">
+                <div style="display:flex; align-items:center; gap:11px; min-height:44px; border-bottom:1px solid #F1F0EC;">
+                  <span style="width:22px; height:22px; flex:0 0 auto; border-radius:7px; background:#59B08A; color:#FFFFFF; font-size:12px; display:flex; align-items:center; justify-content:center;">✓</span>
+                  <span style="flex:1; font-size:14px; color:#A6A6B0; text-decoration:line-through;">قياس أحمال القاطع الرئيسي</span>
+                  <span style="width:26px; height:26px; border-radius:999px; background:#EAEFFB; color:#4A6FD4; font-size:10px; font-weight:700; display:flex; align-items:center; justify-content:center;">ر.غ</span>
+                </div>
+                <div style="display:flex; align-items:center; gap:11px; min-height:44px; border-bottom:1px solid #F1F0EC;">
+                  <span style="width:22px; height:22px; flex:0 0 auto; border-radius:7px; background:#59B08A; color:#FFFFFF; font-size:12px; display:flex; align-items:center; justify-content:center;">✓</span>
+                  <span style="flex:1; font-size:14px; color:#A6A6B0; text-decoration:line-through;">فحص قواطع المصلى</span>
+                  <span style="width:26px; height:26px; border-radius:999px; background:#F3ECFB; color:#8B5FC7; font-size:10px; font-weight:700; display:flex; align-items:center; justify-content:center;">ع.ك</span>
+                </div>
+                <div style="display:flex; align-items:center; gap:11px; min-height:44px; border-bottom:1px solid #F1F0EC;">
+                  <span style="width:22px; height:22px; flex:0 0 auto; border-radius:7px; border:1.5px solid #D8D5CE;"></span>
+                  <span style="flex:1; font-size:14px;">توثيق القراءات في السجل</span>
+                  <span style="width:26px; height:26px; border-radius:999px; background:#F3ECFB; color:#8B5FC7; font-size:10px; font-weight:700; display:flex; align-items:center; justify-content:center;">ع.ك</span>
+                </div>
+                <div style="display:flex; align-items:center; gap:11px; min-height:44px;">
+                  <span style="width:22px; height:22px; flex:0 0 auto; border-radius:7px; border:1.5px solid #D8D5CE;"></span>
+                  <span style="flex:1; font-size:14px; color:#B4B4BC;">+ مهمة فرعية</span>
+                </div>
+              </div>
+            </div>
+
+            <div style="display:flex; flex-direction:column; gap:10px;">
+              <div style="display:flex; align-items:center; justify-content:space-between;">
+                <span style="font-size:14px; font-weight:700;">المرفقات</span>
+                <span style="font-size:12px; color:#8B8B95;">3 صور</span>
+              </div>
+              <div style="display:grid; grid-template-columns:repeat(5, 1fr); gap:8px;">
+                <span style="aspect-ratio:1; border-radius:14px; background:#E4E7EC; display:flex; align-items:center; justify-content:center; font-size:16px; color:#9AA1AC;">▨</span>
+                <span style="aspect-ratio:1; border-radius:14px; background:#E4E7EC; display:flex; align-items:center; justify-content:center; font-size:16px; color:#9AA1AC;">▨</span>
+                <span style="aspect-ratio:1; border-radius:14px; background:#E4E7EC; display:flex; align-items:center; justify-content:center; font-size:16px; color:#9AA1AC;">▨</span>
+                <span style="aspect-ratio:1; border-radius:14px; border:1.5px dashed #DEDCD6; display:flex; align-items:center; justify-content:center; font-size:20px; color:#A6A6B0;">+</span>
+                <span></span>
+              </div>
+              <span style="font-size:11px; color:#A6A6B0;">اسحب الصور هنا · حتى 10 · 5MB للصورة</span>
+            </div>
+
+            <div style="display:flex; flex-direction:column; gap:10px;">
+              <div style="display:flex; align-items:center; justify-content:space-between;">
+                <span style="font-size:14px; font-weight:700;">التكلفة</span>
+                <span style="font-size:13px; font-weight:600; color:#4A6FD4;">تعديل</span>
+              </div>
+              <div style="display:flex; gap:10px;">
+                <div style="flex:1.2; display:flex; flex-direction:column; gap:7px;">
+                  <span style="font-size:12px; font-weight:600; color:#8B8B95;">المبلغ</span>
+                  <div style="display:flex; align-items:center; justify-content:space-between; background:#FFFFFF; border:1.5px solid #4A6FD4; border-radius:14px; padding:13px 14px;">
+                    <span style="font-size:17px; font-weight:700; direction:ltr;">350,000</span>
+                    <span style="font-size:13px; color:#8B8B95;">ل.س</span>
+                  </div>
+                </div>
+                <div style="flex:1.6; display:flex; flex-direction:column; gap:7px;">
+                  <span style="font-size:12px; font-weight:600; color:#8B8B95;">ملاحظة</span>
+                  <div style="background:#F7F6F3; border:1px solid #EFEDE8; border-radius:14px; padding:13px 14px; font-size:14px;">فاتورة 114 — مؤسسة النور</div>
+                </div>
+              </div>
+              <div style="display:flex; align-items:center; gap:10px;">
+                <span style="min-height:40px; padding:0 18px; display:flex; align-items:center; border-radius:13px; background:#4A6FD4; color:#FFFFFF; font-size:13px; font-weight:600;">حفظ</span>
+                <span style="min-height:40px; padding:0 16px; display:flex; align-items:center; border-radius:13px; background:#FFFFFF; border:1px solid #EAE8E3; font-size:13px; font-weight:600;">إلغاء</span>
+                <span style="margin-inline-start:auto; font-size:13px; color:#C0503C;">إزالة التكلفة</span>
+              </div>
+            </div>
+
+            <div style="display:flex; flex-direction:column; gap:14px;">
+              <span style="font-size:14px; font-weight:700;">السجل والتعليقات</span>
+              <div style="display:flex; align-items:flex-start; gap:10px;">
+                <span style="width:26px; height:26px; flex:0 0 auto; border-radius:999px; background:#F4F3EF; color:#A6A6B0; font-size:11px; display:flex; align-items:center; justify-content:center;">◷</span>
+                <span style="font-size:12px; color:#8B8B95; line-height:1.8;">نقل رضوان البطاقة إلى «قيد التنفيذ» — اليوم 8:12 ص</span>
+              </div>
+              <div style="display:flex; align-items:flex-start; gap:10px;">
+                <span style="width:26px; height:26px; flex:0 0 auto; border-radius:999px; background:#F3ECFB; color:#8B5FC7; font-size:10px; font-weight:700; display:flex; align-items:center; justify-content:center;">ع.ك</span>
+                <div style="flex:1; background:#F7F6F3; border-radius:16px; padding:12px 14px; display:flex; flex-direction:column; gap:5px;">
+                  <div style="display:flex; align-items:baseline; justify-content:space-between;">
+                    <span style="font-size:13px; font-weight:700;">عبد الله كحال</span>
+                    <span style="font-size:11px; color:#A6A6B0;">8:26 ص</span>
+                  </div>
+                  <span style="font-size:13px; color:#5B6273; line-height:1.8;">القاطع الثالث يسخن عند تشغيل المكيفات. أرفقت صورة القراءة.</span>
+                </div>
+              </div>
+              <div style="display:flex; gap:8px; align-items:center;">
+                <div style="flex:1; background:#F7F6F3; border:1px solid #EFEDE8; border-radius:16px; padding:13px 14px; font-size:14px; color:#B4B4BC; min-height:44px; display:flex; align-items:center;">اكتب تعليقًا…</div>
+                <div style="width:44px; height:44px; flex:0 0 auto; border-radius:16px; background:#4A6FD4; color:#FFFFFF; font-size:15px; display:flex; align-items:center; justify-content:center;">↑</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<section dir="rtl" style="position:absolute; left:32px; top:1360px; padding:56px 48px 80px; display:flex; flex-direction:column; gap:40px; font-family:'Cairo', system-ui, sans-serif; color:#23232A;">
+
+  <div style="display:flex; flex-direction:column; gap:10px; max-width:860px;">
+    <div style="display:flex; align-items:center; gap:12px;">
+      <span style="font-size:12px; font-weight:600; letter-spacing:0.04em; color:#fff; background:#4A6FD4; border-radius:999px; padding:4px 12px;">w2</span>
+      <h1 style="margin:0; font-size:30px; font-weight:700;">الويب — مهامي والتقارير والإدارة</h1>
+    </div>
+    <p style="margin:0; font-size:15px; line-height:1.8; color:#6E6E78; text-wrap:pretty;">
+      الصفحات التي تستفيد أكثر من عرض سطح المكتب: قوائم ذات أعمدة، وجداول بدل البطاقات.
+    </p>
+  </div>
+
+  <div style="display:flex; flex-wrap:nowrap; gap:44px; align-items:flex-start;">
+
+    <!-- ============ مهامي ============ -->
+    <div style="display:flex; flex-direction:column; gap:12px;">
+      <div style="display:flex; align-items:baseline; gap:8px;">
+        <span style="font-size:15px; font-weight:600;">مهامي</span>
+        <span style="font-size:12px; color:#9A9AA4;">/my-tasks</span>
+      </div>
+      <div style="width:1440px; height:900px; background:#F7F6F3; border-radius:18px; border:1px solid #E2DFD9; box-shadow:0 20px 44px -26px rgba(35,35,42,0.4); overflow:hidden; display:flex;">
+
+        <div style="width:260px; flex:0 0 auto; background:#FFFFFF; border-inline-start:1px solid #EAE8E3; display:flex; flex-direction:column; gap:22px; padding:22px 16px;">
+          <div style="display:flex; align-items:center; gap:10px; padding:0 6px;">
+            <span style="width:36px; height:36px; border-radius:12px; background:#4A6FD4; color:#FFFFFF; font-size:16px; font-weight:700; display:flex; align-items:center; justify-content:center;">◈</span>
+            <span style="font-size:15px; font-weight:700;">متابعة المهام</span>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:4px;">
+            <div style="display:flex; align-items:center; gap:11px; min-height:44px; padding:0 14px; border-radius:14px; color:#5B6273; font-size:14px;"><span style="color:#A6A6B0;">▤</span>اللوحات</div>
+            <div style="display:flex; align-items:center; gap:11px; min-height:44px; padding:0 14px; border-radius:14px; background:#EAEFFB; color:#4A6FD4; font-size:14px; font-weight:600;"><span>◔</span>مهامي<span style="margin-inline-start:auto; font-size:11px; font-weight:600; color:#FFFFFF; background:#C0503C; border-radius:999px; padding:3px 8px;">3</span></div>
+            <div style="display:flex; align-items:center; gap:11px; min-height:44px; padding:0 14px; border-radius:14px; color:#5B6273; font-size:14px;"><span style="color:#A6A6B0;">◫</span>التقارير</div>
+          </div>
+          <div style="margin-top:auto; display:flex; align-items:center; gap:10px; padding:12px 10px; border-radius:16px; background:#F7F6F3;">
+            <span style="width:34px; height:34px; flex:0 0 auto; border-radius:12px; background:#EAEFFB; color:#4A6FD4; font-size:12px; font-weight:700; display:flex; align-items:center; justify-content:center;">ر.غ</span>
+            <span style="font-size:13px; font-weight:600;">رضوان غانم</span>
+            <span style="margin-inline-start:auto; font-size:14px; color:#A6A6B0;">⌄</span>
+          </div>
+        </div>
+
+        <div style="flex:1; display:flex; flex-direction:column; min-width:0;">
+          <div style="padding:22px 32px 0; background:#FFFFFF; border-bottom:1px solid #EAE8E3; display:flex; flex-direction:column; gap:16px;">
+            <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:16px;">
+              <div style="display:flex; flex-direction:column; gap:4px;">
+                <span style="font-size:24px; font-weight:700;">مهامي</span>
+                <span style="font-size:12px; color:#8B8B95;">14 مهمة مفتوحة عبر 4 لوحات</span>
+              </div>
+              <div style="display:flex; align-items:center; gap:10px;">
+                <div style="min-height:44px; padding:0 14px; display:flex; align-items:center; gap:8px; border:1px solid #EAE8E3; border-radius:14px; font-size:13px; font-weight:600;">كل اللوحات ▾</div>
+                <div style="min-height:44px; padding:0 14px; display:flex; align-items:center; gap:8px; border:1px solid #EAE8E3; border-radius:14px; font-size:13px; font-weight:600;">الموعد ▾</div>
+              </div>
+            </div>
+            <div style="display:flex; gap:22px;">
+              <span style="padding:0 2px 12px; border-bottom:2px solid #4A6FD4; font-size:14px; font-weight:700;">الكل · 14</span>
+              <span style="padding:0 2px 12px; border-bottom:2px solid transparent; font-size:14px; color:#C0503C; font-weight:600;">متأخّرة · 3</span>
+              <span style="padding:0 2px 12px; border-bottom:2px solid transparent; font-size:14px; color:#6E6E78;">اليوم · 4</span>
+              <span style="padding:0 2px 12px; border-bottom:2px solid transparent; font-size:14px; color:#6E6E78;">هذا الأسبوع · 9</span>
+              <span style="padding:0 2px 12px; border-bottom:2px solid transparent; font-size:14px; color:#6E6E78;">مهام فرعية · 6</span>
+            </div>
+          </div>
+
+          <div class="scr" style="flex:1; overflow:auto; padding:22px 32px 30px; display:flex; flex-direction:column; gap:22px;">
+
+            <div style="display:flex; flex-direction:column; gap:10px;">
+              <span style="font-size:12px; font-weight:700; color:#C0503C; padding:0 4px;">متأخّرة</span>
+              <div style="background:#FFFFFF; border:1px solid #F3D8D3; border-radius:18px; overflow:hidden;">
+                <div style="display:flex; align-items:center; gap:14px; padding:15px 18px; min-height:44px; border-bottom:1px solid #F7EEEC; position:relative;">
+                  <span style="position:absolute; top:0; bottom:0; right:0; width:3px; background:#C05A17;"></span>
+                  <span style="width:22px; height:22px; flex:0 0 auto; border-radius:7px; border:1.5px solid #D8D5CE;"></span>
+                  <span style="flex:1; font-size:15px; font-weight:600;">فحص لوحة الكهرباء الرئيسية</span>
+                  <span style="font-size:12px; color:#8B8B95; background:#F4F3EF; border-radius:999px; padding:5px 11px;">الكهرباء</span>
+                  <span style="font-size:12px; color:#8B8B95;">☑ 2/4</span>
+                  <span style="font-size:12px; font-weight:600; color:#C0503C; width:120px; text-align:left;">متأخّرة يومين</span>
+                </div>
+                <div style="display:flex; align-items:center; gap:14px; padding:15px 18px; min-height:44px; border-bottom:1px solid #F7EEEC;">
+                  <span style="width:22px; height:22px; flex:0 0 auto; border-radius:7px; border:1.5px solid #D8D5CE;"></span>
+                  <span style="flex:1; font-size:15px; font-weight:600;">صيانة مضخة الوضوء</span>
+                  <span style="font-size:12px; color:#8B8B95; background:#F4F3EF; border-radius:999px; padding:5px 11px;">الماء</span>
+                  <span style="font-size:12px; color:#8B8B95;">↻</span>
+                  <span style="font-size:12px; font-weight:600; color:#C0503C; width:120px; text-align:left;">متأخّرة 4 أيام</span>
+                </div>
+                <div style="display:flex; align-items:center; gap:14px; padding:15px 18px; min-height:44px;">
+                  <span style="width:22px; height:22px; flex:0 0 auto; border-radius:7px; border:1.5px solid #D8D5CE;"></span>
+                  <span style="flex:1; font-size:15px; font-weight:600;">تسليم تقرير الدورة الصيفية</span>
+                  <span style="font-size:12px; color:#8B8B95; background:#F4F3EF; border-radius:999px; padding:5px 11px;">الدورات الصيفية</span>
+                  <span style="font-size:12px; font-weight:600; color:#C0503C; width:120px; text-align:left;">متأخّرة يوم</span>
+                </div>
+              </div>
+            </div>
+
+            <div style="display:flex; flex-direction:column; gap:10px;">
+              <span style="font-size:12px; font-weight:700; color:#8B8B95; padding:0 4px;">اليوم</span>
+              <div style="background:#FFFFFF; border:1px solid #EAE8E3; border-radius:18px; overflow:hidden;">
+                <div style="display:flex; align-items:center; gap:14px; padding:15px 18px; min-height:44px; border-bottom:1px solid #F1F0EC;">
+                  <span style="width:22px; height:22px; flex:0 0 auto; border-radius:7px; border:1.5px solid #D8D5CE;"></span>
+                  <span style="flex:1; font-size:15px; font-weight:600;">استبدال قاطع مكيفات المصلى</span>
+                  <span style="font-size:12px; color:#8B8B95; background:#F4F3EF; border-radius:999px; padding:5px 11px;">الكهرباء</span>
+                  <span style="font-size:12px; color:#8B8B95;">▨ 2</span>
+                  <span style="font-size:12px; color:#6E6E78; width:120px; text-align:left;">اليوم 2:30 م</span>
+                </div>
+                <div style="display:flex; align-items:center; gap:14px; padding:15px 18px; min-height:44px; border-bottom:1px solid #F1F0EC;">
+                  <span style="width:22px; height:22px; flex:0 0 auto; border-radius:7px; border:1.5px solid #D8D5CE;"></span>
+                  <span style="flex:1; font-size:15px; color:#5B6273;">توثيق القراءات في السجل</span>
+                  <span style="font-size:11px; color:#8B8B95; background:#F1F0EC; border-radius:999px; padding:4px 10px;">مهمة فرعية · فحص اللوحة</span>
+                  <span style="font-size:12px; color:#6E6E78; width:120px; text-align:left;">اليوم</span>
+                </div>
+                <div style="display:flex; align-items:center; gap:14px; padding:15px 18px; min-height:44px;">
+                  <span style="width:22px; height:22px; flex:0 0 auto; border-radius:7px; border:1.5px solid #D8D5CE;"></span>
+                  <span style="flex:1; font-size:15px; font-weight:600;">تنظيف خزان المياه العلوي</span>
+                  <span style="font-size:12px; color:#8B8B95; background:#F4F3EF; border-radius:999px; padding:5px 11px;">الماء</span>
+                  <span style="font-size:12px; color:#6E6E78; width:120px; text-align:left;">اليوم 5:00 م</span>
+                </div>
+              </div>
+            </div>
+
+            <div style="display:flex; flex-direction:column; gap:10px;">
+              <span style="font-size:12px; font-weight:700; color:#8B8B95; padding:0 4px;">هذا الأسبوع</span>
+              <div style="background:#FFFFFF; border:1px solid #EAE8E3; border-radius:18px; overflow:hidden;">
+                <div style="display:flex; align-items:center; gap:14px; padding:15px 18px; min-height:44px; border-bottom:1px solid #F1F0EC;">
+                  <span style="width:22px; height:22px; flex:0 0 auto; border-radius:7px; border:1.5px solid #D8D5CE;"></span>
+                  <span style="flex:1; font-size:15px; font-weight:600;">تنظيف مراوح السقف</span>
+                  <span style="font-size:12px; color:#8B8B95; background:#F4F3EF; border-radius:999px; padding:5px 11px;">الكهرباء</span>
+                  <span style="font-size:12px; color:#8B8B95;">↻</span>
+                  <span style="font-size:12px; color:#6E6E78; width:120px; text-align:left;">28 سبتمبر</span>
+                </div>
+                <div style="display:flex; align-items:center; gap:14px; padding:15px 18px; min-height:44px;">
+                  <span style="width:22px; height:22px; flex:0 0 auto; border-radius:7px; border:1.5px solid #D8D5CE;"></span>
+                  <span style="flex:1; font-size:15px; font-weight:600;">جرد كراسي القاعة</span>
+                  <span style="font-size:12px; color:#8B8B95; background:#F4F3EF; border-radius:999px; padding:5px 11px;">الدورات الصيفية</span>
+                  <span style="font-size:12px; color:#6E6E78; width:120px; text-align:left;">29 سبتمبر</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ التقارير ============ -->
+    <div style="display:flex; flex-direction:column; gap:12px;">
+      <div style="display:flex; align-items:baseline; gap:8px;">
+        <span style="font-size:15px; font-weight:600;">التقارير</span>
+        <span style="font-size:12px; color:#9A9AA4;">/reports · للمشرف</span>
+      </div>
+      <div style="width:1440px; height:900px; background:#F7F6F3; border-radius:18px; border:1px solid #E2DFD9; box-shadow:0 20px 44px -26px rgba(35,35,42,0.4); overflow:hidden; display:flex;">
+
+        <div style="width:260px; flex:0 0 auto; background:#FFFFFF; border-inline-start:1px solid #EAE8E3; display:flex; flex-direction:column; gap:22px; padding:22px 16px;">
+          <div style="display:flex; align-items:center; gap:10px; padding:0 6px;">
+            <span style="width:36px; height:36px; border-radius:12px; background:#4A6FD4; color:#FFFFFF; font-size:16px; font-weight:700; display:flex; align-items:center; justify-content:center;">◈</span>
+            <span style="font-size:15px; font-weight:700;">متابعة المهام</span>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:4px;">
+            <div style="display:flex; align-items:center; gap:11px; min-height:44px; padding:0 14px; border-radius:14px; color:#5B6273; font-size:14px;"><span style="color:#A6A6B0;">▤</span>اللوحات</div>
+            <div style="display:flex; align-items:center; gap:11px; min-height:44px; padding:0 14px; border-radius:14px; color:#5B6273; font-size:14px;"><span style="color:#A6A6B0;">◔</span>مهامي</div>
+            <div style="display:flex; align-items:center; gap:11px; min-height:44px; padding:0 14px; border-radius:14px; background:#EAEFFB; color:#4A6FD4; font-size:14px; font-weight:600;"><span>◫</span>التقارير</div>
+          </div>
+          <div style="margin-top:auto; display:flex; align-items:center; gap:10px; padding:12px 10px; border-radius:16px; background:#F7F6F3;">
+            <span style="width:34px; height:34px; flex:0 0 auto; border-radius:12px; background:#EAEFFB; color:#4A6FD4; font-size:12px; font-weight:700; display:flex; align-items:center; justify-content:center;">ر.غ</span>
+            <span style="font-size:13px; font-weight:600;">رضوان غانم</span>
+            <span style="margin-inline-start:auto; font-size:14px; color:#A6A6B0;">⌄</span>
+          </div>
+        </div>
+
+        <div style="flex:1; display:flex; flex-direction:column; min-width:0;">
+          <div style="padding:22px 32px 0; background:#FFFFFF; border-bottom:1px solid #EAE8E3; display:flex; flex-direction:column; gap:16px;">
+            <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:16px;">
+              <span style="font-size:24px; font-weight:700;">التقارير</span>
+              <div style="display:flex; align-items:center; gap:10px;">
+                <div style="display:flex; background:#F7F6F3; border:1px solid #EAE8E3; border-radius:14px; padding:4px; gap:4px;">
+                  <span style="min-height:36px; padding:0 14px; display:flex; align-items:center; border-radius:11px; background:#FFFFFF; border:1px solid #EAE8E3; font-size:13px; font-weight:700;">7 أيام</span>
+                  <span style="min-height:36px; padding:0 14px; display:flex; align-items:center; border-radius:11px; font-size:13px; color:#6E6E78;">30 يومًا</span>
+                  <span style="min-height:36px; padding:0 14px; display:flex; align-items:center; border-radius:11px; font-size:13px; color:#6E6E78;">فترة</span>
+                </div>
+                <div style="min-height:44px; padding:0 14px; display:flex; align-items:center; gap:8px; border:1px solid #EAE8E3; border-radius:14px; font-size:13px; font-weight:600;">كل التصنيفات ▾</div>
+                <div style="width:44px; min-height:44px; display:flex; align-items:center; justify-content:center; border:1px solid #EAE8E3; border-radius:14px; font-size:15px; color:#5B6273;">⤓</div>
+              </div>
+            </div>
+            <div style="display:flex; gap:22px;">
+              <span style="padding:0 2px 12px; border-bottom:2px solid #4A6FD4; font-size:14px; font-weight:700;">نظرة عامة</span>
+              <span style="padding:0 2px 12px; border-bottom:2px solid transparent; font-size:14px; color:#6E6E78;">المُنجَز</span>
+              <span style="padding:0 2px 12px; border-bottom:2px solid transparent; font-size:14px; color:#6E6E78;">المتأخّرة</span>
+              <span style="padding:0 2px 12px; border-bottom:2px solid transparent; font-size:14px; color:#6E6E78;">عبء العمل</span>
+              <span style="padding:0 2px 12px; border-bottom:2px solid transparent; font-size:14px; color:#6E6E78;">التكاليف</span>
+            </div>
+          </div>
+
+          <div class="scr" style="flex:1; overflow:auto; padding:22px 32px 30px; display:flex; flex-direction:column; gap:18px;">
+
+            <div style="display:flex; gap:14px;">
+              <div style="flex:1; background:#FFFFFF; border:1px solid #EAE8E3; border-radius:18px; padding:18px 20px; display:flex; flex-direction:column; gap:6px;">
+                <span style="font-size:12px; color:#8B8B95;">منجَز</span>
+                <span style="font-size:26px; font-weight:700; line-height:1;">19</span>
+                <span style="font-size:11px; color:#1F7A5C;">+4 عن الأسبوع الماضي</span>
+              </div>
+              <div style="flex:1; background:#FFFFFF; border:1px solid #F3D8D3; border-radius:18px; padding:18px 20px; display:flex; flex-direction:column; gap:6px;">
+                <span style="font-size:12px; color:#C0503C;">متأخّرة</span>
+                <span style="font-size:26px; font-weight:700; line-height:1; color:#C0503C;">5</span>
+                <span style="font-size:11px; color:#8B8B95;">أقدمها 4 أيام</span>
+              </div>
+              <div style="flex:1; background:#FFFFFF; border:1px solid #EAE8E3; border-radius:18px; padding:18px 20px; display:flex; flex-direction:column; gap:6px;">
+                <span style="font-size:12px; color:#8B8B95;">متوسط زمن الإنجاز</span>
+                <span style="font-size:26px; font-weight:700; line-height:1;">2.4 يوم</span>
+              </div>
+              <div style="flex:1; background:#FFFFFF; border:1px solid #EAE8E3; border-radius:18px; padding:18px 20px; display:flex; flex-direction:column; gap:6px;">
+                <span style="font-size:12px; color:#8B8B95;">تكاليف الفترة</span>
+                <span style="font-size:22px; font-weight:700; line-height:1.2;">2,030,000 ل.س</span>
+              </div>
+            </div>
+
+            <div style="display:flex; gap:14px; align-items:stretch;">
+              <div style="flex:1.4; background:#FFFFFF; border:1px solid #EAE8E3; border-radius:20px; padding:20px; display:flex; flex-direction:column; gap:18px;">
+                <div style="display:flex; align-items:baseline; justify-content:space-between;">
+                  <span style="font-size:15px; font-weight:700;">المنجَز يوميًا</span>
+                  <span style="font-size:11px; color:#8B8B95;">آخر 7 أيام</span>
+                </div>
+                <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:12px; height:180px;">
+                  <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:8px;"><span style="width:100%; height:64px; border-radius:8px 8px 0 0; background:#D6E1F8;"></span><span style="font-size:11px; color:#8B8B95;">أحد</span></div>
+                  <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:8px;"><span style="width:100%; height:104px; border-radius:8px 8px 0 0; background:#D6E1F8;"></span><span style="font-size:11px; color:#8B8B95;">اثن</span></div>
+                  <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:8px;"><span style="width:100%; height:48px; border-radius:8px 8px 0 0; background:#D6E1F8;"></span><span style="font-size:11px; color:#8B8B95;">ثلا</span></div>
+                  <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:8px;"><span style="width:100%; height:136px; border-radius:8px 8px 0 0; background:#4A6FD4;"></span><span style="font-size:11px; font-weight:700;">أرب</span></div>
+                  <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:8px;"><span style="width:100%; height:88px; border-radius:8px 8px 0 0; background:#D6E1F8;"></span><span style="font-size:11px; color:#8B8B95;">خمي</span></div>
+                  <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:8px;"><span style="width:100%; height:32px; border-radius:8px 8px 0 0; background:#D6E1F8;"></span><span style="font-size:11px; color:#8B8B95;">جمع</span></div>
+                  <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:8px;"><span style="width:100%; height:72px; border-radius:8px 8px 0 0; background:#D6E1F8;"></span><span style="font-size:11px; color:#8B8B95;">سبت</span></div>
+                </div>
+              </div>
+
+              <div style="flex:1; background:#FFFFFF; border:1px solid #EAE8E3; border-radius:20px; padding:20px; display:flex; flex-direction:column; gap:16px;">
+                <span style="font-size:15px; font-weight:700;">عبء العمل</span>
+                <div style="display:flex; flex-direction:column; gap:14px;">
+                  <div style="display:flex; flex-direction:column; gap:7px;">
+                    <div style="display:flex; align-items:center; gap:10px;">
+                      <span style="width:26px; height:26px; border-radius:999px; background:#EAEFFB; color:#4A6FD4; font-size:10px; font-weight:700; display:flex; align-items:center; justify-content:center;">ر.غ</span>
+                      <span style="flex:1; font-size:13px;">رضوان غانم</span>
+                      <span style="font-size:13px; font-weight:700;">7</span>
+                    </div>
+                    <span style="height:6px; border-radius:999px; background:#F1F0EC; display:block; overflow:hidden;"><span style="display:block; width:70%; height:6px; border-radius:999px; background:#4A6FD4;"></span></span>
+                  </div>
+                  <div style="display:flex; flex-direction:column; gap:7px;">
+                    <div style="display:flex; align-items:center; gap:10px;">
+                      <span style="width:26px; height:26px; border-radius:999px; background:#F3ECFB; color:#8B5FC7; font-size:10px; font-weight:700; display:flex; align-items:center; justify-content:center;">ع.ك</span>
+                      <span style="flex:1; font-size:13px;">عبد الله كحال</span>
+                      <span style="font-size:13px; font-weight:700;">5</span>
+                    </div>
+                    <span style="height:6px; border-radius:999px; background:#F1F0EC; display:block; overflow:hidden;"><span style="display:block; width:50%; height:6px; border-radius:999px; background:#4A6FD4;"></span></span>
+                  </div>
+                  <div style="display:flex; flex-direction:column; gap:7px;">
+                    <div style="display:flex; align-items:center; gap:10px;">
+                      <span style="width:26px; height:26px; border-radius:999px; background:#E6F4EE; color:#1F7A5C; font-size:10px; font-weight:700; display:flex; align-items:center; justify-content:center;">ع.ص</span>
+                      <span style="flex:1; font-size:13px;">عائشة صالح</span>
+                      <span style="font-size:13px; font-weight:700;">4</span>
+                    </div>
+                    <span style="height:6px; border-radius:999px; background:#F1F0EC; display:block; overflow:hidden;"><span style="display:block; width:40%; height:6px; border-radius:999px; background:#4A6FD4;"></span></span>
+                  </div>
+                  <div style="display:flex; flex-direction:column; gap:7px;">
+                    <div style="display:flex; align-items:center; gap:10px;">
+                      <span style="width:26px; height:26px; border-radius:999px; background:#F1F0EC; color:#A6A6B0; font-size:10px; font-weight:700; display:flex; align-items:center; justify-content:center;">م.س</span>
+                      <span style="flex:1; font-size:13px; color:#8B8B95;">منال سالم<span style="font-size:11px; font-weight:600; color:#C0503C; margin-inline-start:7px;">معطَّلة</span></span>
+                      <span style="font-size:13px; font-weight:700; color:#C0503C;">4</span>
+                    </div>
+                    <span style="height:6px; border-radius:999px; background:#F1F0EC; display:block; overflow:hidden;"><span style="display:block; width:40%; height:6px; border-radius:999px; background:#E8B6AE;"></span></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div style="display:flex; gap:14px;">
+              <div style="flex:1; background:#FFFFFF; border:1px solid #EAE8E3; border-radius:20px; padding:20px; display:flex; flex-direction:column; gap:14px;">
+                <span style="font-size:15px; font-weight:700;">المتأخّرة حسب اللوحة</span>
+                <div style="display:flex; flex-direction:column;">
+                  <div style="display:flex; align-items:center; justify-content:space-between; min-height:44px; border-bottom:1px solid #F1F0EC;">
+                    <span style="font-size:13px;">الكهرباء</span><span style="font-size:13px; font-weight:700; color:#C0503C;">3</span>
+                  </div>
+                  <div style="display:flex; align-items:center; justify-content:space-between; min-height:44px; border-bottom:1px solid #F1F0EC;">
+                    <span style="font-size:13px;">الماء</span><span style="font-size:13px; font-weight:700; color:#C0503C;">1</span>
+                  </div>
+                  <div style="display:flex; align-items:center; justify-content:space-between; min-height:44px;">
+                    <span style="font-size:13px;">الدورات الصيفية</span><span style="font-size:13px; font-weight:700; color:#C0503C;">1</span>
+                  </div>
+                </div>
+              </div>
+              <div style="flex:1; background:#FFFFFF; border:1px solid #EAE8E3; border-radius:20px; padding:20px; display:flex; flex-direction:column; gap:14px;">
+                <span style="font-size:15px; font-weight:700;">التكاليف حسب التصنيف</span>
+                <div style="display:flex; flex-direction:column;">
+                  <div style="display:flex; align-items:center; justify-content:space-between; min-height:44px; border-bottom:1px solid #F1F0EC;">
+                    <span style="font-size:13px;">الجامع</span><span style="font-size:13px; font-weight:700; direction:ltr;">2,030,000</span>
+                  </div>
+                  <div style="display:flex; align-items:center; justify-content:space-between; min-height:44px; border-bottom:1px solid #F1F0EC;">
+                    <span style="font-size:13px;">المعهد الشرعي</span><span style="font-size:13px; font-weight:700; direction:ltr;">640,000</span>
+                  </div>
+                  <div style="display:flex; align-items:center; justify-content:space-between; min-height:44px;">
+                    <span style="font-size:13px; font-weight:700;">المجموع</span><span style="font-size:14px; font-weight:700; direction:ltr;">2,670,000 ل.س</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ المستخدمون ============ -->
+    <div style="display:flex; flex-direction:column; gap:12px;">
+      <div style="display:flex; align-items:baseline; gap:8px;">
+        <span style="font-size:15px; font-weight:600;">المستخدمون والصلاحيات</span>
+        <span style="font-size:12px; color:#9A9AA4;">/admin/users</span>
+      </div>
+      <div style="width:1440px; height:900px; background:#F7F6F3; border-radius:18px; border:1px solid #E2DFD9; box-shadow:0 20px 44px -26px rgba(35,35,42,0.4); overflow:hidden; display:flex;">
+
+        <div style="width:260px; flex:0 0 auto; background:#FFFFFF; border-inline-start:1px solid #EAE8E3; display:flex; flex-direction:column; gap:22px; padding:22px 16px;">
+          <div style="display:flex; align-items:center; gap:10px; padding:0 6px;">
+            <span style="width:36px; height:36px; border-radius:12px; background:#4A6FD4; color:#FFFFFF; font-size:16px; font-weight:700; display:flex; align-items:center; justify-content:center;">◈</span>
+            <span style="font-size:15px; font-weight:700;">متابعة المهام</span>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:4px;">
+            <div style="display:flex; align-items:center; gap:11px; min-height:44px; padding:0 14px; border-radius:14px; color:#5B6273; font-size:14px;"><span style="color:#A6A6B0;">▤</span>اللوحات</div>
+            <div style="display:flex; align-items:center; gap:11px; min-height:44px; padding:0 14px; border-radius:14px; color:#5B6273; font-size:14px;"><span style="color:#A6A6B0;">◔</span>مهامي</div>
+            <div style="display:flex; align-items:center; gap:11px; min-height:44px; padding:0 14px; border-radius:14px; color:#5B6273; font-size:14px;"><span style="color:#A6A6B0;">◫</span>التقارير</div>
+          </div>
+          <div style="margin-top:auto; display:flex; flex-direction:column; gap:8px;">
+            <div style="background:#FFFFFF; border:1px solid #EAE8E3; border-radius:16px; box-shadow:0 18px 36px -22px rgba(35,35,42,0.45); overflow:hidden;">
+              <div style="display:flex; align-items:center; gap:11px; min-height:44px; padding:0 14px; border-bottom:1px solid #F1F0EC; background:#EAEFFB; color:#4A6FD4; font-size:14px; font-weight:600;"><span>◎</span>المستخدمون والصلاحيات</div>
+              <div style="display:flex; align-items:center; gap:11px; min-height:44px; padding:0 14px; border-bottom:1px solid #F1F0EC; font-size:14px; color:#5B6273;"><span style="color:#A6A6B0;">◍</span>حسابي</div>
+              <div style="display:flex; align-items:center; gap:11px; min-height:44px; padding:0 14px; font-size:14px; color:#C0503C;"><span>⇥</span>تسجيل الخروج</div>
+            </div>
+            <div style="display:flex; align-items:center; gap:10px; padding:12px 10px; border-radius:16px; background:#F7F6F3;">
+              <span style="width:34px; height:34px; flex:0 0 auto; border-radius:12px; background:#EAEFFB; color:#4A6FD4; font-size:12px; font-weight:700; display:flex; align-items:center; justify-content:center;">ر.غ</span>
+              <span style="font-size:13px; font-weight:600;">رضوان غانم</span>
+              <span style="margin-inline-start:auto; font-size:14px; color:#A6A6B0;">⌃</span>
+            </div>
+          </div>
+        </div>
+
+        <div style="flex:1; display:flex; flex-direction:column; min-width:0;">
+          <div style="padding:22px 32px 18px; background:#FFFFFF; border-bottom:1px solid #EAE8E3; display:flex; align-items:flex-end; justify-content:space-between; gap:16px;">
+            <div style="display:flex; flex-direction:column; gap:4px;">
+              <span style="font-size:24px; font-weight:700;">المستخدمون</span>
+              <span style="font-size:12px; color:#8B8B95;">48 مستخدمًا · 3 مشرفين · 2 معطَّلين</span>
+            </div>
+            <div style="display:flex; align-items:center; gap:10px;">
+              <div style="display:flex; align-items:center; gap:9px; width:260px; background:#F7F6F3; border:1px solid #EAE8E3; border-radius:14px; padding:12px 14px;">
+                <span style="font-size:14px; color:#B4B4BC;">⌕</span>
+                <span style="font-size:14px; color:#B4B4BC;">ابحث بالاسم أو البريد</span>
+              </div>
+              <div style="min-height:44px; padding:0 14px; display:flex; align-items:center; gap:8px; border:1px solid #EAE8E3; border-radius:14px; font-size:13px; font-weight:600;">كل الصلاحيات ▾</div>
+              <div style="min-height:44px; padding:0 18px; display:flex; align-items:center; border-radius:14px; background:#4A6FD4; color:#FFFFFF; font-size:13px; font-weight:600;">+ مستخدم</div>
+            </div>
+          </div>
+
+          <div class="scr" style="flex:1; overflow:auto; padding:22px 32px 30px;">
+            <div style="background:#FFFFFF; border:1px solid #EAE8E3; border-radius:20px; overflow:hidden;">
+              <div style="display:flex; align-items:center; gap:16px; padding:13px 20px; background:#FAF9F7; border-bottom:1px solid #EAE8E3; font-size:12px; font-weight:700; color:#8B8B95;">
+                <span style="flex:1.6;">المستخدم</span>
+                <span style="width:110px;">الصلاحية</span>
+                <span style="width:100px;">الحالة</span>
+                <span style="width:90px;">اللوحات</span>
+                <span style="width:120px;">آخر دخول</span>
+                <span style="width:260px; text-align:left;">إجراءات</span>
+              </div>
+
+              <div style="display:flex; align-items:center; gap:16px; padding:14px 20px; min-height:44px; border-bottom:1px solid #F1F0EC;">
+                <div style="flex:1.6; display:flex; align-items:center; gap:12px; min-width:0;">
+                  <span style="width:38px; height:38px; flex:0 0 auto; border-radius:13px; background:#EAEFFB; color:#4A6FD4; font-size:13px; font-weight:700; display:flex; align-items:center; justify-content:center;">ر.غ</span>
+                  <div style="display:flex; flex-direction:column; gap:2px; min-width:0;">
+                    <span style="font-size:14px; font-weight:700;">رضوان غانم <span style="font-size:11px; color:#A6A6B0; font-weight:400;">(أنت)</span></span>
+                    <span style="font-size:12px; color:#8B8B95;">radwan@example.com</span>
+                  </div>
+                </div>
+                <span style="width:110px;"><span style="font-size:11px; font-weight:600; color:#FFFFFF; background:#23232A; border-radius:999px; padding:5px 10px;">مشرف</span></span>
+                <span style="width:100px;"><span style="font-size:11px; font-weight:600; color:#1F7A5C; background:#E9F4EF; border-radius:999px; padding:5px 10px;">نشط</span></span>
+                <span style="width:90px; font-size:13px; color:#6E6E78;">5</span>
+                <span style="width:120px; font-size:12px; color:#8B8B95;">اليوم 9:12 ص</span>
+                <div style="width:260px; display:flex; gap:8px; justify-content:flex-end;">
+                  <span style="min-height:36px; padding:0 12px; display:flex; align-items:center; border:1px solid #EFEDE8; border-radius:12px; font-size:12px; color:#C2C6D0;">تعيين كمشرف</span>
+                  <span style="min-height:36px; padding:0 12px; display:flex; align-items:center; border:1px solid #EFEDE8; border-radius:12px; font-size:12px; color:#C2C6D0;">إلغاء التفعيل</span>
+                </div>
+              </div>
+
+              <div style="display:flex; align-items:center; gap:16px; padding:14px 20px; min-height:44px; border-bottom:1px solid #F1F0EC;">
+                <div style="flex:1.6; display:flex; align-items:center; gap:12px; min-width:0;">
+                  <span style="width:38px; height:38px; flex:0 0 auto; border-radius:13px; background:#F3ECFB; color:#8B5FC7; font-size:13px; font-weight:700; display:flex; align-items:center; justify-content:center;">ع.ك</span>
+                  <div style="display:flex; flex-direction:column; gap:2px; min-width:0;">
+                    <span style="font-size:14px; font-weight:700;">عبد الله كحال</span>
+                    <span style="font-size:12px; color:#8B8B95;">abdullah@example.com</span>
+                  </div>
+                </div>
+                <span style="width:110px;"><span style="font-size:11px; font-weight:600; color:#6E6E78; background:#F1F0EC; border-radius:999px; padding:5px 10px;">مستخدم</span></span>
+                <span style="width:100px;"><span style="font-size:11px; font-weight:600; color:#1F7A5C; background:#E9F4EF; border-radius:999px; padding:5px 10px;">نشط</span></span>
+                <span style="width:90px; font-size:13px; color:#6E6E78;">3</span>
+                <span style="width:120px; font-size:12px; color:#8B8B95;">أمس 4:40 م</span>
+                <div style="width:260px; display:flex; gap:8px; justify-content:flex-end;">
+                  <span style="min-height:36px; padding:0 12px; display:flex; align-items:center; border:1px solid #EAE8E3; border-radius:12px; font-size:12px; font-weight:600;">تعيين كمشرف</span>
+                  <span style="min-height:36px; padding:0 12px; display:flex; align-items:center; border:1px solid #EAE8E3; border-radius:12px; font-size:12px; font-weight:600;">إلغاء التفعيل</span>
+                  <span style="width:36px; min-height:36px; display:flex; align-items:center; justify-content:center; border:1px solid #EAE8E3; border-radius:12px; font-size:13px; color:#5B6273;">⋯</span>
+                </div>
+              </div>
+
+              <div style="display:flex; align-items:center; gap:16px; padding:14px 20px; min-height:44px; border-bottom:1px solid #F1F0EC;">
+                <div style="flex:1.6; display:flex; align-items:center; gap:12px; min-width:0;">
+                  <span style="width:38px; height:38px; flex:0 0 auto; border-radius:13px; background:#E6F4EE; color:#1F7A5C; font-size:13px; font-weight:700; display:flex; align-items:center; justify-content:center;">ع.ص</span>
+                  <div style="display:flex; flex-direction:column; gap:2px; min-width:0;">
+                    <span style="font-size:14px; font-weight:700;">عائشة صالح</span>
+                    <span style="font-size:12px; color:#8B8B95;">aisha@example.com</span>
+                  </div>
+                </div>
+                <span style="width:110px;"><span style="font-size:11px; font-weight:600; color:#6E6E78; background:#F1F0EC; border-radius:999px; padding:5px 10px;">مستخدم</span></span>
+                <span style="width:100px;"><span style="font-size:11px; font-weight:600; color:#1F7A5C; background:#E9F4EF; border-radius:999px; padding:5px 10px;">نشط</span></span>
+                <span style="width:90px; font-size:13px; color:#6E6E78;">2</span>
+                <span style="width:120px; font-size:12px; color:#8B8B95;">18 سبتمبر</span>
+                <div style="width:260px; display:flex; gap:8px; justify-content:flex-end;">
+                  <span style="min-height:36px; padding:0 12px; display:flex; align-items:center; border:1px solid #EAE8E3; border-radius:12px; font-size:12px; font-weight:600;">تعيين كمشرف</span>
+                  <span style="min-height:36px; padding:0 12px; display:flex; align-items:center; border:1px solid #EAE8E3; border-radius:12px; font-size:12px; font-weight:600;">إلغاء التفعيل</span>
+                  <span style="width:36px; min-height:36px; display:flex; align-items:center; justify-content:center; border:1px solid #EAE8E3; border-radius:12px; font-size:13px; color:#5B6273;">⋯</span>
+                </div>
+              </div>
+
+              <div style="display:flex; align-items:center; gap:16px; padding:14px 20px; min-height:44px; background:#FCFBFA;">
+                <div style="flex:1.6; display:flex; align-items:center; gap:12px; min-width:0;">
+                  <span style="width:38px; height:38px; flex:0 0 auto; border-radius:13px; background:#F1F0EC; color:#A6A6B0; font-size:13px; font-weight:700; display:flex; align-items:center; justify-content:center;">م.س</span>
+                  <div style="display:flex; flex-direction:column; gap:2px; min-width:0;">
+                    <span style="font-size:14px; font-weight:700; color:#8B8B95;">منال سالم</span>
+                    <span style="font-size:12px; color:#A6A6B0;">manal@example.com</span>
+                  </div>
+                </div>
+                <span style="width:110px;"><span style="font-size:11px; font-weight:600; color:#6E6E78; background:#F1F0EC; border-radius:999px; padding:5px 10px;">مستخدم</span></span>
+                <span style="width:100px;"><span style="font-size:11px; font-weight:600; color:#C0503C; background:#FBE9E7; border-radius:999px; padding:5px 10px;">غير مفعّل</span></span>
+                <span style="width:90px; font-size:13px; color:#8B8B95;">1</span>
+                <span style="width:120px; font-size:12px; color:#A6A6B0;">2 سبتمبر</span>
+                <div style="width:260px; display:flex; gap:8px; justify-content:flex-end;">
+                  <span style="min-height:36px; padding:0 12px; display:flex; align-items:center; border:1px solid #EAE8E3; border-radius:12px; font-size:12px; font-weight:600;">إعادة التفعيل</span>
+                  <span style="min-height:36px; padding:0 12px; display:flex; align-items:center; border:1px solid #EAE8E3; border-radius:12px; font-size:12px; font-weight:600; color:#4A6FD4;">إعادة تعيين كلمة المرور</span>
+                </div>
+              </div>
+            </div>
+
+            <div style="display:flex; align-items:center; justify-content:space-between; padding:16px 4px 0;">
+              <span style="min-height:40px; padding:0 16px; display:flex; align-items:center; border:1px solid #EAE8E3; border-radius:12px; background:#FFFFFF; font-size:13px; color:#C2C6D0;">السابق</span>
+              <span style="font-size:12px; color:#8B8B95;">صفحة 1 من 3</span>
+              <span style="min-height:40px; padding:0 16px; display:flex; align-items:center; border:1px solid #EAE8E3; border-radius:12px; background:#FFFFFF; font-size:13px; font-weight:600;">التالي</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section dir="rtl" style="position:absolute; left:32px; top:2660px; padding:56px 48px 80px; display:flex; flex-direction:column; gap:40px; font-family:'Cairo', system-ui, sans-serif; color:#23232A;">
+
+  <div style="display:flex; flex-direction:column; gap:10px; max-width:860px;">
+    <div style="display:flex; align-items:center; gap:12px;">
+      <span style="font-size:12px; font-weight:600; letter-spacing:0.04em; color:#fff; background:#4A6FD4; border-radius:999px; padding:4px 12px;">w3</span>
+      <h1 style="margin:0; font-size:30px; font-weight:700;">الويب — الحساب والإعدادات والحالات</h1>
+    </div>
+    <p style="margin:0; font-size:15px; line-height:1.8; color:#6E6E78; text-wrap:pretty;">
+      تسجيل الدخول وحسابي وإعدادات اللوحة، ثم الحوارات المركزية والحالات الفارغة والتحميل والأخطاء بمقاس سطح المكتب.
+    </p>
+  </div>
+
+  <div style="display:flex; flex-wrap:nowrap; gap:44px; align-items:flex-start;">
+
+    <!-- ============ تسجيل الدخول ============ -->
+    <div style="display:flex; flex-direction:column; gap:12px;">
+      <div style="display:flex; align-items:baseline; gap:8px;">
+        <span style="font-size:15px; font-weight:600;">تسجيل الدخول</span>
+        <span style="font-size:12px; color:#9A9AA4;">/login</span>
+      </div>
+      <div style="width:1440px; height:900px; border-radius:18px; border:1px solid #E2DFD9; box-shadow:0 20px 44px -26px rgba(35,35,42,0.4); overflow:hidden; display:flex; background:#FFFFFF;">
+        <div style="flex:1; display:flex; align-items:center; justify-content:center; padding:40px;">
+          <div style="width:400px; display:flex; flex-direction:column; gap:26px;">
+            <div style="display:flex; flex-direction:column; gap:10px;">
+              <span style="width:54px; height:54px; border-radius:18px; background:#4A6FD4; color:#FFFFFF; font-size:22px; font-weight:700; display:flex; align-items:center; justify-content:center;">◈</span>
+              <span style="font-size:28px; font-weight:700; margin-top:8px;">تسجيل الدخول</span>
+              <span style="font-size:14px; color:#8B8B95; line-height:1.8;">متابعة مهام الفريق ولوحات المشاريع.</span>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:14px;">
+              <div style="display:flex; flex-direction:column; gap:7px;">
+                <span style="font-size:12px; font-weight:600; color:#8B8B95;">البريد الإلكتروني</span>
+                <div style="background:#F7F6F3; border:1px solid #EAE8E3; border-radius:16px; padding:15px 16px; font-size:15px;">radwan@example.com</div>
+              </div>
+              <div style="display:flex; flex-direction:column; gap:7px;">
+                <span style="font-size:12px; font-weight:600; color:#8B8B95;">كلمة المرور</span>
+                <div style="background:#F7F6F3; border:1px solid #EAE8E3; border-radius:16px; padding:15px 16px; display:flex; align-items:center; justify-content:space-between;">
+                  <span style="font-size:15px; letter-spacing:3px;">••••••••</span>
+                  <span style="font-size:13px; color:#4A6FD4;">إظهار</span>
+                </div>
+              </div>
+            </div>
+            <div style="padding:16px; border-radius:16px; background:#4A6FD4; color:#FFFFFF; font-size:15px; font-weight:600; text-align:center; box-shadow:0 10px 24px -12px rgba(74,111,212,0.9);">تسجيل الدخول</div>
+            <div style="display:flex; align-items:center; gap:10px; background:#FBE9E7; border-radius:14px; padding:13px 14px;">
+              <span style="font-size:14px; color:#C0503C;">◉</span>
+              <span style="font-size:13px; color:#C0503C;">البريد الإلكتروني أو كلمة المرور غير صحيحة.</span>
+            </div>
+            <span style="font-size:12px; color:#A6A6B0; text-align:center;">لإنشاء حساب جديد، تواصل مع مدير النظام.</span>
+          </div>
+        </div>
+        <div style="width:620px; flex:0 0 auto; background:#F7F6F3; border-inline-end:1px solid #EAE8E3; display:flex; flex-direction:column; justify-content:center; gap:20px; padding:56px;">
+          <span style="font-size:13px; font-weight:700; color:#8B8B95;">لوحات اليوم</span>
+          <div style="display:flex; flex-direction:column; gap:12px;">
+            <div style="background:#FFFFFF; border:1px solid #EAE8E3; border-radius:18px; padding:18px 20px; display:flex; align-items:center; gap:14px;">
+              <span style="width:8px; height:8px; border-radius:999px; background:#E0A34A;"></span>
+              <span style="flex:1; font-size:15px; font-weight:700;">الكهرباء</span>
+              <span style="font-size:12px; color:#C0503C;">3 متأخّرة</span>
+            </div>
+            <div style="background:#FFFFFF; border:1px solid #EAE8E3; border-radius:18px; padding:18px 20px; display:flex; align-items:center; gap:14px;">
+              <span style="width:8px; height:8px; border-radius:999px; background:#6E8AD8;"></span>
+              <span style="flex:1; font-size:15px; font-weight:700;">الماء</span>
+              <span style="font-size:12px; color:#8B8B95;">12 مهمة</span>
+            </div>
+            <div style="background:#FFFFFF; border:1px solid #EAE8E3; border-radius:18px; padding:18px 20px; display:flex; align-items:center; gap:14px; opacity:0.6;">
+              <span style="width:8px; height:8px; border-radius:999px; background:#59B08A;"></span>
+              <span style="flex:1; font-size:15px; font-weight:700;">النظافة</span>
+              <span style="font-size:12px; color:#8B8B95;">8 مهام</span>
+            </div>
+          </div>
+          <span style="font-size:12px; color:#A6A6B0; line-height:1.9;">معاينة ساكنة — تُستبدل بصورة الجامع أو شعار الجهة عند توفّرها.</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ حسابي ============ -->
+    <div style="display:flex; flex-direction:column; gap:12px;">
+      <div style="display:flex; align-items:baseline; gap:8px;">
+        <span style="font-size:15px; font-weight:600;">حسابي</span>
+        <span style="font-size:12px; color:#9A9AA4;">/account</span>
+      </div>
+      <div style="width:1440px; height:900px; background:#F7F6F3; border-radius:18px; border:1px solid #E2DFD9; box-shadow:0 20px 44px -26px rgba(35,35,42,0.4); overflow:hidden; display:flex;">
+
+        <div style="width:260px; flex:0 0 auto; background:#FFFFFF; border-inline-start:1px solid #EAE8E3; display:flex; flex-direction:column; gap:22px; padding:22px 16px;">
+          <div style="display:flex; align-items:center; gap:10px; padding:0 6px;">
+            <span style="width:36px; height:36px; border-radius:12px; background:#4A6FD4; color:#FFFFFF; font-size:16px; font-weight:700; display:flex; align-items:center; justify-content:center;">◈</span>
+            <span style="font-size:15px; font-weight:700;">متابعة المهام</span>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:4px;">
+            <div style="display:flex; align-items:center; gap:11px; min-height:44px; padding:0 14px; border-radius:14px; color:#5B6273; font-size:14px;"><span style="color:#A6A6B0;">▤</span>اللوحات</div>
+            <div style="display:flex; align-items:center; gap:11px; min-height:44px; padding:0 14px; border-radius:14px; color:#5B6273; font-size:14px;"><span style="color:#A6A6B0;">◔</span>مهامي</div>
+            <div style="display:flex; align-items:center; gap:11px; min-height:44px; padding:0 14px; border-radius:14px; color:#5B6273; font-size:14px;"><span style="color:#A6A6B0;">◫</span>التقارير</div>
+          </div>
+          <div style="margin-top:auto; display:flex; align-items:center; gap:10px; padding:12px 10px; border-radius:16px; background:#EAEFFB;">
+            <span style="width:34px; height:34px; flex:0 0 auto; border-radius:12px; background:#FFFFFF; color:#4A6FD4; font-size:12px; font-weight:700; display:flex; align-items:center; justify-content:center;">ر.غ</span>
+            <span style="font-size:13px; font-weight:700; color:#33509E;">رضوان غانم</span>
+            <span style="margin-inline-start:auto; font-size:14px; color:#4A6FD4;">⌄</span>
+          </div>
+        </div>
+
+        <div style="flex:1; display:flex; flex-direction:column; min-width:0;">
+          <div style="padding:22px 32px 18px; background:#FFFFFF; border-bottom:1px solid #EAE8E3;">
+            <span style="font-size:24px; font-weight:700;">حسابي</span>
+          </div>
+
+          <div class="scr" style="flex:1; overflow:auto; padding:24px 32px 30px; display:flex; gap:18px; align-items:flex-start;">
+
+            <div style="flex:1; display:flex; flex-direction:column; gap:16px;">
+              <div style="background:#FFFFFF; border:1px solid #EAE8E3; border-radius:20px; padding:22px; display:flex; align-items:center; gap:16px;">
+                <span style="width:64px; height:64px; flex:0 0 auto; border-radius:22px; background:#EAEFFB; color:#4A6FD4; font-size:21px; font-weight:700; display:flex; align-items:center; justify-content:center;">ر.غ</span>
+                <div style="display:flex; flex-direction:column; gap:5px; min-width:0;">
+                  <span style="font-size:19px; font-weight:700;">رضوان غانم</span>
+                  <span style="font-size:13px; color:#8B8B95;">radwan@example.com</span>
+                  <span style="align-self:flex-start; font-size:11px; font-weight:600; color:#4A6FD4; background:#EAEFFB; border-radius:999px; padding:4px 10px;">مشرف</span>
+                </div>
+                <span style="margin-inline-start:auto; min-height:44px; padding:0 16px; display:flex; align-items:center; border:1px solid #EAE8E3; border-radius:14px; font-size:13px; font-weight:600;">تعديل الاسم</span>
+              </div>
+
+              <div style="background:#FFFFFF; border:1px solid #EAE8E3; border-radius:20px; padding:22px; display:flex; flex-direction:column; gap:16px;">
+                <span style="font-size:15px; font-weight:700;">تغيير كلمة المرور</span>
+                <div style="display:flex; gap:12px;">
+                  <div style="flex:1; background:#F7F6F3; border:1px solid #EFEDE8; border-radius:16px; padding:14px 16px; font-size:14px; color:#B4B4BC;">الحالية</div>
+                  <div style="flex:1; background:#F7F6F3; border:1px solid #EFEDE8; border-radius:16px; padding:14px 16px; font-size:14px; color:#B4B4BC;">الجديدة</div>
+                  <div style="flex:1; background:#F7F6F3; border:1px solid #EFEDE8; border-radius:16px; padding:14px 16px; font-size:14px; color:#B4B4BC;">تأكيد الجديدة</div>
+                </div>
+                <div style="display:flex; align-items:center; gap:12px;">
+                  <span style="min-height:44px; padding:0 20px; display:flex; align-items:center; border-radius:14px; background:#4A6FD4; color:#FFFFFF; font-size:14px; font-weight:600;">حفظ</span>
+                  <span style="font-size:12px; color:#A6A6B0;">8 أحرف على الأقل.</span>
+                </div>
+                <div style="display:flex; align-items:center; gap:10px; background:#E9F4EF; border-radius:14px; padding:13px 14px;">
+                  <span style="font-size:14px; color:#1F7A5C;">✓</span>
+                  <span style="font-size:13px; color:#1F7A5C;">تم تغيير كلمة المرور بنجاح.</span>
+                </div>
+              </div>
+
+              <div style="background:#FFFFFF; border:1px solid #EAE8E3; border-radius:20px; padding:22px; display:flex; flex-direction:column; gap:14px;">
+                <span style="font-size:15px; font-weight:700;">تفضيلات الإشعارات</span>
+                <div style="display:flex; flex-direction:column;">
+                  <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; min-height:56px; border-bottom:1px solid #F1F0EC;">
+                    <div style="display:flex; flex-direction:column; gap:3px;">
+                      <span style="font-size:14px; font-weight:600;">الإسناد والتعليقات</span>
+                      <span style="font-size:12px; color:#8B8B95;">عند إسناد مهمة لك أو تعليق يخصّك</span>
+                    </div>
+                    <span style="width:48px; height:28px; flex:0 0 auto; border-radius:999px; background:#4A6FD4; padding:3px; display:flex; align-items:center; justify-content:flex-end;"><span style="width:22px; height:22px; border-radius:999px; background:#FFFFFF;"></span></span>
+                  </div>
+                  <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; min-height:56px; border-bottom:1px solid #F1F0EC;">
+                    <div style="display:flex; flex-direction:column; gap:3px;">
+                      <span style="font-size:14px; font-weight:600;">المواعيد والتأخّر</span>
+                      <span style="font-size:12px; color:#8B8B95;">تنبيه قبل يوم، وعند التأخّر</span>
+                    </div>
+                    <span style="width:48px; height:28px; flex:0 0 auto; border-radius:999px; background:#4A6FD4; padding:3px; display:flex; align-items:center; justify-content:flex-end;"><span style="width:22px; height:22px; border-radius:999px; background:#FFFFFF;"></span></span>
+                  </div>
+                  <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; min-height:56px;">
+                    <div style="display:flex; flex-direction:column; gap:3px;">
+                      <span style="font-size:14px; font-weight:600;">حركة بطاقاتي</span>
+                      <span style="font-size:12px; color:#8B8B95;">عند نقل بطاقة أنشأتها إلى «انتهى»</span>
+                    </div>
+                    <span style="width:48px; height:28px; flex:0 0 auto; border-radius:999px; background:#DEDCD6; padding:3px; display:flex; align-items:center;"><span style="width:22px; height:22px; border-radius:999px; background:#FFFFFF; box-shadow:0 1px 3px rgba(0,0,0,0.2);"></span></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div style="width:340px; flex:0 0 auto; display:flex; flex-direction:column; gap:16px;">
+              <div style="background:#FFFFFF; border:1px solid #EAE8E3; border-radius:20px; padding:22px; display:flex; flex-direction:column; gap:14px;">
+                <span style="font-size:15px; font-weight:700;">نشاطي هذا الأسبوع</span>
+                <div style="display:flex; gap:12px;">
+                  <div style="flex:1; background:#F7F6F3; border-radius:16px; padding:14px; display:flex; flex-direction:column; gap:4px;">
+                    <span style="font-size:22px; font-weight:700; line-height:1;">7</span>
+                    <span style="font-size:11px; color:#8B8B95;">منجَز</span>
+                  </div>
+                  <div style="flex:1; background:#F7F6F3; border-radius:16px; padding:14px; display:flex; flex-direction:column; gap:4px;">
+                    <span style="font-size:22px; font-weight:700; line-height:1; color:#C0503C;">2</span>
+                    <span style="font-size:11px; color:#8B8B95;">متأخّر</span>
+                  </div>
+                </div>
+              </div>
+              <div style="background:#FFFFFF; border:1px solid #EAE8E3; border-radius:20px; padding:22px; display:flex; flex-direction:column; gap:12px;">
+                <span style="font-size:15px; font-weight:700;">الجلسة</span>
+                <div style="display:flex; align-items:center; justify-content:space-between;">
+                  <span style="font-size:13px; color:#6E6E78;">آخر دخول</span>
+                  <span style="font-size:13px; font-weight:600;">اليوم 9:12 ص</span>
+                </div>
+                <div style="padding:14px; border-radius:16px; background:#FFFFFF; border:1px solid #F3D8D3; color:#C0503C; font-size:14px; font-weight:600; text-align:center;">تسجيل الخروج</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ إعدادات اللوحة ============ -->
+    <div style="display:flex; flex-direction:column; gap:12px;">
+      <div style="display:flex; align-items:baseline; gap:8px;">
+        <span style="font-size:15px; font-weight:600;">إعدادات اللوحة</span>
+        <span style="font-size:12px; color:#9A9AA4;">/boards/:id/settings</span>
+      </div>
+      <div style="width:1440px; height:900px; background:#F7F6F3; border-radius:18px; border:1px solid #E2DFD9; box-shadow:0 20px 44px -26px rgba(35,35,42,0.4); overflow:hidden; display:flex;">
+
+        <div style="width:260px; flex:0 0 auto; background:#FFFFFF; border-inline-start:1px solid #EAE8E3; display:flex; flex-direction:column; gap:22px; padding:22px 16px;">
+          <div style="display:flex; align-items:center; gap:10px; padding:0 6px;">
+            <span style="width:36px; height:36px; border-radius:12px; background:#4A6FD4; color:#FFFFFF; font-size:16px; font-weight:700; display:flex; align-items:center; justify-content:center;">◈</span>
+            <span style="font-size:15px; font-weight:700;">متابعة المهام</span>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:4px;">
+            <div style="display:flex; align-items:center; gap:11px; min-height:44px; padding:0 14px; border-radius:14px; background:#EAEFFB; color:#4A6FD4; font-size:14px; font-weight:600;"><span>▤</span>اللوحات</div>
+            <div style="display:flex; align-items:center; gap:11px; min-height:44px; padding:0 14px; border-radius:14px; color:#5B6273; font-size:14px;"><span style="color:#A6A6B0;">◔</span>مهامي</div>
+            <div style="display:flex; align-items:center; gap:11px; min-height:44px; padding:0 14px; border-radius:14px; color:#5B6273; font-size:14px;"><span style="color:#A6A6B0;">◫</span>التقارير</div>
+          </div>
+          <div style="margin-top:auto; display:flex; align-items:center; gap:10px; padding:12px 10px; border-radius:16px; background:#F7F6F3;">
+            <span style="width:34px; height:34px; flex:0 0 auto; border-radius:12px; background:#EAEFFB; color:#4A6FD4; font-size:12px; font-weight:700; display:flex; align-items:center; justify-content:center;">ر.غ</span>
+            <span style="font-size:13px; font-weight:600;">رضوان غانم</span>
+            <span style="margin-inline-start:auto; font-size:14px; color:#A6A6B0;">⌄</span>
+          </div>
+        </div>
+
+        <div style="flex:1; display:flex; flex-direction:column; min-width:0;">
+          <div style="padding:22px 32px 0; background:#FFFFFF; border-bottom:1px solid #EAE8E3; display:flex; flex-direction:column; gap:16px;">
+            <div style="display:flex; flex-direction:column; gap:5px;">
+              <div style="display:flex; align-items:center; gap:8px; font-size:12px; color:#8B8B95;">
+                <span>الجامع</span><span style="color:#C2C6D0;">›</span><span>الكهرباء</span><span style="color:#C2C6D0;">›</span><span>الإعدادات</span>
+              </div>
+              <span style="font-size:24px; font-weight:700;">إعدادات اللوحة</span>
+            </div>
+            <div style="display:flex; gap:22px;">
+              <span style="padding:0 2px 12px; border-bottom:2px solid #4A6FD4; font-size:14px; font-weight:700;">عام</span>
+              <span style="padding:0 2px 12px; border-bottom:2px solid transparent; font-size:14px; color:#6E6E78;">الأعضاء</span>
+              <span style="padding:0 2px 12px; border-bottom:2px solid transparent; font-size:14px; color:#6E6E78;">الحالات</span>
+            </div>
+          </div>
+
+          <div class="scr" style="flex:1; overflow:auto; padding:24px 32px 30px; display:flex; gap:18px; align-items:flex-start;">
+
+            <div style="flex:1; display:flex; flex-direction:column; gap:16px;">
+              <div style="background:#FFFFFF; border:1px solid #EAE8E3; border-radius:20px; padding:22px; display:flex; flex-direction:column; gap:16px;">
+                <span style="font-size:15px; font-weight:700;">عام</span>
+                <div style="display:flex; gap:12px;">
+                  <div style="flex:1.4; display:flex; flex-direction:column; gap:7px;">
+                    <span style="font-size:12px; font-weight:600; color:#8B8B95;">الاسم</span>
+                    <div style="background:#F7F6F3; border:1px solid #EFEDE8; border-radius:16px; padding:14px 16px; font-size:15px;">الكهرباء</div>
+                  </div>
+                  <div style="flex:1; display:flex; flex-direction:column; gap:7px;">
+                    <span style="font-size:12px; font-weight:600; color:#8B8B95;">التصنيف</span>
+                    <div style="display:flex; align-items:center; justify-content:space-between; background:#F7F6F3; border:1px solid #EFEDE8; border-radius:16px; padding:14px 16px;">
+                      <span style="display:flex; align-items:center; gap:9px; font-size:15px; font-weight:600;"><span style="width:8px; height:8px; border-radius:999px; background:#E0A34A;"></span>الجامع</span>
+                      <span style="font-size:13px; color:#8B8B95;">▾</span>
+                    </div>
+                  </div>
+                </div>
+                <div style="display:flex; flex-direction:column; gap:7px;">
+                  <span style="font-size:12px; font-weight:600; color:#8B8B95;">الوصف</span>
+                  <div style="background:#F7F6F3; border:1px solid #EFEDE8; border-radius:16px; padding:14px 16px; font-size:14px; color:#5B6273; line-height:1.8;">صيانة شبكة الكهرباء والإنارة في الجامع وملحقاته.</div>
+                </div>
+                <div style="display:flex; gap:12px;">
+                  <div style="flex:1; display:flex; flex-direction:column; gap:7px;">
+                    <span style="font-size:12px; font-weight:600; color:#8B8B95;">موعد التسليم</span>
+                    <div style="display:flex; align-items:center; justify-content:space-between; background:#F7F6F3; border:1px solid #EFEDE8; border-radius:16px; padding:14px 16px;">
+                      <span style="font-size:15px;">30 سبتمبر 2026</span>
+                      <span style="font-size:13px; color:#C0503C;">إزالة</span>
+                    </div>
+                  </div>
+                  <div style="flex:1; display:flex; flex-direction:column; gap:7px;">
+                    <span style="font-size:12px; font-weight:600; color:#8B8B95;">رمز العملة</span>
+                    <div style="background:#F7F6F3; border:1px solid #EFEDE8; border-radius:16px; padding:14px 16px; font-size:15px;">ل.س</div>
+                  </div>
+                </div>
+              </div>
+
+              <div style="background:#FFFFFF; border:1px solid #EAE8E3; border-radius:20px; padding:22px; display:flex; flex-direction:column; gap:16px;">
+                <div style="display:flex; align-items:center; justify-content:space-between;">
+                  <span style="font-size:15px; font-weight:700;">الأعضاء</span>
+                  <span style="font-size:12px; color:#8B8B95;">4 أعضاء</span>
+                </div>
+                <div style="display:flex; gap:10px;">
+                  <div style="flex:1; background:#F7F6F3; border:1px solid #EFEDE8; border-radius:16px; padding:13px 14px; font-size:14px; color:#B4B4BC;">بريد العضو الإلكتروني</div>
+                  <div style="min-height:44px; padding:0 20px; display:flex; align-items:center; border-radius:16px; background:#4A6FD4; color:#FFFFFF; font-size:14px; font-weight:600;">إضافة</div>
+                </div>
+                <div style="display:flex; flex-direction:column;">
+                  <div style="display:flex; align-items:center; gap:12px; min-height:56px; border-bottom:1px solid #F1F0EC;">
+                    <span style="width:38px; height:38px; flex:0 0 auto; border-radius:13px; background:#EAEFFB; color:#4A6FD4; font-size:12px; font-weight:700; display:flex; align-items:center; justify-content:center;">ر.غ</span>
+                    <div style="flex:1; display:flex; flex-direction:column; gap:2px;">
+                      <span style="font-size:14px; font-weight:600;">رضوان غانم</span>
+                      <span style="font-size:12px; color:#8B8B95;">radwan@example.com</span>
+                    </div>
+                    <span style="font-size:11px; font-weight:600; color:#4A6FD4; background:#EAEFFB; border-radius:999px; padding:5px 10px;">مالك</span>
+                  </div>
+                  <div style="display:flex; align-items:center; gap:12px; min-height:56px; border-bottom:1px solid #F1F0EC;">
+                    <span style="width:38px; height:38px; flex:0 0 auto; border-radius:13px; background:#F3ECFB; color:#8B5FC7; font-size:12px; font-weight:700; display:flex; align-items:center; justify-content:center;">ع.ك</span>
+                    <div style="flex:1; display:flex; flex-direction:column; gap:2px;">
+                      <span style="font-size:14px; font-weight:600;">عبد الله كحال</span>
+                      <span style="font-size:12px; color:#8B8B95;">abdullah@example.com</span>
+                    </div>
+                    <span style="min-height:36px; padding:0 12px; display:flex; align-items:center; border-radius:12px; background:#F7F6F3; border:1px solid #EAE8E3; font-size:12px; font-weight:600;">عضو ▾</span>
+                    <span style="width:36px; height:36px; border-radius:12px; background:#F7F6F3; color:#C0503C; display:flex; align-items:center; justify-content:center; font-size:13px;">✕</span>
+                  </div>
+                  <div style="display:flex; align-items:center; gap:12px; min-height:56px;">
+                    <span style="width:38px; height:38px; flex:0 0 auto; border-radius:13px; background:#E6F4EE; color:#1F7A5C; font-size:12px; font-weight:700; display:flex; align-items:center; justify-content:center;">ع.ص</span>
+                    <div style="flex:1; display:flex; flex-direction:column; gap:2px;">
+                      <span style="font-size:14px; font-weight:600;">عائشة صالح</span>
+                      <span style="font-size:12px; color:#8B8B95;">aisha@example.com</span>
+                    </div>
+                    <span style="min-height:36px; padding:0 12px; display:flex; align-items:center; border-radius:12px; background:#F1F0EC; font-size:12px; font-weight:600; color:#6E6E78;">مشاهد ▾</span>
+                    <span style="width:36px; height:36px; border-radius:12px; background:#F7F6F3; color:#C0503C; display:flex; align-items:center; justify-content:center; font-size:13px;">✕</span>
+                  </div>
+                </div>
+                <span style="font-size:11px; color:#A6A6B0;">«مشاهد» يقرأ فقط: لا نقل ولا إضافة ولا تعليق.</span>
+              </div>
+            </div>
+
+            <div style="width:340px; flex:0 0 auto; display:flex; flex-direction:column; gap:16px;">
+              <div style="background:#FFFFFF; border:1px solid #EAE8E3; border-radius:20px; padding:22px; display:flex; flex-direction:column; gap:12px;">
+                <span style="font-size:15px; font-weight:700;">منطقة الخطر</span>
+                <div style="padding:14px; border-radius:16px; background:#FFFFFF; border:1px solid #EAE8E3; font-size:14px; font-weight:600; text-align:center;">أرشفة اللوحة</div>
+                <span style="font-size:11px; color:#A6A6B0; text-align:center;">تصبح للقراءة فقط ويمكن استعادتها.</span>
+                <div style="padding:14px; border-radius:16px; background:#FFFFFF; border:1px solid #F3D8D3; color:#C0503C; font-size:14px; font-weight:600; text-align:center;">حذف اللوحة</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ الحوارات والحالات ============ -->
+    <div style="display:flex; flex-direction:column; gap:12px;">
+      <div style="display:flex; align-items:baseline; gap:8px;">
+        <span style="font-size:15px; font-weight:600;">الحوارات والحالات</span>
+        <span style="font-size:12px; color:#9A9AA4;">Modal · فارغة · تحميل · أخطاء</span>
+      </div>
+      <div style="width:900px; display:flex; flex-direction:column; gap:16px;">
+
+        <div style="display:flex; gap:16px;">
+          <div style="flex:1; background:#FFFFFF; border:1px solid #EAE8E3; border-radius:22px; padding:22px; display:flex; flex-direction:column; gap:14px;">
+            <span style="font-size:12px; font-weight:600; color:#8B8B95;">مهمة جديدة — حوار مركزي 560px</span>
+            <div style="background:#F7F6F3; border-radius:18px; padding:20px; display:flex; flex-direction:column; gap:14px;">
+              <div style="display:flex; align-items:center; justify-content:space-between;">
+                <span style="font-size:17px; font-weight:700;">مهمة جديدة</span>
+                <span style="font-size:14px; color:#8B8B95;">✕</span>
+              </div>
+              <div style="background:#FFFFFF; border:1.5px solid #4A6FD4; border-radius:14px; padding:14px 16px; font-size:15px; font-weight:600;">فحص لوحة الكهرباء الرئيسية</div>
+              <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                <span style="min-height:40px; padding:0 13px; display:flex; align-items:center; gap:7px; border-radius:12px; background:#FFFFFF; border:1px solid #EAE8E3; font-size:13px;"><span style="color:#8B8B95;">◷</span>20 سبتمبر</span>
+                <span style="min-height:40px; padding:0 13px; display:flex; align-items:center; gap:7px; border-radius:12px; background:#FFFFFF; border:1px solid #EAE8E3; font-size:13px;"><span style="color:#8B8B95;">↻</span>أسبوعي</span>
+                <span style="min-height:40px; padding:0 13px; display:flex; align-items:center; gap:7px; border-radius:12px; background:#FCEEDF; border:1px solid #C05A17; color:#C05A17; font-size:13px; font-weight:700;">عاجل</span>
+                <span style="min-height:40px; padding:0 13px; display:flex; align-items:center; gap:7px; border-radius:12px; background:#FFFFFF; border:1px solid #EAE8E3; font-size:13px;"><span style="color:#8B8B95;">◍</span>مسؤولان</span>
+              </div>
+              <div style="display:flex; gap:10px; justify-content:flex-end;">
+                <span style="min-height:44px; padding:0 18px; display:flex; align-items:center; border-radius:14px; background:#FFFFFF; border:1px solid #EAE8E3; font-size:14px; font-weight:600;">إلغاء</span>
+                <span style="min-height:44px; padding:0 22px; display:flex; align-items:center; border-radius:14px; background:#4A6FD4; color:#FFFFFF; font-size:14px; font-weight:600;">إضافة</span>
+              </div>
+            </div>
+          </div>
+
+          <div style="flex:1; background:#FFFFFF; border:1px solid #EAE8E3; border-radius:22px; padding:22px; display:flex; flex-direction:column; gap:14px;">
+            <span style="font-size:12px; font-weight:600; color:#8B8B95;">تصنيف جديد — من «+ تصنيف جديد» في الشريط الجانبي</span>
+            <div style="background:#F7F6F3; border-radius:18px; padding:20px; display:flex; flex-direction:column; gap:14px;">
+              <div style="display:flex; align-items:center; justify-content:space-between;">
+                <span style="font-size:17px; font-weight:700;">تصنيف جديد</span>
+                <span style="font-size:14px; color:#8B8B95;">✕</span>
+              </div>
+              <div style="display:flex; flex-direction:column; gap:7px;">
+                <span style="font-size:12px; font-weight:600; color:#8B8B95;">الاسم</span>
+                <div style="background:#FFFFFF; border:1.5px solid #4A6FD4; border-radius:14px; padding:13px 14px; font-size:15px; font-weight:600;">الجامع</div>
+              </div>
+              <div style="display:flex; flex-direction:column; gap:9px;">
+                <span style="font-size:12px; font-weight:600; color:#8B8B95;">اللون</span>
+                <div style="display:flex; gap:9px;">
+                  <span style="width:34px; height:34px; border-radius:12px; background:#E0A34A; box-shadow:0 0 0 2px #FFFFFF, 0 0 0 4px #E0A34A;"></span>
+                  <span style="width:34px; height:34px; border-radius:12px; background:#6E8AD8;"></span>
+                  <span style="width:34px; height:34px; border-radius:12px; background:#59B08A;"></span>
+                  <span style="width:34px; height:34px; border-radius:12px; background:#8B5FC7;"></span>
+                  <span style="width:34px; height:34px; border-radius:12px; background:#B9743A;"></span>
+                </div>
+              </div>
+              <span style="font-size:11px; color:#A6A6B0; line-height:1.8;">التصنيف مجموعة لوحات — أنشئه ثم أضف إليه لوحات من «+ لوحة في هذا التصنيف»، أو انقل لوحة قائمة من إعداداتها.</span>
+              <div style="display:flex; gap:10px; justify-content:flex-end;">
+                <span style="min-height:44px; padding:0 18px; display:flex; align-items:center; border-radius:14px; background:#FFFFFF; border:1px solid #EAE8E3; font-size:14px; font-weight:600;">إلغاء</span>
+                <span style="min-height:44px; padding:0 22px; display:flex; align-items:center; border-radius:14px; background:#4A6FD4; color:#FFFFFF; font-size:14px; font-weight:600;">إنشاء</span>
+              </div>
+            </div>
+          </div>
+
+          <div style="flex:1; background:#FFFFFF; border:1px solid #EAE8E3; border-radius:22px; padding:22px; display:flex; flex-direction:column; gap:14px;">
+            <span style="font-size:12px; font-weight:600; color:#8B8B95;">تأكيد النقل</span>
+            <div style="background:#F7F6F3; border-radius:18px; padding:20px; display:flex; flex-direction:column; gap:12px;">
+              <span style="font-size:17px; font-weight:700;">نقل إلى «تم التنفيذ»؟</span>
+              <span style="font-size:13px; color:#6E6E78; line-height:1.8;">ستُنقل «فحص لوحة الكهرباء الرئيسية» من «قيد التنفيذ» إلى «تم التنفيذ».</span>
+              <div style="display:flex; gap:10px; justify-content:flex-end;">
+                <span style="min-height:44px; padding:0 18px; display:flex; align-items:center; border-radius:14px; background:#FFFFFF; border:1px solid #EAE8E3; font-size:14px; font-weight:600;">إلغاء</span>
+                <span style="min-height:44px; padding:0 22px; display:flex; align-items:center; border-radius:14px; background:#4A6FD4; color:#FFFFFF; font-size:14px; font-weight:600;">نقل</span>
+              </div>
+            </div>
+            <span style="font-size:12px; font-weight:600; color:#8B8B95; margin-top:4px;">حذف اللوحة — مشدَّد</span>
+            <div style="background:#F7F6F3; border-radius:18px; padding:20px; display:flex; flex-direction:column; gap:12px;">
+              <span style="font-size:17px; font-weight:700;">حذف لوحة «الكهرباء»؟</span>
+              <span style="font-size:13px; color:#6E6E78; line-height:1.8;">تُحذف كل بطاقاتها ومرفقاتها وسجلّها. لا يمكن التراجع.</span>
+              <div style="background:#FFFFFF; border:1px solid #EAE8E3; border-radius:14px; padding:13px 14px; font-size:14px; color:#B4B4BC;">اكتب «الكهرباء» للتأكيد</div>
+              <div style="display:flex; gap:10px; justify-content:flex-end;">
+                <span style="min-height:44px; padding:0 18px; display:flex; align-items:center; border-radius:14px; background:#FFFFFF; border:1px solid #EAE8E3; font-size:14px; font-weight:600;">إلغاء</span>
+                <span style="min-height:44px; padding:0 22px; display:flex; align-items:center; border-radius:14px; background:#EEC9C1; color:#FFFFFF; font-size:14px; font-weight:600;">حذف</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style="display:flex; gap:16px;">
+          <div style="flex:1; background:#FFFFFF; border:1px solid #EAE8E3; border-radius:22px; padding:34px 24px; display:flex; flex-direction:column; align-items:center; gap:12px; text-align:center;">
+            <span style="width:56px; height:56px; border-radius:18px; background:#F4F3EF; color:#B4B4BC; font-size:22px; display:flex; align-items:center; justify-content:center;">▤</span>
+            <span style="font-size:17px; font-weight:700;">لا لوحات في هذا التصنيف</span>
+            <span style="font-size:13px; color:#8B8B95; line-height:1.8;">أنشئ أول لوحة تحت «الجامع».</span>
+            <span style="min-height:44px; padding:0 20px; display:flex; align-items:center; border-radius:14px; background:#4A6FD4; color:#FFFFFF; font-size:14px; font-weight:600; margin-top:4px;">+ لوحة جديدة</span>
+          </div>
+          <div style="flex:1; background:#FFFFFF; border:1px solid #EAE8E3; border-radius:22px; padding:34px 24px; display:flex; flex-direction:column; align-items:center; gap:12px; text-align:center;">
+            <span style="width:56px; height:56px; border-radius:18px; background:#E9F4EF; color:#1F7A5C; font-size:22px; display:flex; align-items:center; justify-content:center;">✓</span>
+            <span style="font-size:17px; font-weight:700;">لا مهام مُسنَدة لك</span>
+            <span style="font-size:13px; color:#8B8B95; line-height:1.8;">لا شيء مفتوح باسمك الآن.</span>
+          </div>
+          <div style="flex:1; background:#FFFFFF; border:1px solid #EAE8E3; border-radius:22px; padding:34px 24px; display:flex; flex-direction:column; align-items:center; gap:12px; text-align:center;">
+            <span style="width:56px; height:56px; border-radius:18px; background:#FBE9E7; color:#C0503C; font-size:22px; display:flex; align-items:center; justify-content:center;">◉</span>
+            <span style="font-size:17px; font-weight:700;">تعذّر تحميل اللوحات</span>
+            <span style="font-size:13px; color:#8B8B95; line-height:1.8;">تحقّق من اتصالك ثم أعد المحاولة.</span>
+            <span style="min-height:44px; padding:0 20px; display:flex; align-items:center; border-radius:14px; background:#23232A; color:#FFFFFF; font-size:14px; font-weight:600; margin-top:4px;">إعادة المحاولة</span>
+          </div>
+        </div>
+
+        <div style="background:#FFFFFF; border:1px solid #EAE8E3; border-radius:22px; padding:22px; display:flex; flex-direction:column; gap:14px;">
+          <span style="font-size:12px; font-weight:600; color:#8B8B95;">تحميل — هياكل الأعمدة</span>
+          <div style="display:flex; gap:14px;">
+            <div style="flex:1; display:flex; flex-direction:column; gap:10px;">
+              <span style="width:50%; height:12px; border-radius:8px; background:#EFEDE8;"></span>
+              <div style="background:#FDFCFB; border:1px solid #F1F0EC; border-radius:16px; padding:14px; display:flex; flex-direction:column; gap:10px;">
+                <span style="width:78%; height:12px; border-radius:8px; background:#EFEDE8;"></span>
+                <span style="width:40%; height:10px; border-radius:8px; background:#F4F3EF;"></span>
+              </div>
+              <div style="background:#FDFCFB; border:1px solid #F1F0EC; border-radius:16px; padding:14px; display:flex; flex-direction:column; gap:10px;">
+                <span style="width:60%; height:12px; border-radius:8px; background:#EFEDE8;"></span>
+              </div>
+            </div>
+            <div style="flex:1; display:flex; flex-direction:column; gap:10px;">
+              <span style="width:44%; height:12px; border-radius:8px; background:#EFEDE8;"></span>
+              <div style="background:#FDFCFB; border:1px solid #F1F0EC; border-radius:16px; padding:14px; display:flex; flex-direction:column; gap:10px;">
+                <span style="width:66%; height:12px; border-radius:8px; background:#EFEDE8;"></span>
+                <span style="width:34%; height:10px; border-radius:8px; background:#F4F3EF;"></span>
+              </div>
+            </div>
+            <div style="flex:1; display:flex; flex-direction:column; gap:10px;">
+              <span style="width:52%; height:12px; border-radius:8px; background:#EFEDE8;"></span>
+              <div style="background:#FDFCFB; border:1px solid #F1F0EC; border-radius:16px; padding:14px; display:flex; flex-direction:column; gap:10px;">
+                <span style="width:72%; height:12px; border-radius:8px; background:#EFEDE8;"></span>
+              </div>
+            </div>
+            <div style="flex:1; display:flex; flex-direction:column; gap:10px;">
+              <span style="width:46%; height:12px; border-radius:8px; background:#EFEDE8;"></span>
+              <div style="background:#FDFCFB; border:1px solid #F1F0EC; border-radius:16px; padding:14px; display:flex; flex-direction:column; gap:10px;">
+                <span style="width:58%; height:12px; border-radius:8px; background:#EFEDE8;"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style="background:#FFFFFF; border:1px solid #EAE8E3; border-radius:22px; padding:22px; display:flex; flex-direction:column; gap:12px;">
+          <span style="font-size:12px; font-weight:600; color:#8B8B95;">أخطاء عبر الصفحات</span>
+          <div style="display:flex; align-items:center; gap:10px; background:#FBE9E7; border-radius:14px; padding:13px 16px;">
+            <span style="font-size:14px; color:#C0503C;">◉</span>
+            <span style="font-size:13px; color:#C0503C;">أُضيفت المهمة، وتعذّر إسناد المسؤولين — إعادة الخطوات الناقصة</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:10px; background:#F4F3EF; border-radius:14px; padding:13px 16px;">
+            <span style="font-size:14px; color:#8B8B95;">⌾</span>
+            <span style="font-size:13px; color:#6E6E78;">التقارير متاحة للمشرفين فقط — لا يظهر البند في الشريط الجانبي.</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:10px; background:#F4F3EF; border-radius:14px; padding:13px 16px;">
+            <span style="font-size:14px; color:#8B8B95;">◌</span>
+            <span style="font-size:13px; color:#6E6E78;">هذه اللوحة غير موجودة أو لم تعد عضوًا فيها — أُعيد فتح «اللوحات».</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:10px; background:#23232A; border-radius:14px; padding:13px 16px;">
+            <span style="font-size:14px; color:#FFFFFF;">◍</span>
+            <span style="font-size:13px; color:#FFFFFF;">لا اتصال بالإنترنت — التعديلات موقوفة.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="w4" dir="rtl" style="position:absolute; left:32px; top:4520px; padding:56px 48px 80px; display:flex; flex-direction:column; gap:40px; font-family:'Cairo', system-ui, sans-serif; color:#23232A;">
+
+  <div style="display:flex; flex-direction:column; gap:10px; max-width:860px;">
+    <div style="display:flex; align-items:center; gap:12px;">
+      <span style="font-size:12px; font-weight:600; letter-spacing:0.04em; color:#fff; background:#4A6FD4; border-radius:999px; padding:4px 12px;">w4</span>
+      <h1 style="margin:0; font-size:30px; font-weight:700;">إدارة التصنيفات</h1>
+    </div>
+    <p style="margin:0; font-size:15px; line-height:1.8; color:#6E6E78; text-wrap:pretty;">
+      التعديل والترتيب والحذف من رأس التصنيف نفسه — لا صفحة منفصلة. للمشرف فقط؛ مالك اللوحة يختار تصنيفًا قائمًا من إعدادات لوحته. حذف التصنيف لا يحذف أي لوحة: تنتقل إلى «بلا تصنيف».
+    </p>
+  </div>
+
+  <div style="display:flex; flex-wrap:nowrap; gap:36px; align-items:flex-start;">
+
+    <div style="display:flex; flex-direction:column; gap:12px;">
+      <div style="display:flex; align-items:baseline; gap:8px;">
+        <span style="font-size:15px; font-weight:600;">1 · قائمة التصنيف</span>
+        <span style="font-size:12px; color:#9A9AA4;">تظهر «⋯» عند المرور على الرأس</span>
+      </div>
+      <div style="width:260px; height:620px; background:#FFFFFF; border:1px solid #E2DFD9; border-radius:18px; box-shadow:0 20px 44px -26px rgba(35,35,42,0.4); padding:22px 16px; display:flex; flex-direction:column; gap:16px; position:relative;">
+        <div style="display:flex; flex-direction:column; gap:6px; padding:0 6px;">
+          <div style="display:flex; align-items:center; justify-content:space-between; min-height:32px; margin:0 -6px; padding:0 6px; border-radius:10px; background:#F4F3EF;">
+            <span style="display:flex; align-items:center; gap:7px; font-size:11px; font-weight:700; color:#5B6273;"><span style="color:#C2C6D0;">⌄</span><span style="width:7px; height:7px; border-radius:999px; background:#E0A34A;"></span>الجامع</span>
+            <span style="width:26px; height:26px; border-radius:8px; background:#FFFFFF; border:1px solid #EAE8E3; display:flex; align-items:center; justify-content:center; font-size:13px; color:#5B6273;">⋯</span>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:2px;">
+            <div style="display:flex; align-items:center; gap:9px; min-height:40px; padding:0 10px; font-size:13px; color:#6E6E78;"><span style="width:7px; height:7px; border-radius:999px; background:#E0A34A;"></span>الكهرباء</div>
+            <div style="display:flex; align-items:center; gap:9px; min-height:40px; padding:0 10px; font-size:13px; color:#6E6E78;"><span style="width:7px; height:7px; border-radius:999px; background:#6E8AD8;"></span>الماء</div>
+            <div style="display:flex; align-items:center; gap:9px; min-height:40px; padding:0 10px; font-size:13px; color:#6E6E78;"><span style="width:7px; height:7px; border-radius:999px; background:#59B08A;"></span>النظافة</div>
+          </div>
+        </div>
+        <div style="position:absolute; top:62px; left:14px; width:210px; background:#FFFFFF; border:1px solid #EAE8E3; border-radius:16px; box-shadow:0 18px 40px -16px rgba(35,35,42,0.35); padding:6px; display:flex; flex-direction:column;">
+          <div style="display:flex; align-items:center; gap:10px; min-height:42px; padding:0 12px; border-radius:11px; background:#F7F6F3; font-size:13px; font-weight:600;"><span style="color:#8B8B95;">✎</span>تعديل الاسم واللون</div>
+          <div style="display:flex; align-items:center; gap:10px; min-height:42px; padding:0 12px; border-radius:11px; font-size:13px;"><span style="color:#8B8B95;">+</span>لوحة في هذا التصنيف</div>
+          <div style="display:flex; align-items:center; gap:10px; min-height:42px; padding:0 12px; border-radius:11px; font-size:13px;"><span style="color:#8B8B95;">⇅</span>ترتيب التصنيفات</div>
+          <div style="height:1px; background:#F1F0EC; margin:4px 8px;"></div>
+          <div style="display:flex; align-items:center; gap:10px; min-height:42px; padding:0 12px; border-radius:11px; font-size:13px; color:#C0503C;"><span>⌫</span>حذف التصنيف</div>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:6px; padding:0 6px;">
+          <div style="display:flex; align-items:center; justify-content:space-between; min-height:32px;">
+            <span style="display:flex; align-items:center; gap:7px; font-size:11px; font-weight:700; color:#8B8B95;"><span style="color:#C2C6D0;">›</span><span style="width:7px; height:7px; border-radius:999px; background:#8B5FC7;"></span>المعهد الشرعي</span>
+            <span style="font-size:11px; color:#C2C6D0;">2</span>
+          </div>
+          <div style="display:flex; align-items:center; justify-content:space-between; min-height:32px;">
+            <span style="display:flex; align-items:center; gap:7px; font-size:11px; font-weight:700; color:#8B8B95;"><span style="color:#C2C6D0;">›</span>بلا تصنيف</span>
+            <span style="font-size:11px; color:#C2C6D0;">2</span>
+          </div>
+        </div>
+        <span style="font-size:11px; color:#A6A6B0; line-height:1.8; padding:0 6px;">«بلا تصنيف» ثابت في الأسفل: لا قائمة له ولا يُحذف. الطيّ يُحفظ لكل مستخدم.</span>
+      </div>
+    </div>
+
+    <div style="display:flex; flex-direction:column; gap:12px;">
+      <div style="display:flex; align-items:baseline; gap:8px;">
+        <span style="font-size:15px; font-weight:600;">2 · ترتيب التصنيفات</span>
+        <span style="font-size:12px; color:#9A9AA4;">اللوحات تُطوى أثناء الترتيب</span>
+      </div>
+      <div style="width:260px; height:620px; background:#FFFFFF; border:1px solid #E2DFD9; border-radius:18px; box-shadow:0 20px 44px -26px rgba(35,35,42,0.4); padding:22px 16px; display:flex; flex-direction:column; gap:12px;">
+        <div style="display:flex; align-items:center; justify-content:space-between; padding:0 6px;">
+          <span style="font-size:13px; font-weight:700;">ترتيب التصنيفات</span>
+          <span style="min-height:34px; padding:0 14px; display:flex; align-items:center; border-radius:11px; background:#4A6FD4; color:#FFFFFF; font-size:12px; font-weight:600;">تم</span>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:6px;">
+          <div style="display:flex; align-items:center; gap:10px; min-height:46px; padding:0 12px; border-radius:13px; background:#F7F6F3; border:1px solid #EFEDE8; font-size:13px; font-weight:600;"><span style="color:#B4B4BC;">⠿</span><span style="width:8px; height:8px; border-radius:999px; background:#8B5FC7;"></span>المعهد الشرعي<span style="margin-inline-start:auto; font-size:11px; color:#A6A6B0;">2</span></div>
+          <div style="display:flex; align-items:center; gap:10px; min-height:46px; padding:0 12px; border-radius:13px; background:#FFFFFF; border:1.5px solid #4A6FD4; box-shadow:0 12px 26px -12px rgba(74,111,212,0.45); font-size:13px; font-weight:600; transform:rotate(-1deg);"><span style="color:#4A6FD4;">⠿</span><span style="width:8px; height:8px; border-radius:999px; background:#E0A34A;"></span>الجامع<span style="margin-inline-start:auto; font-size:11px; color:#A6A6B0;">3</span></div>
+          <div style="height:3px; border-radius:3px; background:#4A6FD4; margin:0 12px;"></div>
+          <div style="display:flex; align-items:center; gap:10px; min-height:46px; padding:0 12px; border-radius:13px; background:#F7F6F3; border:1px solid #EFEDE8; font-size:13px; font-weight:600;"><span style="color:#B4B4BC;">⠿</span><span style="width:8px; height:8px; border-radius:999px; background:#59B08A;"></span>المسجد الصغير<span style="margin-inline-start:auto; font-size:11px; color:#A6A6B0;">1</span></div>
+          <div style="display:flex; align-items:center; gap:10px; min-height:46px; padding:0 12px; border-radius:13px; font-size:13px; color:#A6A6B0;"><span style="color:#E2DFD9;">⠿</span>بلا تصنيف — ثابت</div>
+        </div>
+        <span style="font-size:11px; color:#A6A6B0; line-height:1.8; padding:0 6px;">سحب بالمقبض، أو ↑ ↓ من لوحة المفاتيح. الترتيب مشترك لكل المستخدمين ويُحفظ عند «تم».</span>
+      </div>
+    </div>
+
+    <div style="display:flex; flex-direction:column; gap:12px;">
+      <div style="display:flex; align-items:baseline; gap:8px;">
+        <span style="font-size:15px; font-weight:600;">3 · تعديل وحذف</span>
+        <span style="font-size:12px; color:#9A9AA4;">حوار مركزي 440px</span>
+      </div>
+      <div style="width:440px; display:flex; flex-direction:column; gap:16px;">
+        <div style="background:#FFFFFF; border:1px solid #EAE8E3; border-radius:20px; box-shadow:0 20px 44px -26px rgba(35,35,42,0.4); padding:22px; display:flex; flex-direction:column; gap:14px;">
+          <div style="display:flex; align-items:center; justify-content:space-between;">
+            <span style="font-size:17px; font-weight:700;">تعديل التصنيف</span>
+            <span style="font-size:14px; color:#8B8B95;">✕</span>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:7px;">
+            <span style="font-size:12px; font-weight:600; color:#8B8B95;">الاسم</span>
+            <div style="background:#FFFFFF; border:1.5px solid #4A6FD4; border-radius:14px; padding:13px 14px; font-size:15px; font-weight:600;">الجامع الكبير</div>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:9px;">
+            <span style="font-size:12px; font-weight:600; color:#8B8B95;">اللون</span>
+            <div style="display:flex; gap:9px;">
+              <span style="width:34px; height:34px; border-radius:12px; background:#E0A34A; box-shadow:0 0 0 2px #FFFFFF, 0 0 0 4px #E0A34A;"></span>
+              <span style="width:34px; height:34px; border-radius:12px; background:#6E8AD8;"></span>
+              <span style="width:34px; height:34px; border-radius:12px; background:#59B08A;"></span>
+              <span style="width:34px; height:34px; border-radius:12px; background:#8B5FC7;"></span>
+              <span style="width:34px; height:34px; border-radius:12px; background:#B9743A;"></span>
+            </div>
+          </div>
+          <span style="font-size:11px; color:#A6A6B0;">يضم 3 لوحات · 44 مهمة</span>
+          <div style="display:flex; gap:10px; justify-content:flex-end;">
+            <span style="min-height:44px; padding:0 18px; display:flex; align-items:center; border-radius:14px; background:#FFFFFF; border:1px solid #EAE8E3; font-size:14px; font-weight:600;">إلغاء</span>
+            <span style="min-height:44px; padding:0 22px; display:flex; align-items:center; border-radius:14px; background:#4A6FD4; color:#FFFFFF; font-size:14px; font-weight:600;">حفظ</span>
+          </div>
+        </div>
+
+        <div style="background:#FFFFFF; border:1px solid #EAE8E3; border-radius:20px; box-shadow:0 20px 44px -26px rgba(35,35,42,0.4); padding:22px; display:flex; flex-direction:column; gap:12px;">
+          <span style="font-size:17px; font-weight:700;">حذف تصنيف «الجامع»؟</span>
+          <span style="font-size:13px; color:#6E6E78; line-height:1.8;">لن تُحذف أي لوحة أو مهمة. تنتقل لوحاته الثلاث إلى «بلا تصنيف»:</span>
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <span style="display:flex; align-items:center; gap:7px; min-height:32px; padding:0 11px; border-radius:10px; background:#F7F6F3; font-size:12px;"><span style="width:7px; height:7px; border-radius:999px; background:#E0A34A;"></span>الكهرباء</span>
+            <span style="display:flex; align-items:center; gap:7px; min-height:32px; padding:0 11px; border-radius:10px; background:#F7F6F3; font-size:12px;"><span style="width:7px; height:7px; border-radius:999px; background:#6E8AD8;"></span>الماء</span>
+            <span style="display:flex; align-items:center; gap:7px; min-height:32px; padding:0 11px; border-radius:10px; background:#F7F6F3; font-size:12px;"><span style="width:7px; height:7px; border-radius:999px; background:#59B08A;"></span>النظافة</span>
+          </div>
+          <div style="display:flex; align-items:center; justify-content:space-between; background:#F7F6F3; border:1px solid #EFEDE8; border-radius:14px; padding:12px 14px;">
+            <span style="font-size:13px; color:#6E6E78;">نقلها إلى</span>
+            <span style="font-size:13px; font-weight:600;">بلا تصنيف ▾</span>
+          </div>
+          <div style="display:flex; gap:10px; justify-content:flex-end;">
+            <span style="min-height:44px; padding:0 18px; display:flex; align-items:center; border-radius:14px; background:#FFFFFF; border:1px solid #EAE8E3; font-size:14px; font-weight:600;">إلغاء</span>
+            <span style="min-height:44px; padding:0 22px; display:flex; align-items:center; border-radius:14px; background:#C0503C; color:#FFFFFF; font-size:14px; font-weight:600;">حذف التصنيف</span>
+          </div>
+        </div>
+
+        <div style="display:flex; align-items:center; gap:12px; background:#23232A; border-radius:14px; padding:12px 16px;">
+          <span style="font-size:13px; color:#FFFFFF; flex:1;">حُذف «الجامع» · نُقلت 3 لوحات إلى «بلا تصنيف»</span>
+          <span style="font-size:13px; font-weight:700; color:#9DB3F0;">تراجع</span>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex; flex-direction:column; gap:12px;">
+      <div style="display:flex; align-items:baseline; gap:8px;">
+        <span style="font-size:15px; font-weight:600;">4 · الجوال</span>
+        <span style="font-size:12px; color:#9A9AA4;">ضغطة مطوّلة على رأس التصنيف</span>
+      </div>
+      <div style="width:390px; height:780px; background:#F7F6F3; border:1px solid #E2DFD9; border-radius:36px; box-shadow:0 20px 44px -26px rgba(35,35,42,0.4); overflow:hidden; display:flex; flex-direction:column; position:relative;">
+        <div style="padding:58px 20px 16px; display:flex; flex-direction:column; gap:14px;">
+          <span style="font-size:24px; font-weight:700;">اللوحات</span>
+          <div style="display:flex; align-items:center; gap:8px;"><span style="width:8px; height:8px; border-radius:999px; background:#E0A34A;"></span><span style="font-size:13px; font-weight:700; color:#5B6273;">الجامع</span><span style="font-size:12px; color:#A6A6B0;">3 لوحات</span></div>
+          <div style="height:84px; border-radius:20px; background:#FFFFFF; border:1px solid #EAE8E3;"></div>
+          <div style="height:84px; border-radius:20px; background:#FFFFFF; border:1px solid #EAE8E3;"></div>
+        </div>
+        <div style="position:absolute; inset:0; background:rgba(35,35,42,0.38);"></div>
+        <div style="position:absolute; left:0; right:0; bottom:0; background:#FFFFFF; border-radius:28px 28px 0 0; padding:12px 20px 34px; display:flex; flex-direction:column; gap:6px;">
+          <span style="width:40px; height:5px; border-radius:999px; background:#E2DFD9; align-self:center; margin-bottom:10px;"></span>
+          <div style="display:flex; align-items:center; gap:10px; padding:0 4px 12px; border-bottom:1px solid #F1F0EC;">
+            <span style="width:10px; height:10px; border-radius:999px; background:#E0A34A;"></span>
+            <span style="font-size:17px; font-weight:700;">الجامع</span>
+            <span style="font-size:12px; color:#A6A6B0;">3 لوحات · 44 مهمة</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:12px; min-height:52px; padding:0 4px; font-size:15px;"><span style="width:20px; color:#8B8B95;">✎</span>تعديل الاسم واللون</div>
+          <div style="display:flex; align-items:center; gap:12px; min-height:52px; padding:0 4px; font-size:15px;"><span style="width:20px; color:#8B8B95;">+</span>لوحة في هذا التصنيف</div>
+          <div style="display:flex; align-items:center; gap:12px; min-height:52px; padding:0 4px; font-size:15px;"><span style="width:20px; color:#8B8B95;">⇅</span>ترتيب التصنيفات</div>
+          <div style="display:flex; align-items:center; gap:12px; min-height:52px; padding:0 4px; font-size:15px; color:#C0503C;"><span style="width:20px;">⌫</span>حذف التصنيف</div>
+          <span style="font-size:12px; color:#A6A6B0; line-height:1.8; padding:4px 4px 0;">التعديل والحذف يفتحان نفس محتوى الحوار في ورقة سفلية. غير المشرف لا يرى هذه القائمة.</span>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex; flex-direction:column; gap:12px;">
+      <div style="display:flex; align-items:baseline; gap:8px;">
+        <span style="font-size:15px; font-weight:600;">5 · الصلاحيات</span>
+      </div>
+      <div style="width:300px; background:#FFFFFF; border:1px solid #EAE8E3; border-radius:20px; padding:20px; display:flex; flex-direction:column;">
+        <div style="display:grid; grid-template-columns:minmax(0,1fr) 56px 56px; gap:8px; min-height:36px; align-items:center; font-size:11px; font-weight:700; color:#8B8B95; border-bottom:1px solid #F1F0EC;"><span>الإجراء</span><span>مشرف</span><span>مالك</span></div>
+        <div style="display:grid; grid-template-columns:minmax(0,1fr) 56px 56px; gap:8px; min-height:44px; align-items:center; font-size:13px; border-bottom:1px solid #F1F0EC;"><span>إنشاء تصنيف</span><span style="color:#1F7A5C;">✓</span><span style="color:#C2C6D0;">—</span></div>
+        <div style="display:grid; grid-template-columns:minmax(0,1fr) 56px 56px; gap:8px; min-height:44px; align-items:center; font-size:13px; border-bottom:1px solid #F1F0EC;"><span>تعديل · ترتيب · حذف</span><span style="color:#1F7A5C;">✓</span><span style="color:#C2C6D0;">—</span></div>
+        <div style="display:grid; grid-template-columns:minmax(0,1fr) 56px 56px; gap:8px; min-height:44px; align-items:center; font-size:13px; border-bottom:1px solid #F1F0EC;"><span>اختيار تصنيف للوحته</span><span style="color:#1F7A5C;">✓</span><span style="color:#1F7A5C;">✓</span></div>
+        <div style="display:grid; grid-template-columns:minmax(0,1fr) 56px 56px; gap:8px; min-height:44px; align-items:center; font-size:13px;"><span>طيّ وفتح (شخصي)</span><span style="color:#1F7A5C;">✓</span><span style="color:#1F7A5C;">✓</span></div>
+        <span style="font-size:11px; color:#A6A6B0; line-height:1.8; margin-top:10px;">أسماء التصنيفات فريدة. التصنيف يظهر للعضو فقط إن كان عضوًا في لوحة واحدة منه على الأقل.</span>
+      </div>
+    </div>
+
+  </div>
+</section>
+</x-dc>
+</body>
+</html>

@@ -1,5 +1,6 @@
 import { generateKeyBetween } from "@app/ordering";
 import type { ListStatusCategory, Prisma } from "@prisma/client";
+import { LIVE_CARD, NOT_DELETED } from "./card-deletion.util";
 
 /*
  * A task can sit on several boards (docs/18-multi-board-tasks.md): its home
@@ -8,6 +9,11 @@ import type { ListStatusCategory, Prisma } from "@prisma/client";
  * rows — its own cards and the cards linked onto it — ordered together by
  * their fractional keys. Everything that reads or writes a position in a
  * column goes through these helpers, so neither kind is ever forgotten.
+ *
+ * A task pending deletion (`card-deletion.util.ts`) is never a neighbour or a
+ * member of a column here. It still holds its key, though, and the two helpers
+ * that mint a new key (`endOfList`, `keyRightAfter`) step past it, so a task
+ * restored later lands back where it was without sharing a key with anything.
  */
 
 /** Prisma client or an open transaction — the helpers run on whichever the caller holds. */
@@ -40,13 +46,20 @@ export function placementsOf(card: {
 
 /** The card's key within the column `listId` — as one of the column's own cards, or linked onto it. */
 export async function positionInList(db: Db, cardId: string, listId: string): Promise<string | null> {
-  const own = await db.card.findFirst({ where: { id: cardId, listId }, select: { position: true } });
+  const own = await db.card.findFirst({ where: { id: cardId, listId, ...NOT_DELETED }, select: { position: true } });
   if (own) return own.position;
-  const link = await db.cardBoardLink.findFirst({ where: { cardId, listId }, select: { position: true } });
+  const link = await db.cardBoardLink.findFirst({
+    where: { cardId, listId, card: NOT_DELETED },
+    select: { position: true },
+  });
   return link?.position ?? null;
 }
 
-/** A key after every live card in the column, its own and linked ones alike. */
+/**
+ * A key after every live card in the column, its own and linked ones alike —
+ * and after any task there pending deletion, whose key stays reserved for its
+ * restore (archived cards are not waited for, as before).
+ */
 export async function endOfList(db: Db, listId: string): Promise<string> {
   const [own, linked] = await Promise.all([
     db.card.findFirst({
@@ -63,11 +76,34 @@ export async function endOfList(db: Db, listId: string): Promise<string> {
   return generateKeyBetween(laterKey(own?.position ?? null, linked?.position ?? null), null);
 }
 
-/** The ids among `ids` that sit in the column `listId`, either way. */
+/**
+ * A key directly after `cardId`'s own in the column `listId` — between it and
+ * the next key there of any row at all, so it collides with nothing (not even
+ * an archived card or one pending deletion). Where a duplicate goes.
+ */
+export async function keyRightAfter(db: Db, cardId: string, listId: string): Promise<string> {
+  const position = await positionInList(db, cardId, listId);
+  if (position === null) return endOfList(db, listId);
+  const [own, linked] = await Promise.all([
+    db.card.findFirst({
+      where: { listId, position: { gt: position } },
+      orderBy: { position: "asc" },
+      select: { position: true },
+    }),
+    db.cardBoardLink.findFirst({
+      where: { listId, position: { gt: position } },
+      orderBy: { position: "asc" },
+      select: { position: true },
+    }),
+  ]);
+  return generateKeyBetween(position, earlierKey(own?.position ?? null, linked?.position ?? null));
+}
+
+/** The ids among `ids` that sit in the column `listId`, either way — never one pending deletion. */
 export async function cardIdsInList(db: Db, ids: string[], listId: string): Promise<Set<string>> {
   const [own, linked] = await Promise.all([
-    db.card.findMany({ where: { id: { in: ids }, listId }, select: { id: true } }),
-    db.cardBoardLink.findMany({ where: { cardId: { in: ids }, listId }, select: { cardId: true } }),
+    db.card.findMany({ where: { id: { in: ids }, listId, ...NOT_DELETED }, select: { id: true } }),
+    db.cardBoardLink.findMany({ where: { cardId: { in: ids }, listId, card: NOT_DELETED }, select: { cardId: true } }),
   ]);
   return new Set([...own.map((c) => c.id), ...linked.map((l) => l.cardId)]);
 }
@@ -76,12 +112,12 @@ export async function cardIdsInList(db: Db, ids: string[], listId: string): Prom
 export async function cardIdsInColumn(db: Db, listId: string): Promise<string[]> {
   const [own, linked] = await Promise.all([
     db.card.findMany({
-      where: { listId, isArchived: false },
+      where: { listId, ...LIVE_CARD },
       orderBy: { position: "asc" },
       select: { id: true, position: true },
     }),
     db.cardBoardLink.findMany({
-      where: { listId, card: { isArchived: false } },
+      where: { listId, card: LIVE_CARD },
       orderBy: { position: "asc" },
       select: { cardId: true, position: true },
     }),
@@ -144,4 +180,10 @@ function laterKey(a: string | null, b: string | null): string | null {
   if (a === null) return b;
   if (b === null) return a;
   return a > b ? a : b;
+}
+
+function earlierKey(a: string | null, b: string | null): string | null {
+  if (a === null) return b;
+  if (b === null) return a;
+  return a < b ? a : b;
 }

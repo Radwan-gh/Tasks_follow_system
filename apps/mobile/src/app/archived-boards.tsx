@@ -9,7 +9,7 @@ import { EmptyState, ErrorState } from "@/components/state-views";
 import { BoardCard } from "@/features/boards/board-card";
 import { useAuth } from "@/features/auth/auth-context";
 import { api } from "@/lib/api";
-import { MIN_TOUCH_TARGET, colors, spacing } from "@/theme/tokens";
+import { GUTTER, MIN_TOUCH_TARGET, colors, spacing } from "@/theme/tokens";
 
 /**
  * `/archived-boards` — the boards list's collapsed "اللوحات المؤرشفة (n) ›"
@@ -28,7 +28,7 @@ export default function ArchivedBoardsScreen() {
           flexDirection: "row",
           alignItems: "center",
           gap: spacing.md,
-          paddingHorizontal: spacing.xl,
+          paddingHorizontal: GUTTER,
           paddingBottom: spacing.md,
         }}
       >
@@ -44,7 +44,7 @@ export default function ArchivedBoardsScreen() {
         </AppText>
       </View>
 
-      <ScrollView contentContainerStyle={{ paddingHorizontal: spacing.xl, paddingBottom: spacing.xxl, gap: spacing.md }}>
+      <ScrollView contentContainerStyle={{ paddingHorizontal: GUTTER, paddingBottom: spacing.xxl, gap: spacing.md }}>
         {boards.isPending ? (
           <>
             <BoardCardSkeleton />

@@ -62,6 +62,11 @@
 - `ListsService.update` عند إعادة ترتيب قائمة.
 - `CardsService.update` عند نقل بطاقة (داخل القائمة أو بين القوائم).
 
+مفاتيح لا تأتي من جارين يرسلهما العميل تمرّ هي أيضًا بـ `generateKeyBetween` عبر مساعدات
+`cards/card-placement.util.ts`: `endOfList` (بعد آخر مفتاح في العمود) و`keyRightAfter`
+(بين مفتاح بطاقة وأوّل مفتاح يليه من أي صفّ — موضع نسخة المهمة). كلاهما يتخطّى مفتاح
+المهمة قيد الحذف كي تعود إليه بلا تصادم إن استُعيدت.
+
 ## ضمانات الصحّة (Correctness Guarantees)
 
 الاختبارات في `packages/ordering/src/index.test.ts` تتحقّق من:

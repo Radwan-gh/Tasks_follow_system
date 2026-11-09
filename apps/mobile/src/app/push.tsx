@@ -13,7 +13,7 @@ import { AppText } from "@/components/text";
 import { useAuth } from "@/features/auth/auth-context";
 import { syncPushDevice, usePushStatus } from "@/features/notifications/use-push-registration";
 import { api } from "@/lib/api";
-import { MIN_TOUCH_TARGET, colors, fonts, fontSizes, radii, spacing } from "@/theme/tokens";
+import { GUTTER, MIN_TOUCH_TARGET, colors, fonts, fontSizes, radii, spacing } from "@/theme/tokens";
 
 type TargetKind = "all" | "devices";
 
@@ -109,7 +109,7 @@ export default function SendPushScreen() {
           flexDirection: "row",
           alignItems: "center",
           justifyContent: "space-between",
-          paddingHorizontal: spacing.xl,
+          paddingHorizontal: GUTTER,
           paddingVertical: spacing.md,
           borderBottomWidth: 1,
           borderBottomColor: colors.line,
@@ -122,7 +122,7 @@ export default function SendPushScreen() {
         <View style={{ width: 32 }} />
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: spacing.xl, paddingBottom: spacing.xxl, gap: spacing.lg }}>
+      <ScrollView contentContainerStyle={{ paddingVertical: spacing.xl, paddingHorizontal: GUTTER, paddingBottom: spacing.xxl, gap: spacing.lg }}>
         <View style={{ backgroundColor: colors.canvas, borderRadius: radii.card, padding: spacing.lg, gap: spacing.sm }}>
           <AppText weight="semibold">هذا الجهاز</AppText>
           <AppText size="small" color={colors.muted} selectable>

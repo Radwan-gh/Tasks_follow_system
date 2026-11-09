@@ -16,7 +16,7 @@ import { useAuth } from "@/features/auth/auth-context";
 import { avatarColorFor } from "@/lib/avatar";
 import { initials } from "@/lib/initials";
 import { api } from "@/lib/api";
-import { MIN_TOUCH_TARGET, colors, fonts, fontSizes, radii, spacing } from "@/theme/tokens";
+import { GUTTER, MIN_TOUCH_TARGET, colors, fonts, fontSizes, radii, spacing } from "@/theme/tokens";
 
 const PAGE_SIZE = 20;
 
@@ -185,7 +185,7 @@ export default function AdminUsersScreen() {
           flexDirection: "row",
           alignItems: "center",
           justifyContent: "space-between",
-          paddingHorizontal: spacing.xl,
+          paddingHorizontal: GUTTER,
           paddingVertical: spacing.md,
           borderBottomWidth: 1,
           borderBottomColor: colors.line,
@@ -202,7 +202,7 @@ export default function AdminUsersScreen() {
         </Pressable>
       </View>
 
-      <View style={{ padding: spacing.xl, paddingBottom: spacing.md, flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
+      <View style={{ paddingVertical: spacing.xl, paddingHorizontal: GUTTER, paddingBottom: spacing.md, flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
         <TextInput
           value={search}
           onChangeText={setSearch}
@@ -243,7 +243,7 @@ export default function AdminUsersScreen() {
         ) : null}
       </View>
 
-      <ScrollView contentContainerStyle={{ paddingHorizontal: spacing.xl, paddingBottom: spacing.xxl, gap: spacing.md }}>
+      <ScrollView contentContainerStyle={{ paddingHorizontal: GUTTER, paddingBottom: spacing.xxl, gap: spacing.md }}>
         {error ? (
           <View style={{ backgroundColor: colors.alertSoft, borderRadius: radii.field, padding: spacing.md }}>
             <AppText size="small" color={colors.alert}>
@@ -337,8 +337,8 @@ export default function AdminUsersScreen() {
                   />
                   <Badge
                     label={u.isActive ? "نشط" : "غير مفعّل"}
-                    background={u.isActive ? "#E6F4EE" : colors.alertSoft}
-                    color={u.isActive ? "#1F7A5C" : colors.alert}
+                    background={u.isActive ? colors.savedSoft : colors.alertSoft}
+                    color={u.isActive ? colors.saved : colors.alert}
                   />
                   {u.role !== "ADMIN" && u.canSendNotifications ? (
                     <Badge label="يرسل الإشعارات" background={colors.accentSoft} color={colors.accent} />

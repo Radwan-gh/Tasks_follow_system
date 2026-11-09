@@ -25,7 +25,7 @@ import { api } from "@/lib/api";
 import { LIVE_REFETCH_MS, boardDetailKey, recentClosedSince, useOpenCard } from "@/lib/board-cache";
 import { indexFromOffset, resolveColumnOffsets, snapOffsetsFor } from "@/lib/status-pager";
 import { planDrop } from "@/lib/reorder";
-import { MIN_TOUCH_TARGET, colors, fonts, fontSizes, radii, spacing } from "@/theme/tokens";
+import { GUTTER, MIN_TOUCH_TARGET, colors, fonts, fontSizes, radii, spacing } from "@/theme/tokens";
 
 /**
  * `/boards/:id` — horizontal-scroll Kanban view (design's "اللوحة — تمرير أفقي
@@ -139,7 +139,7 @@ export default function BoardScreen() {
   // One status per screen: each page is exactly the viewport wide, so a
   // neighbouring status's cards never bleed in at either edge. The page
   // carries the side gutters and the column fills what is left.
-  const columnWidth = width - spacing.xl * 2;
+  const columnWidth = width - GUTTER * 2;
 
   // «انتهى» defaults to the last 30 days (`v2-new-style.md`'s "يعرض آخر 30
   // يومًا"); tapping "عرض الأقدم" clears this to load everything. Included in
@@ -482,7 +482,7 @@ export default function BoardScreen() {
           flexDirection: "row",
           alignItems: "center",
           gap: spacing.md,
-          paddingHorizontal: spacing.xl,
+          paddingHorizontal: GUTTER,
           paddingBottom: spacing.md,
         }}
       >
@@ -567,7 +567,7 @@ export default function BoardScreen() {
 
       <View style={{ flex: 1 }}>
         {board.isPending ? (
-          <View style={{ paddingHorizontal: spacing.xl, gap: spacing.md }}>
+          <View style={{ paddingHorizontal: GUTTER, gap: spacing.md }}>
             <Skeleton height={32} width={220} radius={999} />
             <Skeleton height={420} radius={20} />
           </View>
@@ -575,7 +575,7 @@ export default function BoardScreen() {
           <ErrorState onRetry={() => void board.refetch()} />
         ) : searchOpen ? (
           <>
-            <View style={{ paddingHorizontal: spacing.xl, paddingBottom: spacing.md, flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
+            <View style={{ paddingHorizontal: GUTTER, paddingBottom: spacing.md, flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
               <View
                 style={{
                   flex: 1,
@@ -622,7 +622,7 @@ export default function BoardScreen() {
             </View>
 
             {isFilterActive(filter) ? (
-              <View style={{ paddingHorizontal: spacing.xl, paddingBottom: spacing.md }}>
+              <View style={{ paddingHorizontal: GUTTER, paddingBottom: spacing.md }}>
                 <Pressable
                   accessibilityRole="button"
                   onPress={() => setFilter(EMPTY_BOARD_FILTER)}
@@ -645,7 +645,7 @@ export default function BoardScreen() {
             ) : null}
 
             <ScrollView
-              contentContainerStyle={{ paddingHorizontal: spacing.xl, paddingBottom: spacing.xxl, gap: spacing.lg }}
+              contentContainerStyle={{ paddingHorizontal: GUTTER, paddingBottom: spacing.xxl, gap: spacing.lg }}
               refreshControl={<RefreshControl refreshing={pullRefreshing} onRefresh={() => void pullToRefresh()} />}
             >
               {searchResults.length === 0 ? (
@@ -687,7 +687,7 @@ export default function BoardScreen() {
               scrollEnabled={!drag}
               showsHorizontalScrollIndicator={false}
               style={{ flexGrow: 0, marginBottom: spacing.md }}
-              contentContainerStyle={{ paddingHorizontal: spacing.xl, gap: spacing.sm }}
+              contentContainerStyle={{ paddingHorizontal: GUTTER, gap: spacing.sm }}
             >
               {board.data.lists.map((list, index) => {
                 const active = index === activeIndex;
@@ -735,7 +735,7 @@ export default function BoardScreen() {
             </ScrollView>
 
             {board.data.lists.length === 0 ? (
-              <AppText size="small" color={colors.muted} style={{ paddingHorizontal: spacing.xl }}>
+              <AppText size="small" color={colors.muted} style={{ paddingHorizontal: GUTTER }}>
                 لا حالات في هذه اللوحة بعد.
               </AppText>
             ) : (
@@ -762,7 +762,7 @@ export default function BoardScreen() {
                     <ScrollView
                       ref={boardDrag.columnRef(index)}
                       style={{ flex: 1 }}
-                      contentContainerStyle={{ paddingHorizontal: spacing.xl, paddingBottom: spacing.lg }}
+                      contentContainerStyle={{ paddingHorizontal: GUTTER, paddingBottom: spacing.lg }}
                       nestedScrollEnabled
                       scrollEnabled={!drag}
                       scrollEventThrottle={16}
@@ -841,7 +841,7 @@ export default function BoardScreen() {
           pager), so this bar sits below the pager and stays reachable no
           matter how long the active column is. */}
       {board.data?.lists[activeIndex] && !boardReadOnly && !searchOpen ? (
-        <View style={{ paddingHorizontal: spacing.xl, paddingTop: spacing.md }}>
+        <View style={{ paddingHorizontal: GUTTER, paddingTop: spacing.md }}>
           <QuickAddCard
             placeholder={`+ مهمة جديدة في «${board.data.lists[activeIndex]!.name}»`}
             onAdd={(title) => addCard.mutateAsync({ listId: board.data!.lists[activeIndex]!.id, title })}

@@ -64,6 +64,8 @@ function setup() {
       delete: async () => {
         writes.push("card.delete");
       },
+      // The lazy purge after a delete: nothing past its window here.
+      findMany: async () => [],
     },
     list: { findUnique: async ({ where }: { where: { id: string } }) => lists[where.id] ?? null },
     cardBoardLink: { findFirst: async () => null },
@@ -101,7 +103,7 @@ function setup() {
   const notifications = { notify: async () => undefined } as unknown as NotificationsService;
 
   return {
-    cards: new CardsService(prisma, boards, notifications),
+    cards: new CardsService(prisma, boards, notifications, {} as never),
     subtasks: new SubtasksService(prisma, boards, notifications),
     writes,
   };
@@ -161,8 +163,9 @@ describe("task ownership", () => {
     );
     await expect(cards.remove(MEMBER, "card-1")).rejects.toBeInstanceOf(ForbiddenException);
     expect(writes).toEqual([]);
+    // A pending delete: the row is stamped, not removed (card-deletion.test.ts).
     await cards.remove(CREATOR, "card-1");
-    expect(writes).toEqual(["card.delete"]);
+    expect(writes).toEqual(["card.update"]);
   });
 
   it("lets any member tick a sub-task, but only the owner add, rename, reorder, assign or delete one", async () => {

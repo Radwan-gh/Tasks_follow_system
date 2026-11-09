@@ -8,7 +8,7 @@ import { Skeleton } from "@/components/skeleton";
 import { EmptyState, ErrorState } from "@/components/state-views";
 import { api } from "@/lib/api";
 import { useOpenCard } from "@/lib/board-cache";
-import { colors, spacing } from "@/theme/tokens";
+import { GUTTER, colors, spacing } from "@/theme/tokens";
 
 const ICONS: Record<NotificationType, string> = {
   ASSIGNED: "◍",
@@ -51,7 +51,7 @@ export default function NotificationsScreen() {
           flexDirection: "row",
           alignItems: "center",
           justifyContent: "space-between",
-          paddingHorizontal: spacing.xl,
+          paddingHorizontal: GUTTER,
           paddingVertical: spacing.md,
           borderBottomWidth: 1,
           borderBottomColor: colors.line,
@@ -73,7 +73,7 @@ export default function NotificationsScreen() {
         </Pressable>
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: spacing.xl, gap: spacing.xl }}>
+      <ScrollView contentContainerStyle={{ paddingVertical: spacing.xl, paddingHorizontal: GUTTER, gap: spacing.xl }}>
         {notifications.isPending ? (
           <View style={{ gap: spacing.sm }}>
             <Skeleton height={56} radius={16} />

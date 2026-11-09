@@ -22,7 +22,7 @@ import { useOpenCard } from "@/lib/board-cache";
 import { formatDueDate, isOverdue } from "@/lib/date";
 import { loadFoldedBoards, saveFoldedBoards } from "@/lib/folded-boards";
 import { TASKS, countLabel } from "@/lib/plural";
-import { MIN_TOUCH_TARGET, colors, radii, spacing, statusColors } from "@/theme/tokens";
+import { GUTTER, MIN_TOUCH_TARGET, colors, radii, spacing, statusColors } from "@/theme/tokens";
 
 /**
  * `/my-tasks` — everything assigned to me (cards + subtasks), across every
@@ -122,7 +122,7 @@ export default function MyTasksScreen() {
           flexDirection: "row",
           alignItems: "center",
           justifyContent: "space-between",
-          paddingHorizontal: spacing.xl,
+          paddingHorizontal: GUTTER,
           paddingTop: spacing.sm,
           paddingBottom: spacing.lg,
         }}
@@ -163,7 +163,7 @@ export default function MyTasksScreen() {
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={{ paddingHorizontal: spacing.xl, paddingBottom: spacing.xxl, gap: spacing.xl }}>
+      <ScrollView contentContainerStyle={{ paddingHorizontal: GUTTER, paddingBottom: spacing.xxl, gap: spacing.xl }}>
         {myTasks.isPending ? (
           <View style={{ gap: spacing.sm }}>
             <Skeleton height={18} width="40%" />

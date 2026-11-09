@@ -164,14 +164,18 @@ export function TaskRow({
             ) : null}
           </Pressable>
           <View style={{ flex: 1, gap: 3 }}>
-            <AppText weight="semibold">{item.title}</AppText>
+            <AppText style={TITLE_STYLE}>
+              {item.title}
+            </AppText>
             <AppText size="caption" color={colors.faint}>
               ضمن: {item.parentCardTitle}
             </AppText>
           </View>
         </View>
       ) : (
-        <AppText weight="semibold">{item.title}</AppText>
+        <AppText style={TITLE_STYLE}>
+          {item.title}
+        </AppText>
       )}
 
       {meta.length > 0 || moveArrow ? (
@@ -186,6 +190,9 @@ export function TaskRow({
   );
 }
 
+/** A task title in a list: regular 16 (400, the user's pick). */
+const TITLE_STYLE = { fontSize: 16, lineHeight: 25 } as const;
+
 function Chip({ label, background, color, bold = false }: { label: string; background: string; color: string; bold?: boolean }) {
   return (
     <View
@@ -197,7 +204,7 @@ function Chip({ label, background, color, bold = false }: { label: string; backg
         paddingVertical: 5,
       }}
     >
-      <AppText size="caption" weight={bold ? "semibold" : "regular"} color={color}>
+      <AppText size="caption" weight={bold ? "medium" : "regular"} color={color}>
         {label}
       </AppText>
     </View>

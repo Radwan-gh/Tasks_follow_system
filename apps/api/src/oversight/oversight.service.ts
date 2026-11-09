@@ -2,6 +2,7 @@ import { Injectable } from "@nestjs/common";
 import type { Prisma } from "@prisma/client";
 import type { OversightBoard, OversightTasksFilter, OversightTasksResponse, OversightUser } from "@app/types";
 import { BoardsService } from "../boards/boards.service";
+import { LIVE_CARD } from "../cards/card-deletion.util";
 import { COMPLETED_CATEGORIES } from "../common/util/completed.util";
 import { PrismaService } from "../prisma/prisma.service";
 
@@ -40,7 +41,7 @@ export class OversightService {
       OR: [{ statusCategory: null }, { statusCategory: { notIn: COMPLETED_CATEGORIES } }],
     };
 
-    const and: Prisma.CardWhereInput[] = [{ isArchived: false }, { list: { isArchived: false } }];
+    const and: Prisma.CardWhereInput[] = [LIVE_CARD, { list: { isArchived: false } }];
     // A board's tasks include the ones shared onto it (docs/18-multi-board-tasks.md).
     if (query.boardId) {
       and.push({ OR: [{ boardId: query.boardId }, { boardLinks: { some: { boardId: query.boardId } } }] });

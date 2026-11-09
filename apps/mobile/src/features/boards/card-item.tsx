@@ -109,7 +109,8 @@ export function CardItem({
         }}
       >
         {card.isRestricted ? <AppText size="small">🔒</AppText> : null}
-        <AppText weight="semibold" style={{ flex: 1 }}>
+        {/* Regular weight: the user picked 400 for list titles. */}
+        <AppText style={{ flex: 1, fontSize: 16, lineHeight: 25 }}>
           <HighlightedTitle title={card.title} query={highlightQuery} />
         </AppText>
         {hasMeta ? null : moveArrow}
@@ -123,6 +124,7 @@ export function CardItem({
                 label={`◷ ${formatDueDate(card.dueDate)}`}
                 background={overdue ? colors.alertSoft : colors.canvas}
                 color={overdue ? colors.alert : colors.muted}
+                emphasis={overdue}
               />
             ) : null}
             {card.recurrence ? (
@@ -182,7 +184,7 @@ function Meta({
   return (
     <View accessible accessibilityLabel={accessibilityLabel} style={{ flexDirection: "row", alignItems: "center", gap: 2 }}>
       <Ionicons name={icon} size={15} color={color} />
-      <AppText size="caption" weight="semibold" color={color}>
+      <AppText size="caption" color={color}>
         {label}
       </AppText>
     </View>
@@ -198,7 +200,7 @@ function HighlightedTitle({ title, query }: { title: string; query?: string }) {
   return (
     <>
       {title.slice(0, index)}
-      <AppText weight="bold" color={colors.accent} style={{ backgroundColor: colors.accentSoft }}>
+      <AppText weight="semibold" color={colors.accent} style={{ fontSize: 16, lineHeight: 25, backgroundColor: colors.accentSoft }}>
         {title.slice(index, end)}
       </AppText>
       {title.slice(end)}
@@ -206,7 +208,8 @@ function HighlightedTitle({ title, query }: { title: string; query?: string }) {
   );
 }
 
-function Chip({ label, background, color }: { label: string; background: string; color: string }) {
+/** A meta chip. Regular weight; `emphasis` (an overdue date) gets medium so it still stands out. */
+function Chip({ label, background, color, emphasis = false }: { label: string; background: string; color: string; emphasis?: boolean }) {
   return (
     <View
       style={{
@@ -217,7 +220,7 @@ function Chip({ label, background, color }: { label: string; background: string;
         paddingVertical: 5,
       }}
     >
-      <AppText size="caption" weight="semibold" color={color}>
+      <AppText size="caption" weight={emphasis ? "medium" : "regular"} color={color}>
         {label}
       </AppText>
     </View>

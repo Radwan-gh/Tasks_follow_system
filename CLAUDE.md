@@ -111,7 +111,7 @@ README's Roadmap.
 ### UI must match the design in `docs/app_design` exactly
 
 Every screen built or changed in `apps/web` or `apps/mobile` must match its
-frame in `docs/app_design` (`Tasks Mobile Redesign.dc.html` and the
+frame in `docs/app_design` (`Tasks Mobile Redesign v2.dc.html` and the
 `v2-new-style.md` spec) **exactly** — layout, sizes, colours, copy, and the
 functionality the frame shows (buttons, chips, tick boxes, arrows), not just
 the look. Start from the design file, not from the current app screens. Where
@@ -137,9 +137,15 @@ Expo SDK 57 + expo-router, implementing the Arabic mobile design. RTL is the
 layout, not a preference: `expo-localization`'s `forcesRTL` handles native
 builds and `I18nManager.forceRTL` covers Expo Go, where config plugins do not
 apply. React Native does not inherit fonts, so **all** text goes through
-`src/components/text.tsx` (Cairo + palette + Arabic line height) — a bare
+`src/components/text.tsx` (IBM Plex Sans Arabic + palette + Arabic line height) — a bare
 `<Text>` silently falls back to the system face. Colours, radii and spacing come
-from `src/theme/tokens.ts`; a hex literal in a component is a bug. Moving a
+from `src/theme/tokens.ts`; a hex literal in a component is a bug. The app's
+**look** (font, palette, corners) follows the task page's design,
+`Edit Task Prototype.dc.html` in `docs/app_design/proposals/tasks page new design`,
+by the user's decision; `Tasks Mobile Redesign v2.dc.html` is the main design with that look applied
+(the original `Tasks Mobile Redesign.dc.html` is kept for reference).
+The task screen itself (`app/card/[id].tsx` + `features/task/*`) is built from
+`TText` and `src/theme/task-tokens.ts` — the same palette plus its extra shades. Moving a
 card is the ← arrow, a move sheet, or a long-press drag
 (`features/boards/board-drag.tsx`: reorder within the column, drop on a status
 chip, hold at the screen edge to page) — drop neighbours come from
@@ -211,6 +217,13 @@ worded by `describeCardActivity` (`packages/types/src/card-activity-content.ts`)
 — imported by mobile, mirrored by hand in web's `CardDetailPanel.tsx`; a new
 activity type needs the Prisma enum, the zod enum and both wordings. Rows are never mutated, only
 inserted, and cascade-delete with their card.
+
+Deleting a card is a **pending delete**: `DELETE /cards/:id` stamps
+`Card.deletedAt`, `POST /cards/:id/restore` undoes it within 30 s, and
+`CardsService.purgeDeletedCards` removes it for good afterwards. Any new card
+read must exclude pending-deleted rows — use `NOT_DELETED` / `LIVE_CARD` from
+`apps/api/src/cards/card-deletion.util.ts` (card-scoped routes already get it
+through `assertCardAccess`).
 
 ### Authorization: single source of truth
 

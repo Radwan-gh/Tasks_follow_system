@@ -93,12 +93,13 @@ function setup() {
       costAmount: null,
       costNote: null,
       recurrence: null,
+      deletedAt: null,
       createdById: OWNER_A,
       createdAt: new Date(),
       updatedAt: new Date(),
     },
     // Another task already in B's «قيد التنفيذ», so "the end of that column" is after it.
-    { id: "card-2", boardId: "B", listId: "b-doing", position: "a1", isArchived: false },
+    { id: "card-2", boardId: "B", listId: "b-doing", position: "a1", isArchived: false, deletedAt: null },
   ];
   // card-1 also shows on B.
   const links: Row[] = [{ id: "link-b", cardId: "card-1", boardId: "B", listId: "b-new", position: "a5", createdAt: 1 }];
@@ -186,7 +187,7 @@ function setup() {
   const prisma = { ...db, $transaction: async <T>(fn: (tx: unknown) => Promise<T>) => fn(db) } as unknown as PrismaService;
   const boardsService = new BoardsService(prisma, {} as never, {} as never);
   const notifications = { notify: async () => undefined } as unknown as NotificationsService;
-  const service = new CardsService(prisma, boardsService, notifications);
+  const service = new CardsService(prisma, boardsService, notifications, {} as never);
   // The field's read-back after a change is `getBoards`' own business.
   vi.spyOn(service, "getBoards").mockResolvedValue({ boards: [], canChange: true });
 

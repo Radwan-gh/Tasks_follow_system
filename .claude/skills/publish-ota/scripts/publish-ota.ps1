@@ -1,14 +1,19 @@
 # Publishes a JS-only OTA update of apps/mobile to the self-hosted xprem server.
 # Automates apps/mobile/CHEATSHEET.md section 5 end to end.
 #
-#   powershell -ExecutionPolicy Bypass -File .claude\skills\publish-ota\scripts\publish-ota.ps1 [-Message "..."] [-Rollout 1-99] [-AllowDirty] [-DryRun]
+#   powershell -ExecutionPolicy Bypass -File .claude\skills\publish-ota\scripts\publish-ota.ps1 [-Channel production|preview] [-Message "..."] [-Rollout 1-99] [-AllowDirty] [-DryRun]
 #
 # -DryRun runs every check and exports the bundle, but publishes nothing.
+# -Channel preview publishes to branch 'preview', which only the preview APK
+# (build-apk.ps1 -Preview, APP_VARIANT=preview in app.config.ts) listens on.
+# The default, production, reaches every installed app.
 #
 # Keep this file ASCII-only: Windows PowerShell 5.1 reads BOM-less scripts in
 # the ANSI codepage.
 
 param(
+    [ValidateSet('production', 'preview')]
+    [string]$Channel = 'production',
     [string]$Message,
     [ValidateRange(1, 99)]
     [int]$Rollout,
@@ -71,9 +76,21 @@ if ($appJson.expo.runtimeVersion.policy -ne 'appVersion') {
     Fail "app.json runtimeVersion is not the appVersion policy - update this script before publishing."
 }
 $version = $appJson.expo.version
-$channel = $appJson.expo.updates.requestHeaders.'expo-channel-name'
+# The production APK's channel comes from app.json; the preview APK's from
+# app.config.ts. Each channel is mapped to the branch of the same name in the
+# OTA dashboard, so the branch published to decides who receives the update.
+$appJsonChannel = $appJson.expo.updates.requestHeaders.'expo-channel-name'
+if ($appJsonChannel -ne 'production') { Fail "app.json expo-channel-name is '$appJsonChannel', expected 'production' - update this script before publishing." }
+$branch = $Channel
+if ($Channel -eq 'preview') {
+    # Resolves app.config.ts as the preview APK does, so the update's embedded config matches it.
+    $env:APP_VARIANT = 'preview'
+    if ($Rollout) { Fail '-Rollout is for production; the preview channel has one tester.' }
+} else {
+    Remove-Item Env:APP_VARIANT -ErrorAction SilentlyContinue
+}
 Write-Host "runtime version: $version (from expo.version)"
-Write-Host "channel: $channel"
+Write-Host "channel: $Channel (branch $branch)$(if ($Channel -eq 'production') { ' - EVERY installed app' } else { ' - the preview APK only' })"
 
 # --- Step 1: deps + shared packages -----------------------------------------
 Step 'Installing dependencies and building shared packages'
@@ -99,7 +116,7 @@ if ($DryRun) {
     Step "Dry run: exporting the bundle only (npx $($cmd -join ' '))"
 } else {
     if (-not $Message) { $Message = ($commit -replace '^\S+\s+', '') }
-    $cmd = @('eoas@3', 'publish', '--branch', 'production', '--platform', 'android',
+    $cmd = @('eoas@3', 'publish', '--branch', $branch, '--platform', 'android',
              '--nonInteractive', '--emitMetadata', '-m', $Message,
              '--packageRunner', 'eoas-runner')
     # eoas-runner.cmd (next to this script) wraps 'pnpm exec' and turns the
@@ -107,7 +124,7 @@ if ($DryRun) {
     # slashes, which the server requires. See eoas-runner.js.
     $env:PATH = "$PSScriptRoot;$env:PATH"
     if ($Rollout) { $cmd += @('--rollout-percentage', "$Rollout") }
-    Step "Publishing to branch production (npx $($cmd -join ' '))"
+    Step "Publishing to branch $branch (npx $($cmd -join ' '))"
 }
 # eoas runs 'expo export' with EXPO_NO_DOTENV=1, so .env.production is never
 # read and the bundle silently falls back to localhost. Variables already in
@@ -156,8 +173,8 @@ if (-not $DryRun -and (Test-Path $meta)) {
 
 Write-Host "`nOTA_RESULT=$(if ($DryRun) { 'dry-run' } else { 'published' })" -ForegroundColor Green
 Write-Host "OTA_RUNTIME_VERSION=$version"
-Write-Host "OTA_BRANCH=production"
-Write-Host "OTA_CHANNEL=$channel"
+Write-Host "OTA_BRANCH=$branch"
+Write-Host "OTA_CHANNEL=$Channel"
 Write-Host "OTA_COMMIT=$commit"
 if ($Rollout) { Write-Host "OTA_ROLLOUT_PERCENT=$Rollout" }
 if ($updateId) { Write-Host "OTA_UPDATE_ID=$updateId" }

@@ -1,7 +1,12 @@
 # Builds a release APK of apps/mobile locally with Gradle and copies it to
 # apps/mobile/apk/. Automates apps/mobile/BUILD_APK.md end to end.
 #
-#   powershell -ExecutionPolicy Bypass -File .claude\skills\build-apk\scripts\build-apk.ps1 [-Variant arm64|universal|arm32-64|arm64-min] [-Install]
+#   powershell -ExecutionPolicy Bypass -File .claude\skills\build-apk\scripts\build-apk.ps1 [-Variant arm64|universal|arm32-64|arm64-min] [-Preview] [-Install]
+#
+# -Preview builds the test app (APP_VARIANT=preview, see apps/mobile/app.config.ts):
+# package com.tasksfollow.app.preview, installed beside the real app, on OTA
+# channel 'preview'. No push unless PREVIEW_GOOGLE_SERVICES points at a
+# google-services.json that lists that package.
 #
 # Keep this file ASCII-only: Windows PowerShell 5.1 reads BOM-less scripts in
 # the ANSI codepage.
@@ -9,6 +14,7 @@
 param(
     [ValidateSet('universal', 'arm64', 'arm32-64', 'arm64-min')]
     [string]$Variant = 'arm64',
+    [switch]$Preview,
     [switch]$Install
 )
 
@@ -41,8 +47,15 @@ $sdk = $env:ANDROID_HOME
 if (-not $sdk) { $sdk = [Environment]::GetEnvironmentVariable('ANDROID_HOME', 'User') }
 if (-not $sdk -or -not (Test-Path $sdk)) { Fail 'ANDROID_HOME is not set or does not exist (BUILD_APK.md setup step 3).' }
 $env:ANDROID_HOME = $sdk
-if (-not (Test-Path (Join-Path $mobile 'google-services.json'))) {
-    Fail 'apps/mobile/google-services.json is missing (BUILD_APK.md setup step 4).'
+if ($Preview) {
+    # Read by app.config.ts at prebuild and again by Gradle's bundle step, so set it for the whole run.
+    $env:APP_VARIANT = 'preview'
+    Write-Host 'variant: PREVIEW (com.tasksfollow.app.preview, OTA channel preview)' -ForegroundColor Yellow
+} else {
+    Remove-Item Env:APP_VARIANT -ErrorAction SilentlyContinue
+    if (-not (Test-Path (Join-Path $mobile 'google-services.json'))) {
+        Fail 'apps/mobile/google-services.json is missing (BUILD_APK.md setup step 4).'
+    }
 }
 Write-Host "java: $javaVersion"
 Write-Host "ANDROID_HOME: $sdk"
@@ -120,7 +133,8 @@ $runtime = ([xml](Get-Content $strings -Raw -Encoding UTF8)).resources.string |
 if (-not $runtime) { Fail "expo_runtime_version not found in $strings - is expo-updates configured?" }
 $apk     = Get-Item (Join-Path $android 'app\build\outputs\apk\release\app-release.apk')
 $suffix  = if ($Variant -eq 'universal') { '' } else { "_$Variant" }
-$name    = "tasks_${version}_$runtime$suffix.apk"
+$prefix  = if ($Preview) { 'tasks-preview' } else { 'tasks' }
+$name    = "${prefix}_${version}_$runtime$suffix.apk"
 New-Item -ItemType Directory -Force $apkDir | Out-Null
 $dest = Join-Path $apkDir $name
 Copy-Item $apk.FullName $dest -Force
@@ -139,4 +153,5 @@ Write-Host "APK_SIZE_MB=$mb"
 Write-Host "APK_VERSION=$version"
 Write-Host "APK_RUNTIME_VERSION=$runtime"
 Write-Host "APK_VARIANT=$Variant"
+Write-Host "APK_PREVIEW=$([bool]$Preview)"
 Write-Host 'API_ENV=.env.production'

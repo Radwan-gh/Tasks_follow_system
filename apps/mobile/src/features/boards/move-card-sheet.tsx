@@ -28,7 +28,8 @@ export function MoveCardSheet({
 }: {
   visible: boolean;
   onClose: () => void;
-  card: Card | null;
+  /** Only its current list is read — the add-task screen passes `{ listId }` for a card not yet created. */
+  card: Pick<Card, "listId"> | null;
   lists: List[];
   nextListId: string | null;
   /** Whether the current user may move *this* card into «انتهى» — §3b-4. */

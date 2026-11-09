@@ -157,7 +157,8 @@ that board**.
 | `isArchived` | Archived cards are excluded from display |
 | `isRestricted` | If `true`, visibility is limited to `CardMember` + the board owner + the creator |
 | `assignees` | Assigned to, via `CardAssignee` (several people) — see [`10-subtasks-and-assignment.md`](./10-subtasks-and-assignment.md). A `VIEWER` board member can never be an assignee |
-| `priority` | `LOW` \| `NORMAL` (default) \| `URGENT`. Only "urgent" shows on the card face |
+| `isArchived` vs `deletedAt` | `deletedAt` (nullable): set by `DELETE /cards/:id` — a **pending** delete, invisible everywhere at once, undone by `POST /cards/:id/restore` within 30 s, then purged for good. Kept apart from `isArchived` so an archived card is never purged — see «الحذف» in [`05-boards-lists-cards.md`](./05-boards-lists-cards.md) |
+| `priority` | Five levels, low → high: `LOW` «منخفضة» \| `NORMAL` «عادية» (default — "no priority") \| `MEDIUM` «متوسطة» \| `HIGH` «عالية» \| `URGENT` «عاجلة». Only "urgent" shows on the card face and sorts first in a column |
 | `costAmount` / `costNote` | Optional cost (decimal amount + free-text note), never shown on the card face — a details-screen-only chip, written via `POST .../cards`/`PATCH /cards/:id`. Changing it records a `COST_UPDATED` activity |
 | `recurrence` | Optional repeat rule (`RecurrenceRule` in `packages/types`: daily / weekly with weekdays / monthly with a day), actually written via `POST .../cards` and `PATCH /cards/:id`. Moving into "closed" spawns the next instance in "new" automatically — details in [`14-notifications-comments-attachments.md`](./14-notifications-comments-attachments.md#recurring-task-generation) |
 
@@ -218,7 +219,7 @@ represent **responsibility for the work**, not visibility.
   التعطيل بديلًا — انظر [`07-admin.md`](./07-admin.md).
 - **Indexes:** indexes exist on `(boardId, position)` for lists and
   `(listId, position)` for cards to speed up ordered fetches, and on
-  `(boardId, isArchived)` for cards. `CardActivity` is indexed on `(cardId, createdAt)`
+  `(boardId, isArchived)` and `deletedAt` (the purge sweep) for cards. `CardActivity` is indexed on `(cardId, createdAt)`
   for a card's history and on `(actorId, boardId, createdAt)` for "your latest-used boards"
   in the add-board popup (`GET /cards/:id/board-options`).
 - **A card's `boardId`** must stay in sync with `list.boardId` (its home placement), and

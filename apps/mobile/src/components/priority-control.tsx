@@ -5,14 +5,18 @@ import { AppText } from "@/components/text";
 import { MIN_TOUCH_TARGET, colors, radii, spacing } from "@/theme/tokens";
 
 const OPTIONS: { value: CardPriority; label: string }[] = [
-  { value: "LOW", label: "منخفض" },
-  { value: "NORMAL", label: "عادي" },
-  { value: "URGENT", label: "عاجل" },
+  // Five levels since the task screen redesign (`Edit Task Prototype.dc.html`);
+  // labels agree with «أولوية» and match `packages/types`.
+  { value: "LOW", label: "منخفضة" },
+  { value: "NORMAL", label: "عادية" },
+  { value: "MEDIUM", label: "متوسطة" },
+  { value: "HIGH", label: "عالية" },
+  { value: "URGENT", label: "عاجلة" },
 ];
 
 /**
  * "الأولوية" three-way segmented switch (`design-prompt-group-3.md` §3b-1):
- * منخفض · عادي (افتراضي) · عاجل. Used by the add-task screen; card detail
+ * منخفضة · عادية (افتراضي) · متوسطة · عالية · عاجلة. Used by the add-task screen; card detail
  * shows a chip that opens `PrioritySheet` instead.
  */
 export function PrioritySegmented({ value, onChange }: { value: CardPriority; onChange: (v: CardPriority) => void }) {
@@ -124,7 +128,7 @@ export function PrioritySheet({
             ? "تعذّر حفظ الأولوية. تحقّق من الاتصال وأعد المحاولة."
             : saving
               ? "جارٍ الحفظ..."
-              : "«عاجل» وحدها تظهر على وجه البطاقة في اللوحة."}
+              : "«عاجلة» وحدها تظهر على وجه البطاقة في اللوحة."}
         </AppText>
       </View>
     </BottomSheet>

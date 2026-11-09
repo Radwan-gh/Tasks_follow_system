@@ -19,7 +19,7 @@ import {
 import { api } from "@/lib/api";
 import { useOpenCard } from "@/lib/board-cache";
 import { formatDueDate, isOverdue } from "@/lib/date";
-import { MIN_TOUCH_TARGET, colors, fonts, fontSizes, radii, spacing, statusColors } from "@/theme/tokens";
+import { GUTTER, MIN_TOUCH_TARGET, colors, fonts, fontSizes, radii, spacing, statusColors } from "@/theme/tokens";
 
 type Tab = "boards" | "tasks";
 
@@ -35,7 +35,7 @@ export default function OversightScreen() {
 
   return (
     <Screen edges={{ top: true, bottom: true }}>
-      <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md, paddingHorizontal: spacing.xl }}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md, paddingHorizontal: GUTTER }}>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="رجوع"
@@ -103,7 +103,7 @@ function AllBoards() {
   });
 
   return (
-    <ScrollView contentContainerStyle={{ paddingHorizontal: spacing.xl, paddingBottom: spacing.xxl, gap: spacing.md }}>
+    <ScrollView contentContainerStyle={{ paddingHorizontal: GUTTER, paddingBottom: spacing.xxl, gap: spacing.md }}>
       <View style={{ flexDirection: "row", gap: spacing.sm }}>
         <ToggleChip label="النشطة" active={!archived} onPress={() => setArchived(false)} />
         <ToggleChip label="المؤرشفة" active={archived} onPress={() => setArchived(true)} />
@@ -169,7 +169,7 @@ function AllTasks() {
 
   return (
     <View style={{ flex: 1 }}>
-      <View style={{ paddingHorizontal: spacing.xl, gap: spacing.sm, paddingBottom: spacing.md }}>
+      <View style={{ paddingHorizontal: GUTTER, gap: spacing.sm, paddingBottom: spacing.md }}>
         <TextInput
           value={search}
           onChangeText={setSearch}
@@ -201,7 +201,7 @@ function AllTasks() {
       </View>
 
       {tasks.isPending ? (
-        <View style={{ paddingHorizontal: spacing.xl, gap: spacing.md }}>
+        <View style={{ paddingHorizontal: GUTTER, gap: spacing.md }}>
           <Skeleton height={86} radius={radii.card} />
           <Skeleton height={86} radius={radii.card} />
           <Skeleton height={86} radius={radii.card} />
@@ -212,7 +212,7 @@ function AllTasks() {
         <FlatList
           data={items}
           keyExtractor={(t) => t.id}
-          contentContainerStyle={{ paddingHorizontal: spacing.xl, paddingBottom: spacing.xxl, gap: spacing.md }}
+          contentContainerStyle={{ paddingHorizontal: GUTTER, paddingBottom: spacing.xxl, gap: spacing.md }}
           renderItem={({ item }) => <OversightTaskRow task={item} onPress={() => openCard(item.id, item.boardId)} />}
           onEndReached={() => {
             if (tasks.hasNextPage && !tasks.isFetchingNextPage) void tasks.fetchNextPage();
@@ -266,7 +266,7 @@ function OversightTaskRow({ task, onPress }: { task: OversightTask; onPress: () 
     >
       <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs }}>
         {task.isRestricted ? <Ionicons name="lock-closed-outline" size={14} color={colors.muted} /> : null}
-        <AppText weight="semibold" style={{ flex: 1 }} numberOfLines={2}>
+        <AppText style={{ flex: 1, fontSize: 16, lineHeight: 25 }} numberOfLines={2}>
           {task.title}
         </AppText>
       </View>
@@ -290,7 +290,7 @@ function OversightTaskRow({ task, onPress }: { task: OversightTask; onPress: () 
             paddingVertical: 4,
           }}
         >
-          <AppText size="caption" weight="semibold" color={overdue ? colors.alert : colors.muted}>
+          <AppText size="caption" weight={overdue ? "medium" : "regular"} color={overdue ? colors.alert : colors.muted}>
             ◷ {formatDueDate(task.dueDate)}
           </AppText>
         </View>

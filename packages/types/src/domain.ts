@@ -25,11 +25,13 @@ export const ListStatusCategory = z.enum(["NEW", "READY", "IN_PROGRESS", "REVIEW
 export type ListStatusCategory = z.infer<typeof ListStatusCategory>;
 
 /**
- * "عاجل" (urgent) is the only priority ever shown on the card face (as an
- * edge stripe); `NORMAL` (default) and `LOW` carry no face indicator — see
- * `design-prompt-group-3.md` §3b-1.
+ * Five levels, in order low → high: `LOW`, `NORMAL` (the default — "no
+ * priority"), `MEDIUM`, `HIGH`, `URGENT`. "عاجلة" (urgent) is still the only
+ * priority ever shown on the card face (as an edge stripe) and the only one a
+ * column sorts first; the others carry no face indicator — see
+ * `design-prompt-group-3.md` §3b-1. Labels: `CARD_PRIORITY_LABELS`.
  */
-export const CardPriority = z.enum(["LOW", "NORMAL", "URGENT"]);
+export const CardPriority = z.enum(["LOW", "NORMAL", "MEDIUM", "HIGH", "URGENT"]);
 export type CardPriority = z.infer<typeof CardPriority>;
 
 /**
@@ -314,6 +316,16 @@ export const CardBoardsResponseSchema = z.object({
   canChange: z.boolean(),
 });
 export type CardBoardsResponse = z.infer<typeof CardBoardsResponseSchema>;
+
+/**
+ * `DELETE /cards/:id` — deleting a task is a *pending* delete: it disappears
+ * at once, and `POST /cards/:id/restore` brings it back until `restoreUntil`
+ * (30 seconds later, ISO 8601). After that it is deleted for good.
+ */
+export const DeleteCardResponseSchema = z.object({
+  restoreUntil: z.string().datetime(),
+});
+export type DeleteCardResponse = z.infer<typeof DeleteCardResponseSchema>;
 
 /**
  * A card as `GET /boards/:id` returns it inside its list: the card plus the
