@@ -1,6 +1,7 @@
 import { Pressable, View } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import type { BoardCard } from "@app/types";
+import { HighlightedText } from "@/components/highlighted-text";
 import { AppText } from "@/components/text";
 import { avatarColorFor } from "@/lib/avatar";
 import { initials, type AvatarPerson } from "@/lib/initials";
@@ -24,6 +25,7 @@ export function CardItem({
   onOpenActions,
   onOpen,
   highlightQuery,
+  searchNote,
   lifted = false,
 }: {
   card: BoardCard;
@@ -37,6 +39,12 @@ export function CardItem({
   onOpen: () => void;
   /** In-board search (§3b-2): highlights the matched substring in the title. */
   highlightQuery?: string;
+  /**
+   * In-board search: why the card matched when its title did not — a
+   * description excerpt or a subtask's title — shown under the title with
+   * `highlightQuery` marked in it.
+   */
+  searchNote?: string;
   /** Drawn as the copy that follows the finger mid-drag (design §5c). */
   lifted?: boolean;
 }) {
@@ -111,10 +119,16 @@ export function CardItem({
         {card.isRestricted ? <AppText size="small">🔒</AppText> : null}
         {/* Regular weight: the user picked 400 for list titles. */}
         <AppText style={{ flex: 1, fontSize: 16, lineHeight: 25 }}>
-          <HighlightedTitle title={card.title} query={highlightQuery} />
+          <HighlightedText text={card.title} query={highlightQuery} style={{ fontSize: 16, lineHeight: 25 }} />
         </AppText>
         {hasMeta ? null : moveArrow}
       </View>
+
+      {searchNote ? (
+        <AppText size="small" color={colors.muted} numberOfLines={2}>
+          <HighlightedText text={searchNote} query={highlightQuery} size="small" />
+        </AppText>
+      ) : null}
 
       {hasMeta ? (
         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.sm }}>
@@ -188,23 +202,6 @@ function Meta({
         {label}
       </AppText>
     </View>
-  );
-}
-
-/** Splits `title` around the first case-insensitive match of `query`, highlighting it with `accentSoft` (§3b-2). */
-function HighlightedTitle({ title, query }: { title: string; query?: string }) {
-  if (!query || !query.trim()) return <>{title}</>;
-  const index = title.toLowerCase().indexOf(query.trim().toLowerCase());
-  if (index === -1) return <>{title}</>;
-  const end = index + query.trim().length;
-  return (
-    <>
-      {title.slice(0, index)}
-      <AppText weight="semibold" color={colors.accent} style={{ fontSize: 16, lineHeight: 25, backgroundColor: colors.accentSoft }}>
-        {title.slice(index, end)}
-      </AppText>
-      {title.slice(end)}
-    </>
   );
 }
 

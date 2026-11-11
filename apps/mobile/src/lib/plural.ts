@@ -25,3 +25,6 @@ export function countLabel(n: number, noun: ArabicNoun): string {
   const lastTwo = n % 100;
   return `${n} ${lastTwo >= 3 && lastTwo <= 10 ? noun.few : noun.many}`;
 }
+
+export const RESULTS: ArabicNoun = { zero: "لا نتائج", one: "نتيجة واحدة", two: "نتيجتان", few: "نتائج", many: "نتيجة" };
+export const STATUSES: ArabicNoun = { zero: "لا حالات", one: "حالة واحدة", two: "حالتين", few: "حالات", many: "حالة" };

@@ -32,6 +32,8 @@ import type {
   List,
   LoginRequest,
   MyTasksResponse,
+  SearchQuery,
+  SearchResponse,
   NotificationPrefs,
   NotificationsResponse,
   OverdueTasksReport,
@@ -373,6 +375,12 @@ export function createApiClient({ baseUrl, storage, onUnauthorized }: ApiClientO
     },
     myTasks: {
       list: () => request<MyTasksResponse>("/my-tasks"),
+    },
+    /** Boards, tasks and subtasks matching `q` — across the caller's boards, or inside `boardId` (docs/19-search.md). */
+    search: (params: SearchQuery, init: { signal?: AbortSignal } = {}) => {
+      const query = new URLSearchParams({ q: params.q });
+      if (params.boardId) query.set("boardId", params.boardId);
+      return request<SearchResponse>(`/search?${query.toString()}`, { signal: init.signal });
     },
     /** «المتابعة» — requires `canViewAllBoards` (`canSupervise()`). Read-only. */
     oversight: {

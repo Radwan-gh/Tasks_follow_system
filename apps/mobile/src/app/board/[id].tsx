@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { I18nManager, Pressable, RefreshControl, ScrollView, StyleSheet, TextInput, View, useWindowDimensions } from "react-native";
+import { I18nManager, Pressable, RefreshControl, ScrollView, StyleSheet, View, useWindowDimensions } from "react-native";
 import { useIsFocused, useLocalSearchParams, useRouter } from "expo-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import type { BoardCard, BoardDetail, Card } from "@app/types";
+import { findSearchMatch, searchSnippet, type BoardCard, type BoardDetail, type Card } from "@app/types";
 import { ApiError } from "@app/api-client";
 import { Screen } from "@/components/screen";
 import { AppText } from "@/components/text";
@@ -20,12 +20,16 @@ import { QuickAddCard } from "@/features/boards/quick-add-card";
 import { BoardSummarySheet } from "@/features/boards/board-summary-sheet";
 import { BoardFilterSheet, EMPTY_BOARD_FILTER, isFilterActive, type BoardFilter } from "@/features/boards/board-filter-sheet";
 import { useAuth } from "@/features/auth/auth-context";
+import { SearchField } from "@/features/search/search-field";
+import { SearchEmpty, SearchSkeleton } from "@/features/search/search-results";
+import { useSearch } from "@/features/search/use-search";
 import { EmptyState } from "@/components/state-views";
 import { api } from "@/lib/api";
 import { LIVE_REFETCH_MS, boardDetailKey, recentClosedSince, useOpenCard } from "@/lib/board-cache";
 import { indexFromOffset, resolveColumnOffsets, snapOffsetsFor } from "@/lib/status-pager";
 import { planDrop } from "@/lib/reorder";
-import { GUTTER, MIN_TOUCH_TARGET, colors, fonts, fontSizes, radii, spacing } from "@/theme/tokens";
+import { RESULTS, STATUSES, countLabel } from "@/lib/plural";
+import { GUTTER, MIN_TOUCH_TARGET, colors, radii, spacing, statusColors } from "@/theme/tokens";
 
 /**
  * `/boards/:id` — horizontal-scroll Kanban view (design's "اللوحة — تمرير أفقي
@@ -312,14 +316,46 @@ export default function BoardScreen() {
   });
 
   const trimmedSearch = searchText.trim();
+  // The server half of the in-board search (docs/19-search.md): it also sees
+  // subtask titles, which the board's own data does not carry. Only an answer
+  // for exactly what is typed counts, so a stale one never adds wrong cards.
+  const boardSearch = useSearch(searchOpen ? searchText : "", id);
+  const serverMatches = useMemo(() => {
+    const cardIds = new Set<string>();
+    const subtaskTitle = new Map<string, string>();
+    const data = boardSearch.query.data;
+    if (data && data.query === trimmedSearch) {
+      for (const card of data.cards) cardIds.add(card.id);
+      for (const subtask of data.subtasks) if (!subtaskTitle.has(subtask.cardId)) subtaskTitle.set(subtask.cardId, subtask.title);
+    }
+    return { cardIds, subtaskTitle };
+  }, [boardSearch.query.data, trimmedSearch]);
+
   // §3b-2: search + filter renders a flat list grouped by status, not columns.
-  const searchResults = useMemo(() => {
-    if (!board.data) return [];
-    return board.data.lists
+  // A card matches on its title, its description or one of its subtasks; when
+  // it is not the title, `searchNotes` says what matched.
+  const { searchResults, searchNotes } = useMemo(() => {
+    const notes = new Map<string, string>();
+    if (!board.data) return { searchResults: [], searchNotes: notes };
+    const matches = (card: BoardCard): boolean => {
+      if (!trimmedSearch || findSearchMatch(card.title, trimmedSearch)) return true;
+      const snippet = card.description ? searchSnippet(card.description, trimmedSearch) : null;
+      if (snippet) {
+        notes.set(card.id, `الوصف: ${snippet}`);
+        return true;
+      }
+      const subtask = serverMatches.subtaskTitle.get(card.id);
+      if (subtask) {
+        notes.set(card.id, `مهمة فرعية: ${subtask}`);
+        return true;
+      }
+      return serverMatches.cardIds.has(card.id);
+    };
+    const results = board.data.lists
       .map((list) => ({
         list,
         cards: sortByPriority(list.cards).filter((card) => {
-          if (trimmedSearch && !card.title.toLowerCase().includes(trimmedSearch.toLowerCase())) return false;
+          if (!matches(card)) return false;
           if (filter.myTasksOnly && !(user && card.assigneeIds.includes(user.id))) return false;
           if (filter.memberIds.length > 0 && !card.assigneeIds.some((uid) => filter.memberIds.includes(uid))) return false;
           if (filter.priorities.length > 0 && !filter.priorities.includes(card.priority)) return false;
@@ -327,7 +363,8 @@ export default function BoardScreen() {
         }),
       }))
       .filter((group) => group.cards.length > 0);
-  }, [board.data, trimmedSearch, filter, user]);
+    return { searchResults: results, searchNotes: notes };
+  }, [board.data, trimmedSearch, filter, user, serverMatches]);
 
   const isOwner = !!user && board.data?.ownerId === user.id;
   // §3c-4 "اللوحة بعين المشاهد ... بلا أسهم نقل ولا «+ إضافة مهمة» ولا سحب".
@@ -576,41 +613,22 @@ export default function BoardScreen() {
         ) : searchOpen ? (
           <>
             <View style={{ paddingHorizontal: GUTTER, paddingBottom: spacing.md, flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
-              <View
-                style={{
-                  flex: 1,
-                  flexDirection: "row",
-                  alignItems: "center",
-                  backgroundColor: colors.canvas,
-                  borderRadius: radii.field,
-                  paddingHorizontal: spacing.md,
-                  minHeight: MIN_TOUCH_TARGET,
-                }}
-              >
-                <TextInput
-                  value={searchText}
-                  onChangeText={setSearchText}
-                  placeholder="ابحث في اللوحة"
-                  placeholderTextColor={colors.muted}
-                  autoFocus
-                  style={{
-                    flex: 1,
-                    fontFamily: fonts.regular,
-                    fontSize: fontSizes.body,
-                    color: colors.ink,
-                    textAlign: "right",
-                    writingDirection: "rtl",
-                  }}
-                />
-              </View>
+              <SearchField
+                value={searchText}
+                onChangeText={setSearchText}
+                placeholder="ابحث في اللوحة"
+                autoFocus
+                radius={radii.field}
+              />
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="ترشيح"
                 onPress={() => setFilterVisible(true)}
                 style={{
-                  width: MIN_TOUCH_TARGET,
-                  height: MIN_TOUCH_TARGET,
+                  width: MIN_TOUCH_TARGET + 4,
+                  height: MIN_TOUCH_TARGET + 4,
                   borderRadius: radii.field,
+                  backgroundColor: colors.surface,
                   borderWidth: 1,
                   borderColor: isFilterActive(filter) ? colors.accent : colors.line,
                   alignItems: "center",
@@ -645,21 +663,47 @@ export default function BoardScreen() {
             ) : null}
 
             <ScrollView
-              contentContainerStyle={{ paddingHorizontal: GUTTER, paddingBottom: spacing.xxl, gap: spacing.lg }}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
+              contentContainerStyle={{ paddingHorizontal: GUTTER, paddingBottom: spacing.xxl, gap: 18 }}
               refreshControl={<RefreshControl refreshing={pullRefreshing} onRefresh={() => void pullToRefresh()} />}
             >
               {searchResults.length === 0 ? (
-                <EmptyState
-                  icon="search-outline"
-                  title={trimmedSearch ? `لا نتائج لـ "${trimmedSearch}"` : "لا نتائج"}
-                  message="جرّب كلمة أخرى أو امسح الترشيح."
-                />
+                trimmedSearch && boardSearch.pending ? (
+                  // A task may still match on a subtask the server has not answered for yet.
+                  <SearchSkeleton />
+                ) : trimmedSearch ? (
+                  <SearchEmpty
+                    query={trimmedSearch}
+                    onClear={() => setSearchText("")}
+                    onClearFilters={isFilterActive(filter) ? () => setFilter(EMPTY_BOARD_FILTER) : undefined}
+                  />
+                ) : (
+                  <EmptyState icon="search-outline" title="لا نتائج" message="لا مهام تطابق المرشّحات. أزلها لترى كل المهام." />
+                )
               ) : (
-                searchResults.map(({ list, cards }) => (
-                  <View key={list.id} style={{ gap: spacing.sm }}>
-                    <AppText size="small" weight="bold" color={colors.muted}>
-                      {list.name} · {cards.length}
-                    </AppText>
+                <>
+                  <AppText size="small" color={colors.muted} style={{ paddingHorizontal: spacing.xs }}>
+                    {`${countLabel(
+                      searchResults.reduce((sum, group) => sum + group.cards.length, 0),
+                      RESULTS,
+                    )} في ${countLabel(searchResults.length, STATUSES)}`}
+                  </AppText>
+                  {searchResults.map(({ list, cards }) => (
+                  <View key={list.id} style={{ gap: 10 }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 7, paddingHorizontal: spacing.xs }}>
+                      <View
+                        style={{
+                          width: 8,
+                          height: 8,
+                          borderRadius: 999,
+                          backgroundColor: statusColors[list.statusCategory ?? "UNCATEGORIZED"],
+                        }}
+                      />
+                      <AppText size="small" weight="bold" color={colors.muted}>
+                        {list.name} · {cards.length}
+                      </AppText>
+                    </View>
                     <View style={{ gap: spacing.sm }}>
                       {cards.map((card) => (
                         <CardItem
@@ -671,11 +715,13 @@ export default function BoardScreen() {
                           onLongPress={() => !boardReadOnly && setMovingCardId(card.id)}
                           onOpen={() => openCard(card.id, id)}
                           highlightQuery={trimmedSearch}
+                          searchNote={searchNotes.get(card.id)}
                         />
                       ))}
                     </View>
                   </View>
-                ))
+                  ))}
+                </>
               )}
             </ScrollView>
           </>

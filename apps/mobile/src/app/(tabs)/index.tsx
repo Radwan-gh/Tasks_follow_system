@@ -19,9 +19,13 @@ import {
 } from "@/features/boards/board-categories";
 import { BoardRow } from "@/features/boards/board-row";
 import { NewBoardSheet } from "@/features/boards/new-board-sheet";
+import { SearchField } from "@/features/search/search-field";
+import { SearchEmpty, SearchResults, SearchSkeleton } from "@/features/search/search-results";
+import { useSearch } from "@/features/search/use-search";
 import { NotificationBell } from "@/features/notifications/notification-bell";
 import { useAuth } from "@/features/auth/auth-context";
 import { api } from "@/lib/api";
+import { useOpenCard } from "@/lib/board-cache";
 import { loadOpenSections, saveOpenSections } from "@/lib/open-sections";
 import { BOARDS, countLabel } from "@/lib/plural";
 import { GUTTER, MIN_TOUCH_TARGET, colors, spacing } from "@/theme/tokens";
@@ -43,6 +47,11 @@ export default function BoardsScreen() {
   const [actionsFor, setActionsFor] = useState<{ id: string; name: string; boardCount: number } | null>(null);
   const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null);
   const [deleting, setDeleting] = useState<{ id: string; name: string } | null>(null);
+  // «ابحث في اللوحات» (docs/19-search.md): two letters or more swap the
+  // boards list for boards, tasks and subtasks matching them.
+  const [searchText, setSearchText] = useState("");
+  const search = useSearch(searchText);
+  const openCard = useOpenCard();
 
   // Creating, renaming and deleting categories is admin-only; admins also see
   // the empty ones, which they're presumably about to fill.
@@ -150,13 +159,45 @@ export default function BoardsScreen() {
         </Pressable>
       </View>
 
+      <View style={{ flexDirection: "row", paddingHorizontal: GUTTER, paddingBottom: 14 }}>
+        <SearchField value={searchText} onChangeText={setSearchText} placeholder="ابحث في اللوحات" />
+      </View>
+
       <ScrollView
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
         contentContainerStyle={{ paddingHorizontal: GUTTER, paddingBottom: spacing.xxl, gap: spacing.md }}
         refreshControl={
-          <RefreshControl refreshing={boards.isRefetching} onRefresh={() => void boards.refetch()} />
+          search.active ? (
+            <RefreshControl
+              refreshing={search.query.isRefetching && !search.pending}
+              onRefresh={() => void search.query.refetch()}
+            />
+          ) : (
+            <RefreshControl refreshing={boards.isRefetching} onRefresh={() => void boards.refetch()} />
+          )
         }
       >
-        {boards.isPending ? (
+        {search.active ? (
+          search.query.isError && !search.query.data ? (
+            <ErrorState onRetry={() => void search.query.refetch()} />
+          ) : !search.query.data ? (
+            <SearchSkeleton />
+          ) : search.query.data.boards.length + search.query.data.cards.length + search.query.data.subtasks.length ===
+            0 ? (
+            search.pending ? (
+              <SearchSkeleton />
+            ) : (
+              <SearchEmpty query={search.query.data.query} onClear={() => setSearchText("")} />
+            )
+          ) : (
+            <SearchResults
+              data={search.query.data}
+              onOpenBoard={(boardId) => router.push(`/board/${boardId}`)}
+              onOpenCard={openCard}
+            />
+          )
+        ) : boards.isPending ? (
           <>
             <BoardCardSkeleton />
             <BoardCardSkeleton />
@@ -218,7 +259,7 @@ export default function BoardsScreen() {
           </>
         )}
 
-        {archivedBoards.data && archivedBoards.data.length > 0 ? (
+        {!search.active && archivedBoards.data && archivedBoards.data.length > 0 ? (
           <Pressable
             accessibilityRole="button"
             onPress={() => router.push("/archived-boards")}

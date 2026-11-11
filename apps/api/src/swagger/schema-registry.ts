@@ -63,6 +63,7 @@ import {
   OverdueTasksReportSchema,
   WorkloadReportSchema,
   MyTasksResponseSchema,
+  SearchResponseSchema,
   NotificationsResponseSchema,
   RegisterPushDeviceRequestSchema,
   PushDeviceSchema,
@@ -147,6 +148,7 @@ registry.register("CompletedTasksReport", CompletedTasksReportSchema);
 registry.register("OverdueTasksReport", OverdueTasksReportSchema);
 registry.register("WorkloadReport", WorkloadReportSchema);
 registry.register("MyTasksResponse", MyTasksResponseSchema);
+registry.register("SearchResponse", SearchResponseSchema);
 registry.register("NotificationsResponse", NotificationsResponseSchema);
 registry.register("RegisterPushDeviceRequest", RegisterPushDeviceRequestSchema);
 registry.register("PushDevice", PushDeviceSchema);

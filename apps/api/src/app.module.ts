@@ -7,6 +7,7 @@ import { CardsModule } from "./cards/cards.module";
 import { ListsModule } from "./lists/lists.module";
 import { McpModule } from "./mcp/mcp.module";
 import { MyTasksModule } from "./my-tasks/my-tasks.module";
+import { SearchModule } from "./search/search.module";
 import { NotificationsModule } from "./notifications/notifications.module";
 import { OversightModule } from "./oversight/oversight.module";
 import { PrismaModule } from "./prisma/prisma.module";
@@ -28,6 +29,7 @@ import { UsersModule } from "./users/users.module";
     SubtasksModule,
     ReportsModule,
     MyTasksModule,
+    SearchModule,
     OversightModule,
     NotificationsModule,
     UsersModule,
