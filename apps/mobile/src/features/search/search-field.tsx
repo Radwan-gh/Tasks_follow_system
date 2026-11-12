@@ -5,7 +5,7 @@ import { MIN_TOUCH_TARGET, colors, fonts, fs, radii, spacing } from "@/theme/tok
 /**
  * The design's search box: a white field with ⌕, which turns blue (1.5px
  * border, blue ⌕) once something is typed and then offers ✕ to clear it —
- * the boards screen's «ابحث في اللوحات» and the in-board search (§3b-2).
+ * the boards screen's «ابحث: لوحات، مهام، مهام فرعية» and the in-board search (§3b-2).
  */
 export function SearchField({
   value,

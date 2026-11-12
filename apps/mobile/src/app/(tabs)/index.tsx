@@ -50,7 +50,7 @@ export default function BoardsScreen() {
   const [actionsFor, setActionsFor] = useState<{ id: string; name: string; boardCount: number } | null>(null);
   const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null);
   const [deleting, setDeleting] = useState<{ id: string; name: string } | null>(null);
-  // «ابحث في اللوحات» (docs/19-search.md): two letters or more swap the
+  // The «ابحث: لوحات، مهام، مهام فرعية» box (docs/19-search.md): two letters or more swap the
   // boards list for boards, tasks and subtasks matching them.
   const [searchText, setSearchText] = useState("");
   const search = useSearch(searchText);
@@ -166,7 +166,7 @@ export default function BoardsScreen() {
       </View>
 
       <View style={{ flexDirection: "row", paddingHorizontal: GUTTER, paddingBottom: 14 }}>
-        <SearchField value={searchText} onChangeText={setSearchText} placeholder="ابحث في اللوحات" />
+        <SearchField value={searchText} onChangeText={setSearchText} placeholder="ابحث: لوحات، مهام، مهام فرعية" />
       </View>
 
       <ScrollView

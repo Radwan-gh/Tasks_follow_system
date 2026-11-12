@@ -8,7 +8,7 @@ import { zodRef } from "../swagger/zod-ref";
 import { SearchService } from "./search.service";
 
 /**
- * `/search` — the boards screen's «ابحث في اللوحات» box and the in-board
+ * `/search` — the boards screen's «ابحث: لوحات، مهام، مهام فرعية» box and the in-board
  * search (docs/19-search.md). Any signed-in user, over their own boards only.
  */
 @ApiTags("Search")

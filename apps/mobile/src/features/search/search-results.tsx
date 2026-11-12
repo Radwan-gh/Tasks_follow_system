@@ -11,7 +11,7 @@ import { RESULTS, countLabel } from "@/lib/plural";
 import { MIN_TOUCH_TARGET, colors, radii, spacing, statusColors } from "@/theme/tokens";
 
 /**
- * What the boards screen's «ابحث في اللوحات» found, in three groups — boards,
+ * What the boards screen's «ابحث: لوحات، مهام، مهام فرعية» found, in three groups — boards,
  * tasks, subtasks — each hit with the typed text marked. The design draws the
  * box and the in-board results (§3b-2) but no screen for this search, so the
  * rows reuse the in-board result card and the boards list's row.
