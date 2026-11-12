@@ -66,6 +66,8 @@ function RootNavigator() {
         <Stack.Screen name="push" options={{ presentation: "modal" }} />
         <Stack.Screen name="notifications" />
         <Stack.Screen name="archived-boards" />
+        <Stack.Screen name="category/[id]" />
+        <Stack.Screen name="all-tasks" />
         <Stack.Screen name="oversight" />
         <Stack.Screen name="guide" />
       </Stack.Protected>

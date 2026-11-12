@@ -12,6 +12,7 @@ export interface ArabicNoun {
 }
 
 export const BOARDS: ArabicNoun = { zero: "لا لوحات", one: "لوحة واحدة", two: "لوحتان", few: "لوحات", many: "لوحة" };
+export const MEMBERS: ArabicNoun = { zero: "لا أعضاء", one: "عضو واحد", two: "عضوان", few: "أعضاء", many: "عضوًا" };
 export const TASKS: ArabicNoun = { zero: "لا مهام", one: "مهمة واحدة", two: "مهمتان", few: "مهام", many: "مهمة" };
 
 /**

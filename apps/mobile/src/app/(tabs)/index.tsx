@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Pressable, RefreshControl, ScrollView, View } from "react-native";
+import { I18nManager, Modal, Pressable, RefreshControl, ScrollView, View } from "react-native";
 import { useRouter } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -9,14 +9,16 @@ import { Screen } from "@/components/screen";
 import { AppText } from "@/components/text";
 import { BoardCardSkeleton } from "@/components/skeleton";
 import { EmptyState, ErrorState } from "@/components/state-views";
-import { BoardCard } from "@/features/boards/board-card";
 import {
   BOARD_CATEGORIES_KEY,
   CategoryActionsSheet,
   CategoryNameSheet,
   CategoryOrderSheet,
+  NO_CATEGORY,
+  categoryColor,
   useBoardCategories,
 } from "@/features/boards/board-categories";
+import { BoardMembersSheet } from "@/features/boards/board-members-sheet";
 import { BoardRow } from "@/features/boards/board-row";
 import { NewBoardSheet } from "@/features/boards/new-board-sheet";
 import { SearchField } from "@/features/search/search-field";
@@ -28,7 +30,7 @@ import { api } from "@/lib/api";
 import { useOpenCard } from "@/lib/board-cache";
 import { loadOpenSections, saveOpenSections } from "@/lib/open-sections";
 import { BOARDS, countLabel } from "@/lib/plural";
-import { GUTTER, MIN_TOUCH_TARGET, colors, spacing } from "@/theme/tokens";
+import { GUTTER, MIN_TOUCH_TARGET, colors, radii, spacing } from "@/theme/tokens";
 
 export default function BoardsScreen() {
   const { user } = useAuth();
@@ -38,6 +40,7 @@ export default function BoardsScreen() {
   const archivedBoards = useQuery({ queryKey: ["boards", "archived"], queryFn: () => api.boards.listArchived() });
   const categories = useBoardCategories();
   const [creatingBoard, setCreatingBoard] = useState(false);
+  const [membersOf, setMembersOf] = useState<BoardSummary | null>(null);
   // Section keys: a category id, or `NONE` for «بلا تصنيف». Sections start
   // folded; the ones this user opened are remembered across launches.
   const [openSections, setOpenSections] = useState<ReadonlySet<string>>(new Set());
@@ -116,10 +119,6 @@ export default function BoardsScreen() {
     router.push(`/board/${board.id}`);
   }
 
-  function boardCard(board: BoardSummary) {
-    return <BoardCard key={board.id} board={board} isOwner={board.ownerId === user?.id} onPress={() => openBoard(board)} />;
-  }
-
   return (
     <Screen>
       <View
@@ -157,6 +156,13 @@ export default function BoardsScreen() {
             +
           </AppText>
         </Pressable>
+        {isCategoryAdmin ? (
+          <CategoriesMenu
+            canReorder={(categories.data?.length ?? 0) > 1}
+            onNew={() => setCreatingCategory(true)}
+            onReorder={() => setReorderingCategories(true)}
+          />
+        ) : null}
       </View>
 
       <View style={{ flexDirection: "row", paddingHorizontal: GUTTER, paddingBottom: 14 }}>
@@ -215,6 +221,8 @@ export default function BoardsScreen() {
               />
             ) : null}
 
+            {boards.data.length > 0 ? <AllRow boardCount={boards.data.length} onPress={() => router.push("/all-tasks")} /> : null}
+
             {grouped
               ? sections.map((section) => {
                   const key = section.category?.id ?? "NONE";
@@ -222,22 +230,30 @@ export default function BoardsScreen() {
                   const category = section.category;
                   const manageable = !!category && isCategoryAdmin;
                   return (
-                    <View key={key} style={{ gap: spacing.sm }}>
+                    <View key={key} style={{ gap: spacing.xs }}>
                       <SectionHeader
                         title={category?.name ?? "بلا تصنيف"}
+                        color={category ? categoryColor(category.id) : null}
                         count={section.boards.length}
                         open={open}
-                        onPress={() => toggle(key)}
+                        onOpen={() => router.push(`/category/${category?.id ?? NO_CATEGORY}`)}
+                        onToggle={() => toggle(key)}
                         onLongPress={
                           manageable ? () => setActionsFor({ ...category, boardCount: section.boards.length }) : undefined
                         }
                       />
-                      {!open ? null : !category ? (
-                        section.boards.map(boardCard)
-                      ) : section.boards.length > 0 ? (
-                        section.boards.map((board) => (
-                          <BoardRow key={board.id} board={board} onPress={() => openBoard(board)} />
-                        ))
+                      {!open ? null : section.boards.length > 0 ? (
+                        <View>
+                          {section.boards.map((board, index) => (
+                            <BoardRow
+                              key={board.id}
+                              board={board}
+                              last={index === section.boards.length - 1}
+                              onPress={() => openBoard(board)}
+                              onShowMembers={() => setMembersOf(board)}
+                            />
+                          ))}
+                        </View>
                       ) : (
                         <AppText size="small" color={colors.muted} style={{ paddingHorizontal: spacing.xs }}>
                           لا لوحات فيه بعد. اختره من «التصنيف» عند إنشاء لوحة أو في إعداداتها.
@@ -246,16 +262,18 @@ export default function BoardsScreen() {
                     </View>
                   );
                 })
-              : sections.flatMap((section) => section.boards.map(boardCard))}
+              : sections.flatMap((section) =>
+                  section.boards.map((board) => (
+                    <BoardRow
+                      key={board.id}
+                      board={board}
+                      branch={false}
+                      onPress={() => openBoard(board)}
+                      onShowMembers={() => setMembersOf(board)}
+                    />
+                  )),
+                )}
 
-            {isCategoryAdmin ? (
-              <View style={{ flexDirection: "row", justifyContent: "center", gap: spacing.xl }}>
-                <FooterAction label="+ تصنيف جديد" onPress={() => setCreatingCategory(true)} />
-                {(categories.data?.length ?? 0) > 1 ? (
-                  <FooterAction label="ترتيب التصنيفات" onPress={() => setReorderingCategories(true)} />
-                ) : null}
-              </View>
-            ) : null}
           </>
         )}
 
@@ -287,6 +305,7 @@ export default function BoardsScreen() {
         creating={createBoard.isPending}
       />
 
+      <BoardMembersSheet board={membersOf} onClose={() => setMembersOf(null)} />
       <CategoryNameSheet visible={creatingCategory} onClose={() => setCreatingCategory(false)} />
       <CategoryOrderSheet visible={reorderingCategories} onClose={() => setReorderingCategories(false)} />
       <CategoryNameSheet visible={!!renaming} category={renaming ?? undefined} onClose={() => setRenaming(null)} />
@@ -322,62 +341,255 @@ export default function BoardsScreen() {
 }
 
 /**
- * A category's heading on the boards list — tap folds it, long-press (admins
- * only) opens rename/reorder/delete.
+ * A category's heading on the boards list — a boxed row with the category's
+ * colour tile, so it reads as the root its boards branch from (`BoardRow`
+ * draws the trunk under the tile). Tapping the name opens the category's task
+ * list (`/category/:id`); the arrow button at the end folds the section.
+ * Long-press on the name (admins only) opens rename/reorder/delete.
  */
 function SectionHeader({
   title,
+  color,
   count,
   open,
-  onPress,
+  onOpen,
+  onToggle,
   onLongPress,
 }: {
   title: string;
+  /** The category's colour; null for «بلا تصنيف», which gets a neutral tile. */
+  color: string | null;
   count: number;
   open: boolean;
-  onPress: () => void;
+  onOpen: () => void;
+  onToggle: () => void;
   onLongPress?: () => void;
 }) {
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityState={{ expanded: open }}
-      accessibilityLabel={`${title}، ${countLabel(count, BOARDS)}`}
-      accessibilityHint={onLongPress ? "اضغط للطي أو الفتح، واضغط مطوّلًا لإعادة التسمية أو الترتيب أو الحذف" : "اضغط للطي أو الفتح"}
-      onPress={onPress}
-      onLongPress={onLongPress}
+    <View
       style={{
         flexDirection: "row",
         alignItems: "center",
-        gap: spacing.sm,
-        minHeight: MIN_TOUCH_TARGET,
-        paddingHorizontal: spacing.xs,
-        marginTop: spacing.xs,
+        minHeight: MIN_TOUCH_TARGET + 8,
+        paddingEnd: spacing.xs,
+        backgroundColor: colors.surface,
+        borderWidth: 1,
+        borderColor: colors.line,
+        borderRadius: radii.row,
+        overflow: "hidden",
       }}
     >
-      <Ionicons name="folder-outline" size={15} color={colors.muted} />
-      <AppText size="small" weight="bold" numberOfLines={1} style={{ flexShrink: 1 }}>
-        {title}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`${title}، ${countLabel(count, BOARDS)}`}
+        accessibilityHint={onLongPress ? "اضغط لعرض مهام التصنيف، واضغط مطوّلًا لإعادة التسمية أو الترتيب أو الحذف" : "اضغط لعرض مهام التصنيف"}
+        onPress={onOpen}
+        onLongPress={onLongPress}
+        style={({ pressed }) => ({
+          flex: 1,
+          flexDirection: "row",
+          alignItems: "center",
+          gap: spacing.md,
+          alignSelf: "stretch",
+          paddingHorizontal: spacing.md,
+          backgroundColor: pressed ? colors.toolbar : "transparent",
+        })}
+      >
+        <View
+          style={{
+            width: 28,
+            height: 28,
+            borderRadius: 8,
+            backgroundColor: color ?? colors.slateSoft,
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <Ionicons name={open ? "folder-open" : "folder"} size={15} color={color ? colors.surface : colors.muted} />
+        </View>
+        <AppText size="title" weight="bold" numberOfLines={1} style={{ flex: 1 }}>
+          {title}
+        </AppText>
+        <View style={{ borderRadius: radii.chip, backgroundColor: colors.chip, paddingHorizontal: spacing.sm, paddingVertical: 1 }}>
+          <AppText size="caption" weight="medium" color={colors.muted}>
+            {countLabel(count, BOARDS)}
+          </AppText>
+        </View>
+      </Pressable>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ expanded: open }}
+        accessibilityLabel={open ? `طيّ «${title}»` : `فتح «${title}»`}
+        onPress={onToggle}
+        style={({ pressed }) => ({
+          width: MIN_TOUCH_TARGET,
+          height: MIN_TOUCH_TARGET,
+          borderRadius: radii.iconButton,
+          backgroundColor: pressed ? colors.slateSoft : colors.chip,
+          alignItems: "center",
+          justifyContent: "center",
+        })}
+      >
+        <Ionicons name={open ? "chevron-up" : "chevron-down"} size={16} color={colors.slate} />
+      </Pressable>
+    </View>
+  );
+}
+
+/**
+ * «الكل» — the first row of the boards list, drawn like a category heading
+ * (boxed, with a tile): opens `/all-tasks`, one board made of every board's
+ * tasks.
+ */
+function AllRow({ boardCount, onPress }: { boardCount: number; onPress: () => void }) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`الكل: كل المهام في ${countLabel(boardCount, BOARDS)}`}
+      onPress={onPress}
+      style={({ pressed }) => ({
+        flexDirection: "row",
+        alignItems: "center",
+        gap: spacing.md,
+        minHeight: MIN_TOUCH_TARGET + 8,
+        paddingStart: spacing.md,
+        paddingEnd: spacing.lg,
+        backgroundColor: pressed ? colors.toolbar : colors.surface,
+        borderWidth: 1,
+        borderColor: colors.line,
+        borderRadius: radii.row,
+      })}
+    >
+      <View
+        style={{
+          width: 28,
+          height: 28,
+          borderRadius: 8,
+          backgroundColor: colors.accent,
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <Ionicons name="grid" size={14} color={colors.surface} />
+      </View>
+      <AppText size="title" weight="bold" style={{ flex: 1 }}>
+        الكل
       </AppText>
-      <AppText size="caption" color={colors.muted}>
-        {countLabel(count, BOARDS)}
-      </AppText>
-      <View style={{ flex: 1 }} />
-      <Ionicons name={open ? "chevron-down" : "chevron-back"} size={15} color={colors.muted} />
+      <View style={{ borderRadius: radii.chip, backgroundColor: colors.chip, paddingHorizontal: spacing.sm, paddingVertical: 1 }}>
+        <AppText size="caption" weight="medium" color={colors.muted}>
+          {countLabel(boardCount, BOARDS)}
+        </AppText>
+      </View>
+      <Ionicons name="chevron-back" size={16} color={colors.muted} />
     </Pressable>
   );
 }
 
-function FooterAction({ label, onPress }: { label: string; onPress: () => void }) {
+/**
+ * The ⋯ beside «+» (admins only): a small menu dropped under it with
+ * «تصنيف جديد» and — once there are two categories to order — «ترتيب
+ * التصنيفات». Replaces the two links that used to sit under the list.
+ */
+function CategoriesMenu({
+  canReorder,
+  onNew,
+  onReorder,
+}: {
+  canReorder: boolean;
+  onNew: () => void;
+  onReorder: () => void;
+}) {
+  const buttonRef = useRef<View>(null);
+  const [anchor, setAnchor] = useState<{ top: number; left: number } | null>(null);
+
+  function open() {
+    buttonRef.current?.measureInWindow((x, y, _width, height) => setAnchor({ top: y + height + 6, left: x }));
+  }
+  function pick(action: () => void) {
+    setAnchor(null);
+    action();
+  }
+
+  return (
+    <>
+      <Pressable
+        ref={buttonRef}
+        accessibilityRole="button"
+        accessibilityLabel="خيارات التصنيفات"
+        accessibilityState={{ expanded: !!anchor }}
+        onPress={open}
+        style={({ pressed }) => ({
+          width: MIN_TOUCH_TARGET,
+          height: MIN_TOUCH_TARGET,
+          marginStart: spacing.xs,
+          borderRadius: radii.field,
+          borderWidth: 1,
+          borderColor: colors.line,
+          backgroundColor: pressed ? colors.canvas : colors.surface,
+          alignItems: "center",
+          justifyContent: "center",
+        })}
+      >
+        <Ionicons name="ellipsis-horizontal" size={20} color={colors.slate} />
+      </Pressable>
+      <Modal visible={!!anchor} transparent animationType="fade" onRequestClose={() => setAnchor(null)}>
+        <Pressable accessibilityLabel="إغلاق القائمة" style={{ flex: 1 }} onPress={() => setAnchor(null)}>
+          {anchor ? (
+            <View
+              accessibilityRole="menu"
+              style={{
+                position: "absolute",
+                top: anchor.top,
+                // `measureInWindow` is physical; under RTL `end` is the physical left edge.
+                ...(I18nManager.isRTL ? { end: anchor.left } : { start: anchor.left }),
+                width: 224,
+                padding: 6,
+                backgroundColor: colors.surface,
+                borderWidth: 1,
+                borderColor: colors.line,
+                borderRadius: radii.row,
+                shadowColor: colors.ink,
+                shadowOpacity: 0.12,
+                shadowRadius: 24,
+                shadowOffset: { width: 0, height: 8 },
+                elevation: 8,
+              }}
+            >
+              <MenuItem icon="folder-outline" label="تصنيف جديد" onPress={() => pick(onNew)} />
+              {canReorder ? <MenuItem icon="swap-vertical-outline" label="ترتيب التصنيفات" onPress={() => pick(onReorder)} /> : null}
+            </View>
+          ) : null}
+        </Pressable>
+      </Modal>
+    </>
+  );
+}
+
+function MenuItem({
+  icon,
+  label,
+  onPress,
+}: {
+  icon: React.ComponentProps<typeof Ionicons>["name"];
+  label: string;
+  onPress: () => void;
+}) {
   return (
     <Pressable
-      accessibilityRole="button"
+      accessibilityRole="menuitem"
       onPress={onPress}
-      style={{ alignItems: "center", justifyContent: "center", minHeight: MIN_TOUCH_TARGET }}
+      style={({ pressed }) => ({
+        flexDirection: "row",
+        alignItems: "center",
+        gap: spacing.md,
+        minHeight: 48,
+        paddingHorizontal: spacing.md,
+        borderRadius: radii.iconButton,
+        backgroundColor: pressed ? colors.canvas : "transparent",
+      })}
     >
-      <AppText weight="semibold" color={colors.muted}>
-        {label}
-      </AppText>
+      <Ionicons name={icon} size={20} color={colors.ink} />
+      <AppText weight="semibold">{label}</AppText>
     </Pressable>
   );
 }

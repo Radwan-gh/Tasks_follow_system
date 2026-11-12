@@ -19,6 +19,9 @@ import { MIN_TOUCH_TARGET, colors, fonts, fontSizes, radii, spacing } from "@/th
 
 export const BOARD_CATEGORIES_KEY = ["board-categories"] as const;
 
+/** The `/category/:id` id «بلا تصنيف» opens with — every board with no category. */
+export const NO_CATEGORY = "none";
+
 export function useBoardCategories() {
   return useQuery({ queryKey: BOARD_CATEGORIES_KEY, queryFn: () => api.boardCategories.list() });
 }
@@ -54,9 +57,13 @@ export function useMoveBoardCategory() {
   };
 }
 
-/** Each category keeps one dot colour everywhere — the design's «● الجامع». */
+/**
+ * Each category keeps one colour everywhere — the design's «● الجامع» dot and
+ * the tile on its boards-list heading. The palette's solid fill (`fg` is the
+ * white initials colour, which vanishes on a white sheet).
+ */
 export function categoryColor(categoryId: string): string {
-  return avatarColorFor(categoryId).fg;
+  return avatarColorFor(categoryId).bg;
 }
 
 function categoryError(err: unknown): string {
