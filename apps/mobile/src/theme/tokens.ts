@@ -160,12 +160,13 @@ export const fonts = {
 } as const;
 
 /**
- * Every text size in the app is multiplied by this: the user found the text
- * too small (2026-11-07), so all of it is set one step larger. Sizes in components
- * are written at the old scale and pass through `fs()` — `AppText`, `TText`
- * and `fontSizes` do it for you; a raw `fontSize` on a `TextInput` must call `fs()`.
+ * Every text size in the app is multiplied by this. It was 1.125 for Noto
+ * Naskh (2026-11-07); back on IBM Plex the user found that too big
+ * (2026-11-12), so text is at the design's own sizes again. Sizes in components
+ * pass through `fs()` — `AppText`, `TText` and `fontSizes` do it for you; a raw
+ * `fontSize` on a `TextInput` must call `fs()`.
  */
-export const FONT_SCALE = 1.125;
+export const FONT_SCALE = 1;
 
 /** A design size at the app's text scale (`FONT_SCALE`). */
 export const fs = (size: number): number => Math.round(size * FONT_SCALE);

@@ -2,7 +2,7 @@ import { Tabs } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@/features/auth/auth-context";
-import { colors, fonts, fontSizes, fs } from "@/theme/tokens";
+import { colors, fonts, fs } from "@/theme/tokens";
 
 /** Icon + label + breathing room, *before* the device's bottom inset. */
 const TAB_BAR_CONTENT_HEIGHT = 62;
@@ -40,10 +40,11 @@ export default function TabsLayout() {
         },
         tabBarLabelStyle: {
           fontFamily: fonts.medium,
-          fontSize: fontSizes.caption,
+          // Smaller than `fontSizes.caption` by the user's request (2026-11-12).
+          fontSize: fs(11),
           // Arabic clips its ascenders/descenders at RN's default line
           // height — the same reason `components/text.tsx` sets one.
-          lineHeight: fs(18),
+          lineHeight: fs(16),
         },
         sceneStyle: { backgroundColor: colors.canvas },
       }}
