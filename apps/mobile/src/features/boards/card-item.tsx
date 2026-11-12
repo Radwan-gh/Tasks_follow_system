@@ -26,6 +26,8 @@ export function CardItem({
   onOpen,
   highlightQuery,
   searchNote,
+  boardName,
+  fullNames = false,
   lifted = false,
 }: {
   card: BoardCard;
@@ -45,6 +47,10 @@ export function CardItem({
    * `highlightQuery` marked in it.
    */
   searchNote?: string;
+  /** «الكل» shows tasks from every board: which board this one is on, under its title. */
+  boardName?: string;
+  /** People as full-name pills in the meta row instead of overlapping initials — the merged boards («الكل», a category). */
+  fullNames?: boolean;
   /** Drawn as the copy that follows the finger mid-drag (design §5c). */
   lifted?: boolean;
 }) {
@@ -124,6 +130,15 @@ export function CardItem({
         {hasMeta ? null : moveArrow}
       </View>
 
+      {boardName ? (
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 5, marginTop: -4 }}>
+          <Ionicons name="grid-outline" size={12} color={colors.faint} />
+          <AppText size="caption" color={colors.muted} numberOfLines={1} style={{ flexShrink: 1 }}>
+            {boardName}
+          </AppText>
+        </View>
+      ) : null}
+
       {searchNote ? (
         <AppText size="small" color={colors.muted} numberOfLines={2}>
           <HighlightedText text={searchNote} query={highlightQuery} size="small" />
@@ -163,10 +178,11 @@ export function CardItem({
                 accessibilityLabel={`أُنجزت ${card.subtaskDone} من ${card.subtaskTotal} مهام فرعية`}
               />
             ) : null}
+            {fullNames ? assignees.map((person) => <PersonPill key={person.id} person={person} />) : null}
           </View>
 
           <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
-            <Avatars assignees={assignees} />
+            {fullNames ? null : <Avatars assignees={assignees} />}
             {moveArrow}
           </View>
         </View>
@@ -219,6 +235,43 @@ function Chip({ label, background, color, emphasis = false }: { label: string; b
     >
       <AppText size="caption" weight={emphasis ? "medium" : "regular"} color={color}>
         {label}
+      </AppText>
+    </View>
+  );
+}
+
+/** One assignee by full name, led by their initials on their own swatch. */
+function PersonPill({ person }: { person: AvatarPerson }) {
+  const palette = avatarColorFor(person.id);
+  return (
+    <View
+      style={{
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 5,
+        height: 26,
+        paddingStart: 3,
+        paddingEnd: spacing.sm,
+        borderRadius: radii.chip,
+        backgroundColor: colors.canvas,
+      }}
+    >
+      <View
+        style={{
+          width: 20,
+          height: 20,
+          borderRadius: 999,
+          backgroundColor: palette.bg,
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <AppText weight="bold" color={palette.fg} style={{ fontSize: 9, lineHeight: 12 }}>
+          {initials(person)}
+        </AppText>
+      </View>
+      <AppText size="caption" color={colors.inkSoft} numberOfLines={1}>
+        {person.displayName}
       </AppText>
     </View>
   );
