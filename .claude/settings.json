@@ -1,0 +1,18 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "shell": "bash",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/require-claude-account.js\"",
+            "timeout": 30,
+            "onFailure": "block",
+            "statusMessage": "Checking Claude account..."
+          }
+        ]
+      }
+    ]
+  }
+}
