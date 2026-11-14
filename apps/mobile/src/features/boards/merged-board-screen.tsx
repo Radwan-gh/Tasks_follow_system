@@ -1,5 +1,5 @@
-import { useRef, useState } from "react";
-import { Pressable, RefreshControl, ScrollView, View, useWindowDimensions } from "react-native";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { I18nManager, Pressable, RefreshControl, ScrollView, View, useWindowDimensions } from "react-native";
 import { useRouter } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -15,6 +15,7 @@ import { api } from "@/lib/api";
 import { mergeBoardColumns, type MergedCard } from "@/lib/all-boards";
 import { boardDetailKey, recentClosedSince, useOpenCard } from "@/lib/board-cache";
 import { BOARDS, TASKS, countLabel } from "@/lib/plural";
+import { indexFromOffset, resolveColumnOffsets, snapOffsetsFor } from "@/lib/status-pager";
 import { GUTTER, MIN_TOUCH_TARGET, colors, radii, spacing, statusColors } from "@/theme/tokens";
 
 /**
@@ -89,10 +90,55 @@ export function MergedBoardScreen({
     for (const q of details) void q.refetch();
   }
 
-  function goTo(index: number) {
-    setActiveIndex(index);
-    pagerRef.current?.scrollTo({ x: index * width, animated: true });
+  // The status pager, right-to-left — the board screen's pager comment
+  // (`app/board/[id].tsx`) has the full story. In RTL `contentOffset.x` stays
+  // a raw left-to-right measurement, so `index * width` reads the columns
+  // backwards: tapping «جديد» showed «انتهى» and a swipe lit up the wrong
+  // chip. Each page measures its own `x` instead (on a plain `View` — the
+  // column `ScrollView`'s refresh wrapper reports `x = 0` on Android), and
+  // those offsets drive the chip jumps, the snap points and the active chip.
+  const measuredOffsets = useRef<number[]>([]);
+  const [columnOffsets, setColumnOffsets] = useState<number[]>([]);
+  const snapOffsets = useMemo(() => snapOffsetsFor(columnOffsets), [columnOffsets]);
+  const columnCount = columns.length;
+
+  function handleColumnLayout(index: number, x: number) {
+    if (measuredOffsets.current[index] === x) return;
+    measuredOffsets.current[index] = x;
+    const resolved = resolveColumnOffsets(measuredOffsets.current, columnCount, width, I18nManager.isRTL);
+    if (resolved) setColumnOffsets(resolved);
   }
+
+  // «مراجعة»/«أخرى» come and go with their cards, which shifts every later
+  // page; re-resolve against the new count so no stale offset is used.
+  useEffect(() => {
+    measuredOffsets.current.length = columnCount;
+    const resolved = resolveColumnOffsets(measuredOffsets.current, columnCount, width, I18nManager.isRTL);
+    if (resolved) setColumnOffsets(resolved);
+    setActiveIndex((i) => Math.min(i, Math.max(0, columnCount - 1)));
+  }, [columnCount, width]);
+
+  function goTo(index: number, animated = true) {
+    const offset = columnOffsets[index];
+    if (offset != null) pagerRef.current?.scrollTo({ x: offset, animated });
+  }
+
+  // Open on «جديد», set explicitly once the offsets are known.
+  const didInitialScroll = useRef(false);
+  useEffect(() => {
+    if (didInitialScroll.current || columnOffsets.length === 0) return;
+    didInitialScroll.current = true;
+    goTo(0, false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, on the first resolved offsets
+  }, [columnOffsets]);
+
+  // Keep the active chip in view as the pager moves.
+  const chipCenters = useRef<number[]>([]);
+  useEffect(() => {
+    const center = chipCenters.current[activeIndex];
+    if (center == null) return;
+    chipsRef.current?.scrollTo({ x: Math.max(0, center - width / 2), animated: true });
+  }, [activeIndex, width]);
 
   return (
     <Screen edges={{ top: true, bottom: true }}>
@@ -158,6 +204,10 @@ export function MergedBoardScreen({
                   accessibilityRole="tab"
                   accessibilityState={{ selected: active }}
                   onPress={() => goTo(index)}
+                  onLayout={(e) => {
+                    const { x, width: chipWidth } = e.nativeEvent.layout;
+                    chipCenters.current[index] = x + chipWidth / 2;
+                  }}
                   style={{
                     borderRadius: 999,
                     minHeight: MIN_TOUCH_TARGET,
@@ -179,63 +229,66 @@ export function MergedBoardScreen({
           <ScrollView
             ref={pagerRef}
             horizontal
-            pagingEnabled
             style={{ flex: 1 }}
             showsHorizontalScrollIndicator={false}
-            onMomentumScrollEnd={(e) => setActiveIndex(Math.round(e.nativeEvent.contentOffset.x / width))}
+            snapToOffsets={snapOffsets.length > 0 ? snapOffsets : undefined}
+            decelerationRate="fast"
+            scrollEventThrottle={16}
+            onScroll={(e) => setActiveIndex(indexFromOffset(columnOffsets, e.nativeEvent.contentOffset.x, activeIndex))}
           >
-            {columns.map((column) => (
-              <ScrollView
-                key={column.key}
-                style={{ width }}
-                contentContainerStyle={{ paddingHorizontal: GUTTER, paddingBottom: spacing.xxl, gap: spacing.md }}
-                nestedScrollEnabled
-                refreshControl={<RefreshControl refreshing={false} onRefresh={refresh} />}
-              >
-                <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingHorizontal: spacing.xs }}>
-                  <View
-                    style={{
-                      width: 8,
-                      height: 8,
-                      borderRadius: 999,
-                      backgroundColor: statusColors[column.key === "OTHER" ? "UNCATEGORIZED" : column.key],
-                    }}
-                  />
-                  <AppText weight="bold" size="small">
-                    {column.name}
-                  </AppText>
-                  <AppText size="caption" color={colors.muted}>
-                    {column.cards.length}
-                  </AppText>
-                </View>
-                {column.key === "CLOSED" ? (
-                  <View style={{ backgroundColor: colors.canvas, borderRadius: radii.field, padding: spacing.md }}>
-                    <AppText size="caption" color={colors.muted} style={{ textAlign: "center" }}>
-                      تُعرض المهام التي انتهت خلال آخر 30 يومًا
+            {columns.map((column, index) => (
+              <View key={column.key} style={{ width }} onLayout={(e) => handleColumnLayout(index, e.nativeEvent.layout.x)}>
+                <ScrollView
+                  style={{ flex: 1 }}
+                  contentContainerStyle={{ paddingHorizontal: GUTTER, paddingBottom: spacing.xxl, gap: spacing.md }}
+                  nestedScrollEnabled
+                  refreshControl={<RefreshControl refreshing={false} onRefresh={refresh} />}
+                >
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingHorizontal: spacing.xs }}>
+                    <View
+                      style={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: 999,
+                        backgroundColor: statusColors[column.key === "OTHER" ? "UNCATEGORIZED" : column.key],
+                      }}
+                    />
+                    <AppText weight="bold" size="small">
+                      {column.name}
+                    </AppText>
+                    <AppText size="caption" color={colors.muted}>
+                      {column.cards.length}
                     </AppText>
                   </View>
-                ) : null}
-                {column.cards.length === 0 ? (
-                  <AppText size="small" color={colors.muted} style={{ paddingHorizontal: spacing.xs }}>
-                    لا مهام في هذه الحالة
-                  </AppText>
-                ) : (
-                  <View style={{ gap: spacing.sm }}>
-                    {sortMerged(column.cards).map((item) => (
-                      <CardItem
-                        key={item.card.id}
-                        card={item.card}
-                        boardName={item.boardName}
-                        fullNames
-                        assignees={assigneesOf(item)}
-                        hasNext={item.canMoveNext && !(moveNext.isPending && moveNext.variables?.card.id === item.card.id)}
-                        onMoveNext={() => moveNext.mutate(item)}
-                        onOpen={() => openCard(item.card.id, item.boardId)}
-                      />
-                    ))}
-                  </View>
-                )}
-              </ScrollView>
+                  {column.key === "CLOSED" ? (
+                    <View style={{ backgroundColor: colors.canvas, borderRadius: radii.field, padding: spacing.md }}>
+                      <AppText size="caption" color={colors.muted} style={{ textAlign: "center" }}>
+                        تُعرض المهام التي انتهت خلال آخر 30 يومًا
+                      </AppText>
+                    </View>
+                  ) : null}
+                  {column.cards.length === 0 ? (
+                    <AppText size="small" color={colors.muted} style={{ paddingHorizontal: spacing.xs }}>
+                      لا مهام في هذه الحالة
+                    </AppText>
+                  ) : (
+                    <View style={{ gap: spacing.sm }}>
+                      {sortMerged(column.cards).map((item) => (
+                        <CardItem
+                          key={item.card.id}
+                          card={item.card}
+                          boardName={item.boardName}
+                          fullNames
+                          assignees={assigneesOf(item)}
+                          hasNext={item.canMoveNext && !(moveNext.isPending && moveNext.variables?.card.id === item.card.id)}
+                          onMoveNext={() => moveNext.mutate(item)}
+                          onOpen={() => openCard(item.card.id, item.boardId)}
+                        />
+                      ))}
+                    </View>
+                  )}
+                </ScrollView>
+              </View>
             ))}
           </ScrollView>
         </>
