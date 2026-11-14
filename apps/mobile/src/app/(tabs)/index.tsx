@@ -14,7 +14,6 @@ import {
   CategoryActionsSheet,
   CategoryNameSheet,
   CategoryOrderSheet,
-  NO_CATEGORY,
   categoryColor,
   useBoardCategories,
 } from "@/features/boards/board-categories";
@@ -234,9 +233,7 @@ export default function BoardsScreen() {
                       <SectionHeader
                         title={category?.name ?? "بلا تصنيف"}
                         color={category ? categoryColor(category.id) : null}
-                        count={section.boards.length}
                         open={open}
-                        onOpen={() => router.push(`/category/${category?.id ?? NO_CATEGORY}`)}
                         onToggle={() => toggle(key)}
                         onLongPress={
                           manageable ? () => setActionsFor({ ...category, boardCount: section.boards.length }) : undefined
@@ -343,96 +340,78 @@ export default function BoardsScreen() {
 /**
  * A category's heading on the boards list — a boxed row with the category's
  * colour tile, so it reads as the root its boards branch from (`BoardRow`
- * draws the trunk under the tile). Tapping the name opens the category's task
- * list (`/category/:id`); the arrow button at the end folds the section.
- * Long-press on the name (admins only) opens rename/reorder/delete.
+ * draws the trunk under the tile). Tapping anywhere on it folds or unfolds the
+ * section; it does not open a page, and shows no board count (the user's
+ * decision, 2026-11-12). Long-press (admins only) opens rename/reorder/delete.
  */
 function SectionHeader({
   title,
   color,
-  count,
   open,
-  onOpen,
   onToggle,
   onLongPress,
 }: {
   title: string;
   /** The category's colour; null for «بلا تصنيف», which gets a neutral tile. */
   color: string | null;
-  count: number;
   open: boolean;
-  onOpen: () => void;
   onToggle: () => void;
   onLongPress?: () => void;
 }) {
   return (
-    <View
-      style={{
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ expanded: open }}
+      accessibilityLabel={title}
+      accessibilityHint={
+        onLongPress
+          ? `اضغط ${open ? "لطيّ" : "لفتح"} التصنيف، واضغط مطوّلًا لإعادة التسمية أو الترتيب أو الحذف`
+          : `اضغط ${open ? "لطيّ" : "لفتح"} التصنيف`
+      }
+      onPress={onToggle}
+      onLongPress={onLongPress}
+      style={({ pressed }) => ({
         flexDirection: "row",
         alignItems: "center",
+        gap: spacing.md,
         minHeight: MIN_TOUCH_TARGET + 8,
+        paddingStart: spacing.md,
         paddingEnd: spacing.xs,
-        backgroundColor: colors.surface,
+        backgroundColor: pressed ? colors.toolbar : colors.surface,
         borderWidth: 1,
         borderColor: colors.line,
         borderRadius: radii.row,
         overflow: "hidden",
-      }}
+      })}
     >
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`${title}، ${countLabel(count, BOARDS)}`}
-        accessibilityHint={onLongPress ? "اضغط لعرض مهام التصنيف، واضغط مطوّلًا لإعادة التسمية أو الترتيب أو الحذف" : "اضغط لعرض مهام التصنيف"}
-        onPress={onOpen}
-        onLongPress={onLongPress}
-        style={({ pressed }) => ({
-          flex: 1,
-          flexDirection: "row",
+      <View
+        style={{
+          width: 28,
+          height: 28,
+          borderRadius: 8,
+          backgroundColor: color ?? colors.slateSoft,
           alignItems: "center",
-          gap: spacing.md,
-          alignSelf: "stretch",
-          paddingHorizontal: spacing.md,
-          backgroundColor: pressed ? colors.toolbar : "transparent",
-        })}
+          justifyContent: "center",
+        }}
       >
-        <View
-          style={{
-            width: 28,
-            height: 28,
-            borderRadius: 8,
-            backgroundColor: color ?? colors.slateSoft,
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          <Ionicons name={open ? "folder-open" : "folder"} size={15} color={color ? colors.surface : colors.muted} />
-        </View>
-        <AppText size="title" weight="bold" numberOfLines={1} style={{ flex: 1 }}>
-          {title}
-        </AppText>
-        <View style={{ borderRadius: radii.chip, backgroundColor: colors.chip, paddingHorizontal: spacing.sm, paddingVertical: 1 }}>
-          <AppText size="caption" weight="medium" color={colors.muted}>
-            {countLabel(count, BOARDS)}
-          </AppText>
-        </View>
-      </Pressable>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityState={{ expanded: open }}
-        accessibilityLabel={open ? `طيّ «${title}»` : `فتح «${title}»`}
-        onPress={onToggle}
-        style={({ pressed }) => ({
+        <Ionicons name={open ? "folder-open" : "folder"} size={15} color={color ? colors.surface : colors.muted} />
+      </View>
+      <AppText size="title" weight="bold" numberOfLines={1} style={{ flex: 1 }}>
+        {title}
+      </AppText>
+      <View
+        style={{
           width: MIN_TOUCH_TARGET,
           height: MIN_TOUCH_TARGET,
           borderRadius: radii.iconButton,
-          backgroundColor: pressed ? colors.slateSoft : colors.chip,
+          backgroundColor: colors.chip,
           alignItems: "center",
           justifyContent: "center",
-        })}
+        }}
       >
         <Ionicons name={open ? "chevron-up" : "chevron-down"} size={16} color={colors.slate} />
-      </Pressable>
-    </View>
+      </View>
+    </Pressable>
   );
 }
 
